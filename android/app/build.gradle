@@ -77,6 +77,16 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
+    // Keep Ninja object paths short on Windows, even in deeply nested checkouts.
+    if (System.getProperty("os.name").startsWith("Windows")) {
+        externalNativeBuild {
+            cmake {
+                def cacheId = Integer.toHexString(rootDir.absolutePath.hashCode())
+                buildStagingDirectory new File(gradle.gradleUserHomeDir, "cxx/supplyed-${cacheId}")
+            }
+        }
+    }
+
     namespace "com.supplyed"
     defaultConfig {
         applicationId "com.supplyed"
@@ -84,6 +94,15 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            externalNativeBuild {
+                cmake {
+                    // Windows short names can hide the ++ in clang++.exe.
+                    arguments "-DCMAKE_OBJECT_PATH_MAX=240",
+                              "-DCMAKE_CXX_FLAGS=--driver-mode=g++"
+                }
+            }
+        }
     }
     signingConfigs {
         debug {
