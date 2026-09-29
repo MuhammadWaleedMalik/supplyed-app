@@ -35,16 +35,18 @@ export default function AuthContent({
           onPress={onSwitch}
         />
         <View style={[styles.card, wide && styles.wideCard]}>
-          <SocialProviders />
-          <View style={styles.divider}>
-            <View style={styles.line} />
-            <Text style={styles.dividerText}>EMAIL</Text>
-            <View style={styles.line} />
-          </View>
           {register ? (
             <RegisterForm wide={wide} actions={actions} />
           ) : (
-            <LoginForm actions={actions} />
+            <>
+              <SocialProviders />
+              <View style={styles.divider}>
+                <View style={styles.line} />
+                <Text style={styles.dividerText}>EMAIL</Text>
+                <View style={styles.line} />
+              </View>
+              <LoginForm actions={actions} />
+            </>
           )}
         </View>
       </View>

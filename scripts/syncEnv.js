@@ -8,7 +8,7 @@ for (const line of lines) {
   if (name && value) values[name] = value;
 }
 
-const android = values.API_BASE_URL_ANDROID || 'http://10.0.2.2:3003/api';
+const android = values.API_BASE_URL_ANDROID || 'http://localhost:3003/api';
 const ios = values.API_BASE_URL_IOS || 'http://localhost:3003/api';
 const content =
   `export const ANDROID_API_URL = ${JSON.stringify(android)};\n` +

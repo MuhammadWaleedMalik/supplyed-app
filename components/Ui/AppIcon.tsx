@@ -21,6 +21,7 @@ export type AppIconName =
   | 'jobs'
   | 'applications'
   | 'dashboard'
+  | 'bookings'
   | 'messages'
   | 'teachers'
   | 'profile'
@@ -37,6 +38,7 @@ const icons = {
   jobs: Briefcase,
   applications: ClipboardList,
   dashboard: LayoutDashboard,
+  bookings: CalendarCheck,
   messages: MessageCircle,
   teachers: Users,
   profile: UserCircle,

@@ -11,13 +11,15 @@ type Props = {
 };
 
 export default function CodeInputs({ digits, onChange }: Props) {
+  // Native input refs keep automatic OTP focus and backspace movement working.
   const refs = useRef<Array<CodeInputRef | null>>([]);
 
   function changeCode(index: number, value: string) {
     const numbers = value.replace(/\D/g, '');
     onChange(index, numbers);
     if (numbers.length === 1 && index < 5) refs.current[index + 1]?.focus();
-    if (numbers.length > 1) refs.current[Math.min(index + numbers.length, 5)]?.focus();
+    if (numbers.length > 1)
+      refs.current[Math.min(index + numbers.length, 5)]?.focus();
   }
 
   function pressKey(index: number, key: string) {
@@ -31,7 +33,9 @@ export default function CodeInputs({ digits, onChange }: Props) {
       {positions.map(index => (
         <TextInput
           key={index}
-          ref={input => { refs.current[index] = input; }}
+          ref={input => {
+            refs.current[index] = input;
+          }}
           accessibilityLabel={'Code digit ' + (index + 1)}
           keyboardType="number-pad"
           maxLength={6}

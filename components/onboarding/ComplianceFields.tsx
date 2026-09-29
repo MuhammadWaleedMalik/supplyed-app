@@ -4,6 +4,7 @@ import Checkbox from '../Ui/Checkbox';
 import Input from '../Ui/Input';
 import { colors, common } from '../Ui/theme';
 import { OnboardingData } from '../../utils/onboarding/onboardingData';
+import { requiredError } from '../../utils/onboarding/onboardingUtils';
 
 type Props = {
   data: OnboardingData;
@@ -18,6 +19,8 @@ export default function ComplianceFields({
   attempted,
   update,
 }: Props) {
+  const isMatSchool = data.institutionType === 'MAT school';
+
   return (
     <View style={styles.fields}>
       <View style={[styles.row, wide && styles.wide]}>
@@ -39,6 +42,43 @@ export default function ComplianceFields({
           onChangeText={value => update('complianceEmail', value)}
         />
       </View>
+
+      {isMatSchool ? (
+        <View style={styles.notice}>
+          <Text style={styles.title}>MAT signatory</Text>
+          <Text style={common.body}>
+            This person will receive the trust approval email when you create
+            the profile.
+          </Text>
+          <View style={[styles.row, wide && styles.wide]}>
+            <Input
+              label="SIGNATORY NAME"
+              placeholder="Jane Smith"
+              value={data.signatoryName}
+              half={wide}
+              onChangeText={value => update('signatoryName', value)}
+              error={requiredError(data.signatoryName, attempted)}
+            />
+            <Input
+              label="SIGNATORY EMAIL"
+              placeholder="jane.smith@trust.org.uk"
+              value={data.signatoryEmail}
+              email
+              half={wide}
+              onChangeText={value => update('signatoryEmail', value)}
+              error={requiredError(data.signatoryEmail, attempted)}
+            />
+          </View>
+          <Input
+            label="SIGNATORY JOB TITLE"
+            placeholder="Chief Financial Officer"
+            value={data.signatoryJobTitle}
+            onChangeText={value => update('signatoryJobTitle', value)}
+            error={requiredError(data.signatoryJobTitle, attempted)}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.notice}>
         <Text style={styles.title}>Safeguarding responsibility</Text>
         <Text style={common.body}>
@@ -65,7 +105,7 @@ const styles = StyleSheet.create({
   notice: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: 8,
     backgroundColor: colors.soft,
     padding: 16,
     gap: 10,

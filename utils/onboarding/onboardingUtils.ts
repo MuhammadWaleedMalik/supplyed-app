@@ -1,24 +1,34 @@
 import { AccountType, OnboardingData } from './onboardingData';
 
 export function canContinue(
-  type: AccountType | null,
+  type: AccountType,
   step: number,
   data: OnboardingData,
 ) {
-  if (!type || !data.fullName.trim()) {
+  if (!data.fullName.trim()) {
     return false;
   }
   if (type === 'school' && step === 2) {
+    const trustReady =
+      data.institutionType === 'Single school' || data.trustName.trim();
     return Boolean(
       data.schoolName.trim() &&
         data.domain.trim() &&
         data.address.trim() &&
         data.country.trim() &&
-        data.city.trim(),
+        data.city.trim() &&
+        trustReady,
     );
   }
   if (type === 'school' && step === 3) {
-    return data.confirmed;
+    const signatoryReady =
+      data.institutionType === 'Single school' ||
+      Boolean(
+        data.signatoryName.trim() &&
+          data.signatoryEmail.trim() &&
+          data.signatoryJobTitle.trim(),
+      );
+    return data.confirmed && signatoryReady;
   }
   return true;
 }
@@ -27,15 +37,13 @@ export function requiredError(value: string, attempted: boolean) {
   return attempted && !value.trim() ? 'This field is required.' : undefined;
 }
 
-export function getStepTitle(type: AccountType | null, step: number) {
+export function getStepTitle(type: AccountType, step: number) {
   if (type === 'school') {
     if (step === 2) return 'Add school details';
-    if (step === 3) return 'Complete compliance';
+    if (step === 3) return 'Complete compliance and signatory';
     if (step === 4) return 'Full review';
-    return 'Choose account type';
+    return 'Add account owner details';
   }
   if (step === 2) return 'Full review';
-  if (type === 'teacher') return 'Complete your teacher profile';
-  if (type === 'individual') return 'Complete profile basics';
-  return 'Choose account type';
+  return 'Complete your teacher profile';
 }

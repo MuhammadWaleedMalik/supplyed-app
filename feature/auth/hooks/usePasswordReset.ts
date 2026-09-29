@@ -38,6 +38,18 @@ export function usePasswordReset() {
     setLoading(false);
   }
 
+  function changeCode(index: number, value: string) {
+    const numbers = value.replace(/\D/g, '').slice(0, 6);
+    setCode(current => {
+      const digits = current.padEnd(6, ' ').split('');
+      for (let offset = 0; offset < numbers.length; offset++) {
+        if (index + offset < 6) digits[index + offset] = numbers[offset];
+      }
+      if (!numbers) digits[index] = ' ';
+      return digits.join('').replace(/ /g, '');
+    });
+  }
+
   async function submit() {
     if (
       !/^\d{6}$/.test(code) ||
@@ -70,6 +82,8 @@ export function usePasswordReset() {
     setEmail,
     token,
     code,
+    digits: code.padEnd(6, ' ').split('').map(item => item === ' ' ? '' : item),
+    changeCode,
     setCode,
     password,
     setPassword,

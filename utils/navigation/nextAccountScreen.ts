@@ -1,6 +1,9 @@
-﻿import { ApiError } from '../api/request';
+import { ApiError } from '../api/request';
 import { AccountType } from '../onboarding/onboardingData';
-import { getProfile } from '../../feature/onboarding/apis/profileApi';
+import {
+  getProfile,
+  getSignatoryApproval,
+} from '../../feature/onboarding/apis/profileApi';
 import {
   getDocuments,
   getRequirements,
@@ -18,9 +21,17 @@ export async function nextAccountScreen(type: AccountType) {
   }
   if (!profile?.id) return 'onboarding';
 
-  const requirements = await getRequirements(type);
+  const requirements = await getRequirements();
   const documents = await getDocuments();
-  if (!requiredDocumentsReady(requirements, documents))
-    return 'documents';
+  const documentsReady = requiredDocumentsReady(requirements, documents);
+  let trustReady = true;
+
+  if (type === 'school' && profile.institutionType === 'MAT_SCHOOL') {
+    const approval = await getSignatoryApproval();
+    trustReady = approval?.status === 'APPROVED';
+  }
+
+  if (!documentsReady) return 'documents';
+  if (profile.status !== 'ACTIVE' || !trustReady) return 'reviewStatus';
   return 'dashboard';
 }

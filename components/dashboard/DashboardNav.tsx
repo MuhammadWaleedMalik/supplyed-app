@@ -1,13 +1,14 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { DashboardTab, dashboardTabs } from '../../constants/dashboardData';
+import { dashboardTabs } from '../../constants/dashboardData';
+import type { DashboardPage } from '../../feature/dashboard/shared/store/navigationSlice';
 import AppIcon from '../Ui/AppIcon';
 import { colors } from '../Ui/theme';
 import { styles } from './dashboardStyles';
 
 type Props = {
-  selected: DashboardTab;
-  onSelect: (tab: DashboardTab) => void;
+  selected: DashboardPage;
+  onSelect: (page: DashboardPage) => void;
 };
 
 export default function DashboardNav({ selected, onSelect }: Props) {
@@ -15,6 +16,7 @@ export default function DashboardNav({ selected, onSelect }: Props) {
     <View style={styles.nav}>
       {dashboardTabs.map(tab => {
         const active = selected === tab.label;
+
         return (
           <Pressable
             key={tab.label}

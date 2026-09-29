@@ -1,6 +1,8 @@
-﻿import { endpoints } from '../../../constants/endpoints';
+import { endpoints } from '../../../constants/endpoints';
 import { apiRequest, protectedRequest } from '../../../utils/api/request';
 import { saveTokens } from '../../../utils/api/session';
+import { AccountType } from '../../../utils/onboarding/onboardingData';
+import { backendRole } from '../../../utils/auth/authUtils';
 
 export type User = {
   id: string;
@@ -29,10 +31,15 @@ export type AuthReply = {
   twoFactorToken?: string;
 };
 
-export function registerAccount(email: string, password: string) {
+export function registerAccount(
+  email: string,
+  password: string,
+  type: AccountType,
+) {
   return apiRequest<AuthReply>(endpoints.register, 'POST', {
     email: email.trim().toLowerCase(),
     password,
+    role: backendRole(type),
   });
 }
 
@@ -97,12 +104,14 @@ export function getCurrentUser() {
   return protectedRequest<User>(endpoints.currentUser);
 }
 
-export async function exchangeGoogleToken(credential: string) {
-  const reply = await apiRequest<AuthReply>(endpoints.googleExchange, 'POST', {
-    credential,
-  });
+export async function exchangeGoogleToken(
+  credential: string,
+  type?: AccountType,
+) {
+  const body = type
+    ? { credential, role: backendRole(type) }
+    : { credential };
+  const reply = await apiRequest<AuthReply>(endpoints.googleExchange, 'POST', body);
   saveTokens(reply);
   return reply;
 }
-
-

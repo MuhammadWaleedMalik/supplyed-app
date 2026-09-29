@@ -12,7 +12,7 @@ import {
 import { requiredError } from '../../utils/onboarding/onboardingUtils';
 
 type Props = {
-  type: AccountType | null;
+  type: AccountType;
   data: OnboardingData;
   wide: boolean;
   attempted: boolean;
@@ -49,7 +49,7 @@ export default function AccountFields({
           <Text style={styles.hint}>Required for full verification later.</Text>
         </View>
       </View>
-      {type !== 'school' && (
+      {type === 'teacher' && (
         <View style={[styles.row, wide && styles.wide]}>
           <View style={[styles.field, wide && styles.half]}>
             <Select

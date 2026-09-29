@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { registerAccount, resendEmailCode } from '../apis/authApi';
 import { ApiError } from '../../../utils/api/request';
+import { AccountType } from '../../../utils/onboarding/onboardingData';
 import {
   canRegister,
   getPasswordChecks,
@@ -11,12 +12,14 @@ import {
 export function useRegister(
   onVerification: (email: string, token: string) => void,
 ) {
+  const [type, setType] = useState<AccountType | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmationTouched, setConfirmationTouched] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -31,9 +34,14 @@ export function useRegister(
       : undefined;
 
   async function submit() {
+    setSubmitted(true);
     setEmailTouched(true);
     setPasswordTouched(true);
     setConfirmationTouched(true);
+    if (!type) {
+      setError('Choose whether you are a teacher or a school.');
+      return;
+    }
     if (!canRegister(email, password, confirmation)) return;
     if (!agreed) {
       setError('Agree to the terms before creating an account.');
@@ -42,7 +50,7 @@ export function useRegister(
     setLoading(true);
     setError('');
     try {
-      const reply = await registerAccount(email, password);
+      const reply = await registerAccount(email, password, type);
       if (!reply.otpToken)
         throw new Error('No verification code was returned.');
       onVerification(email.trim().toLowerCase(), reply.otpToken);
@@ -70,6 +78,8 @@ export function useRegister(
   }
 
   return {
+    type,
+    setType,
     email,
     setEmail,
     password,
@@ -82,6 +92,7 @@ export function useRegister(
     setPasswordTouched,
     confirmationTouched,
     setConfirmationTouched,
+    submitted,
     emailError,
     confirmationError,
     checks,

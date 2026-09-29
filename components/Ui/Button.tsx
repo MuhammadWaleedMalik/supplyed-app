@@ -34,6 +34,7 @@ export default function Button({
     >
       {icon}
       <Text
+        numberOfLines={2}
         style={[
           styles.label,
           (variant === 'text' || variant === 'social') && styles.darkLabel,
@@ -48,34 +49,60 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 14,
+    minHeight: 46,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  primary: { backgroundColor: colors.blue },
-  outline: { borderWidth: 1, borderColor: '#555b60' },
-  text: { paddingHorizontal: 8, backgroundColor: 'transparent' },
-  link: { paddingHorizontal: 4, backgroundColor: 'transparent' },
+  primary: {
+    backgroundColor: colors.blue,
+  },
+  outline: {
+    borderWidth: 1,
+    borderColor: '#7b8794',
+    backgroundColor: 'transparent',
+  },
+  text: {
+    paddingHorizontal: 8,
+    backgroundColor: 'transparent',
+  },
+  link: {
+    minHeight: 40,
+    paddingHorizontal: 4,
+    backgroundColor: 'transparent',
+  },
   social: {
+    width: '100%',
     borderWidth: 1,
     borderColor: colors.border,
-    width: '100%',
-    paddingHorizontal: 10,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 12,
   },
-  compact: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 8 },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.5 },
+  compact: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  disabled: {
+    opacity: 0.48,
+  },
   label: {
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     textAlign: 'center',
   },
-  darkLabel: { color: colors.ink },
-  linkLabel: { color: colors.blue },
+  darkLabel: {
+    color: colors.ink,
+  },
+  linkLabel: {
+    color: '#006b93',
+  },
 });

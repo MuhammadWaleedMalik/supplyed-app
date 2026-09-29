@@ -7,6 +7,8 @@ type Props = {
   visible: boolean;
   loading: boolean;
   error: string;
+  createTitle?: string;
+  matSchool?: boolean;
   onReview: () => void;
   onCreate: () => void;
 };
@@ -15,6 +17,8 @@ export default function ProfileConfirmation({
   visible,
   loading,
   error,
+  createTitle = 'Create profile',
+  matSchool,
   onReview,
   onCreate,
 }: Props) {
@@ -35,9 +39,12 @@ export default function ProfileConfirmation({
               <Text style={styles.title}>Create this profile?</Text>
               <Text style={styles.description}>
                 Your account will use this profile type. You can edit its
-                details later in Settings. Schools and instructors submit their
-                profile for review; hirer profiles are active on creation.
-                Posting and applying require full verification.
+                details later in Settings. School and teacher profiles are
+                submitted for review. Posting and applying require full
+                verification.
+                {matSchool
+                  ? ' The trust signatory email is sent with this profile.'
+                  : ''}
               </Text>
             </View>
           </View>
@@ -50,7 +57,7 @@ export default function ProfileConfirmation({
               compact
             />
             <Button
-              title={loading ? 'Creating...' : 'Create profile'}
+              title={loading ? 'Creating...' : createTitle}
               onPress={onCreate}
               disabled={loading}
               compact

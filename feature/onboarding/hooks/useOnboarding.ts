@@ -1,29 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AccountType,
   initialData,
-  individualSteps,
   OnboardingData,
   schoolSteps,
   teacherSteps,
 } from '../../../utils/onboarding/onboardingData';
 import { canContinue } from '../../../utils/onboarding/onboardingUtils';
-import { createProfile as createRoleProfile } from '../apis/profileApi';
+import {
+  createProfile as createRoleProfile,
+  requestSignatoryApproval,
+} from '../apis/profileApi';
 
 export function useOnboarding(
+  type: AccountType,
   onExit: () => void,
   onProfileCreated: (type: AccountType) => void,
 ) {
-  const [type, setType] = useState<AccountType | null>(null);
   const [step, setStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(initialData);
   const [attempted, setAttempted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
-  let steps = schoolSteps;
-  if (type === 'teacher') steps = teacherSteps;
-  if (type === 'individual') steps = individualSteps;
+  const steps = type === 'teacher' ? teacherSteps : schoolSteps;
+
+  useEffect(() => {
+    setStep(1);
+    setData(initialData);
+    setAttempted(false);
+    setConfirmOpen(false);
+    setCreateError('');
+  }, [type]);
 
   function update(field: string, value: string | boolean) {
     setData(current => ({ ...current, [field]: value }));
@@ -47,11 +55,19 @@ export function useOnboarding(
   }
 
   async function createProfile() {
-    if (!type) return;
     setCreating(true);
     setCreateError('');
     try {
       await createRoleProfile(type, data);
+
+      if (type === 'school' && data.institutionType === 'MAT school') {
+        await requestSignatoryApproval({
+          signatoryName: data.signatoryName,
+          signatoryEmail: data.signatoryEmail,
+          signatoryJobTitle: data.signatoryJobTitle,
+        });
+      }
+
       setConfirmOpen(false);
       onProfileCreated(type);
     } catch (problem) {
@@ -80,7 +96,6 @@ export function useOnboarding(
 
   return {
     type,
-    setType,
     step,
     steps,
     data,

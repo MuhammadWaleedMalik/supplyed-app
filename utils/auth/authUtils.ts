@@ -12,10 +12,12 @@ export function showAuthMessage(_action: AuthAction) {
   return undefined;
 }
 
-export function getAppRole(role?: string): AccountType | null {
-  if (role === 'INSTRUCTOR' || role === 'TEACHER') return 'teacher';
-  if (role === 'INSTITUTION' || role === 'SCHOOL') return 'school';
-  if (role === 'RECRUITER' || role === 'INDIVIDUAL') return 'individual';
-  return null;
+export function backendRole(type: AccountType) {
+  return type === 'teacher' ? 'INSTRUCTOR' : 'INSTITUTION';
 }
 
+export function getAppRole(role?: string): AccountType | null {
+  if (role === 'INSTRUCTOR') return 'teacher';
+  if (role === 'INSTITUTION') return 'school';
+  return null;
+}

@@ -14,10 +14,9 @@ import OnboardingIntro from './OnboardingIntro';
 import OnboardingProgress from './OnboardingProgress';
 import OnboardingFooter from './OnboardingFooter';
 import { styles } from './layoutStyles';
-import { useKeyboardScroll } from '../../utils/ui/useKeyboardScroll';
 
 type Props = {
-  type: AccountType | null;
+  type: AccountType;
   step: number;
   steps: string[][];
   title: string;
@@ -40,7 +39,6 @@ export default function OnboardingLayout({
   children,
 }: Props) {
   const { width, fontScale } = useWindowDimensions();
-  const scrollRef = useKeyboardScroll();
   const wide = width / fontScale >= 850;
 
   return (
@@ -56,7 +54,6 @@ export default function OnboardingLayout({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          ref={scrollRef}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scroll}
@@ -89,4 +86,3 @@ export default function OnboardingLayout({
     </SafeAreaView>
   );
 }
-

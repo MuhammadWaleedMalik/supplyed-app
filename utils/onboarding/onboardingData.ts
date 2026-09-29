@@ -1,4 +1,6 @@
-export type AccountType = 'school' | 'teacher' | 'individual';
+export type AccountType = 'school' | 'teacher';
+export type InstitutionChoice = 'Single school' | 'MAT school';
+
 export type OnboardingData = {
   fullName: string;
   phone: string;
@@ -9,11 +11,17 @@ export type OnboardingData = {
   schoolRole: string;
   domain: string;
   registrationId: string;
+  institutionType: InstitutionChoice;
+  trustName: string;
+  trustCompanyNumber: string;
   address: string;
   pupilCount: string;
   staffingNeeds: string;
   complianceLead: string;
   complianceEmail: string;
+  signatoryName: string;
+  signatoryEmail: string;
+  signatoryJobTitle: string;
   confirmed: boolean;
   subjects: string;
   keyStages: string;
@@ -37,11 +45,17 @@ export const initialData: OnboardingData = {
   schoolRole: '',
   domain: '',
   registrationId: '',
+  institutionType: 'Single school',
+  trustName: '',
+  trustCompanyNumber: '',
   address: '',
   pupilCount: '',
   staffingNeeds: '',
   complianceLead: '',
   complianceEmail: '',
+  signatoryName: '',
+  signatoryEmail: '',
+  signatoryJobTitle: '',
   confirmed: false,
   subjects: '',
   keyStages: '',
@@ -62,23 +76,16 @@ export const accountTypes: {
   description: string;
 }[] = [
   {
-    id: 'school',
-    symbol: '▦',
-    title: 'School / MAT',
-    description: 'Post roles, review ranked matches, and manage compliance.',
-  },
-  {
     id: 'teacher',
-    symbol: '♙',
+    symbol: 'T',
     title: 'Supply teacher',
     description: 'Build your profile, find roles, and manage availability.',
   },
   {
-    id: 'individual',
-    symbol: '♡',
-    title: 'Individual hirer',
-    description:
-      'Find verified teachers for yourself, your child, or another learner.',
+    id: 'school',
+    symbol: 'S',
+    title: 'School / MAT',
+    description: 'Post roles, review ranked matches, and manage compliance.',
   },
 ];
 
@@ -90,6 +97,7 @@ export const cities = [
   'Birmingham',
   'Other',
 ];
+export const institutionTypes: InstitutionChoice[] = ['Single school', 'MAT school'];
 export const staffingNeeds = [
   'Urgent cover',
   'Planned cover',
@@ -114,9 +122,9 @@ export const skills = [
 export const currencies = ['GBP', 'EUR', 'USD'];
 
 export const schoolSteps = [
-  ['Choose role', 'Select how you want to use SupplyED'],
-  ['School details', 'Organisation, cover needs, and authority'],
-  ['Compliance', 'Safeguarding contact and approval details'],
+  ['Profile owner', 'Your contact details for this school account'],
+  ['School details', 'Organisation, trust details, cover needs, and address'],
+  ['Compliance', 'Safeguarding contact and MAT signatory details'],
   ['Full review', 'Review everything before creating the profile'],
 ];
 export const teacherSteps = [
@@ -124,9 +132,5 @@ export const teacherSteps = [
     'Teacher profile',
     'Contact details, subjects, rates, travel, and teaching style',
   ],
-  ['Full review', 'Review everything before creating the profile'],
-];
-export const individualSteps = [
-  ['Profile details', 'Create your hiring profile with basic contact details'],
   ['Full review', 'Review everything before creating the profile'],
 ];

@@ -12,7 +12,6 @@ import { colors } from '../Ui/theme';
 import AuthIntro from './AuthIntro';
 import AuthContent from './AuthContent';
 import VerificationContent from './VerificationContent';
-import { useKeyboardScroll } from '../../utils/ui/useKeyboardScroll';
 import { AuthActions } from '../../feature/auth/apis/authApi';
 
 type Props = {
@@ -35,7 +34,6 @@ export default function AuthLayout({
   actions,
 }: Props) {
   const { width, fontScale } = useWindowDimensions();
-  const scrollRef = useKeyboardScroll();
   const wide = width / fontScale >= 900;
 
   return (
@@ -45,7 +43,6 @@ export default function AuthLayout({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          ref={scrollRef}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scroll}
@@ -88,5 +85,3 @@ const styles = StyleSheet.create({
   panels: { flexGrow: 1 },
   widePanels: { flexDirection: 'row' },
 });
-
-

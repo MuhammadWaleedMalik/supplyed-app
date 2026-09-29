@@ -5,15 +5,13 @@ import {
   OnboardingData,
 } from '../../utils/onboarding/onboardingData';
 import AccountFields from './AccountFields';
-import RoleSelection from './RoleSelection';
 import TeacherFields from './TeacherFields';
 
 type Props = {
-  type: AccountType | null;
+  type: AccountType;
   data: OnboardingData;
   attempted: boolean;
   wide: boolean;
-  onSelect: (type: AccountType) => void;
   update: (field: string, value: string | boolean) => void;
 };
 
@@ -22,17 +20,10 @@ export default function AccountStep({
   data,
   attempted,
   wide,
-  onSelect,
   update,
 }: Props) {
   return (
     <View style={styles.fields}>
-      <RoleSelection
-        type={type}
-        onSelect={onSelect}
-        attempted={attempted}
-        wide={wide}
-      />
       <AccountFields
         type={type}
         data={data}

@@ -13,7 +13,6 @@ import Input from '../../../components/Ui/Input';
 import { colors, common } from '../../../components/Ui/theme';
 import { User } from '../apis/authApi';
 import { useTwoFactor } from '../hooks/useTwoFactor';
-import { useKeyboardScroll } from '../../../utils/ui/useKeyboardScroll';
 
 type Props = {
   token: string;
@@ -27,7 +26,6 @@ export default function TwoFactorScreen({
   onAuthenticated,
 }: Props) {
   const form = useTwoFactor(token, onAuthenticated);
-  const scrollRef = useKeyboardScroll();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -36,7 +34,6 @@ export default function TwoFactorScreen({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          ref={scrollRef}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.page}
         >
@@ -70,7 +67,13 @@ export default function TwoFactorScreen({
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   keyboard: { flex: 1 },
-  page: { flexGrow: 1, padding: 24, paddingBottom: 170, justifyContent: 'center', gap: 16 },
+  page: {
+    flexGrow: 1,
+    padding: 24,
+    paddingBottom: 170,
+    justifyContent: 'center',
+    gap: 16,
+  },
   card: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -80,5 +83,3 @@ const styles = StyleSheet.create({
   },
   error: { color: '#c93251', fontSize: 12 },
 });
-
-

@@ -1,4 +1,4 @@
-﻿import { endpoints } from '../../../constants/endpoints';
+import { endpoints } from '../../../constants/endpoints';
 import { protectedRequest } from '../../../utils/api/request';
 import { findDocument } from '../../../utils/documents/documentUtils';
 import { Document, getDocuments } from './documentApi';

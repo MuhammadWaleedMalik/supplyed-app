@@ -10,7 +10,7 @@ import {
 } from '../../utils/onboarding/onboardingText';
 
 type Props = {
-  type: AccountType | null;
+  type: AccountType;
   step: number;
   steps: string[][];
   wide: boolean;
@@ -30,7 +30,7 @@ export default function OnboardingIntro({ type, step, steps, wide }: Props) {
         {steps.map(([title, detail], index) => (
           <View key={title} style={styles.row}>
             <Text style={[styles.number, step === index + 1 && styles.active]}>
-              {index + 1 < step ? '✓' : index + 1}
+              {index + 1 < step ? 'OK' : index + 1}
             </Text>
             <View style={styles.stepCopy}>
               <Text style={styles.stepTitle}>{title}</Text>
@@ -43,7 +43,7 @@ export default function OnboardingIntro({ type, step, steps, wide }: Props) {
         <Text style={styles.pathLabel}>CURRENT PATH</Text>
         <Text style={styles.pathTitle}>{pathName}</Text>
         <Text style={styles.pathNote}>
-          You can change this on the first step.
+          This profile type was chosen during account creation.
         </Text>
       </View>
     </View>

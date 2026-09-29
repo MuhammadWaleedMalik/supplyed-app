@@ -4,8 +4,12 @@ import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import ValidationChecklist from '../Ui/ValidationChecklist';
 import AuthOptions from './AuthOptions';
+import SocialProviders from './SocialProviders';
+import RoleSelection from '../onboarding/RoleSelection';
+import { colors } from '../Ui/theme';
 import { useRegister } from '../../feature/auth/hooks/useRegister';
 import { AuthActions } from '../../feature/auth/apis/authApi';
+
 export default function RegisterForm({
   wide,
   actions,
@@ -17,6 +21,18 @@ export default function RegisterForm({
 
   return (
     <View style={styles.form}>
+      <RoleSelection
+        type={form.type}
+        onSelect={form.setType}
+        attempted={form.submitted}
+        wide={wide}
+      />
+      <SocialProviders role={form.type} />
+      <View style={styles.divider}>
+        <View style={styles.line} />
+        <Text style={styles.dividerText}>EMAIL</Text>
+        <View style={styles.line} />
+      </View>
       <View style={[styles.fields, wide && styles.wideFields]}>
         <Input
           label="EMAIL ADDRESS"
@@ -69,5 +85,13 @@ const styles = StyleSheet.create({
   half: { flex: 1, width: 'auto' },
   confirm: { width: '100%' },
   wideConfirm: { width: '49%' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  line: { height: 1, flex: 1, backgroundColor: colors.border },
+  dividerText: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
   error: { color: '#c93251', fontSize: 12 },
 });

@@ -1,7 +1,7 @@
-﻿export const foundingRoutes = [
+export const foundingRoutes = [
   {
     title: 'Founding School',
-    description: 'For individual schools',
+    description: 'For single schools',
     enhanced: false,
     items: [
       ['Founding processing fee', 'locked for 2 years from launch'],

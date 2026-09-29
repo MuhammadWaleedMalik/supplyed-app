@@ -18,6 +18,7 @@ type Props = {
   half?: boolean;
   digit?: boolean;
   digitNumber?: number;
+  disabled?: boolean;
   value?: string;
   onChangeText?: (text: string) => void;
   onFocus?: () => void;
@@ -26,23 +27,9 @@ type Props = {
 };
 
 export default function Input({
-  label,
-  placeholder,
-  password,
-  email,
-  phone,
-  number,
-  url,
-  multiline,
-  required = true,
-  half,
-  digit,
-  digitNumber,
-  value,
-  onChangeText,
-  onFocus,
-  onBlur,
-  error,
+  label, placeholder, password, email, phone, number, url, multiline,
+  required = true, half, digit, digitNumber, disabled, value, onChangeText,
+  onFocus, onBlur, error,
 }: Props) {
   const [visible, setVisible] = useState(false);
 
@@ -65,7 +52,7 @@ export default function Input({
       <Text style={styles.label}>
         {label} {required && <Text style={styles.required}>*</Text>}
       </Text>
-      <View style={[styles.inputRow, error && styles.invalid]}>
+      <View style={[styles.inputRow, error && styles.invalid, disabled && { backgroundColor: colors.soft }]}>
         <TextInput
           accessibilityLabel={label}
           placeholder={placeholder}
@@ -75,6 +62,7 @@ export default function Input({
           onChangeText={onChangeText}
           onFocus={onFocus}
           onBlur={onBlur}
+          editable={!disabled}
           multiline={multiline}
           secureTextEntry={password && !visible}
           keyboardType={getKeyboardType(email, phone, number, url)}

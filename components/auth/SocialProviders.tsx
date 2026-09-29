@@ -4,8 +4,17 @@ import Button from '../Ui/Button';
 import Icon from '../Ui/Icon';
 import { colors } from '../Ui/theme';
 import { showAuthMessage } from '../../utils/auth/authUtils';
+import { AccountType } from '../../utils/onboarding/onboardingData';
 
-export default function SocialProviders() {
+type Props = {
+  role?: AccountType | null;
+};
+
+export default function SocialProviders({ role }: Props) {
+  const note = role
+    ? 'Social signup will use the selected profile type when credentials are configured.'
+    : 'Social providers need credentials configured before they can connect.';
+
   return (
     <View style={styles.content}>
       <View style={styles.buttons}>
@@ -22,9 +31,7 @@ export default function SocialProviders() {
           onPress={() => showAuthMessage('social')}
         />
       </View>
-      <Text style={styles.note}>
-        Social providers need credentials configured before they can connect.
-      </Text>
+      <Text style={styles.note}>{note}</Text>
     </View>
   );
 }

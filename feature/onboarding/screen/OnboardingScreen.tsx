@@ -12,16 +12,18 @@ import { useOnboarding } from '../hooks/useOnboarding';
 
 type Props = {
   email: string;
+  type: AccountType;
   onExit: () => void;
   onProfileCreated: (type: AccountType) => void;
 };
 
 export default function OnboardingScreen({
   email,
+  type,
   onExit,
   onProfileCreated,
 }: Props) {
-  const form = useOnboarding(onExit, onProfileCreated);
+  const form = useOnboarding(type, onExit, onProfileCreated);
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 700;
 
@@ -43,7 +45,6 @@ export default function OnboardingScreen({
             data={form.data}
             attempted={form.attempted}
             wide={wide}
-            onSelect={form.setType}
             update={form.update}
           />
         )}
@@ -63,7 +64,7 @@ export default function OnboardingScreen({
             wide={wide}
           />
         )}
-        {form.type && form.step === form.steps.length && (
+        {form.step === form.steps.length && (
           <ReviewContent
             type={form.type}
             email={email}
@@ -77,6 +78,12 @@ export default function OnboardingScreen({
         loading={form.creating}
         error={form.createError}
         onReview={form.reviewAgain}
+        createTitle={
+          form.type === 'school' && form.data.institutionType === 'MAT school'
+            ? 'Create profile and send email'
+            : 'Create profile'
+        }
+        matSchool={form.type === 'school' && form.data.institutionType === 'MAT school'}
         onCreate={form.createProfile}
       />
     </>

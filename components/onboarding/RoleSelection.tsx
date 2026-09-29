@@ -21,7 +21,7 @@ export default function RoleSelection({
 }: Props) {
   return (
     <View style={styles.content}>
-      <Text style={styles.label}>CHOOSE ACCOUNT TYPE *</Text>
+      <Text style={styles.label}>CHOOSE PROFILE TYPE *</Text>
       <View style={[styles.cards, wide && styles.wideCards]}>
         {accountTypes.map(option => (
           <Pressable
@@ -42,7 +42,7 @@ export default function RoleSelection({
         ))}
       </View>
       {attempted && !type && (
-        <Text style={styles.error}>Choose an account type.</Text>
+        <Text style={styles.error}>Choose a profile type.</Text>
       )}
     </View>
   );
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 16,
     minHeight: 124,
     justifyContent: 'center',
@@ -64,7 +64,17 @@ const styles = StyleSheet.create({
   },
   wideCard: { flex: 1 },
   selected: { borderColor: colors.blue, backgroundColor: colors.paleBlue },
-  icon: { color: colors.blue, fontSize: 22 },
+  icon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.paleBlue,
+    color: colors.blue,
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 28,
+    textAlign: 'center',
+  },
   title: {
     color: colors.ink,
     fontFamily: serif,

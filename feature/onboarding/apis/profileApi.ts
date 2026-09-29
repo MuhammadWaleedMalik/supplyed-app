@@ -1,4 +1,4 @@
-﻿import { endpoints } from '../../../constants/endpoints';
+import { endpoints } from '../../../constants/endpoints';
 import { protectedRequest } from '../../../utils/api/request';
 import {
   AccountType,
@@ -6,26 +6,47 @@ import {
 } from '../../../utils/onboarding/onboardingData';
 import { profilePayload } from '../../../utils/onboarding/profilePayload';
 
-type Profile = { id: string; status?: string };
+export type Profile = {
+  id: string;
+  status?: string;
+  institutionType?: string;
+  trust?: { id: string; name: string; companyNumber?: string | null } | null;
+};
+
+export type SignatoryApproval = {
+  id: string;
+  status: string;
+  signatoryName: string;
+  signatoryEmail: string;
+  signatoryJobTitle: string;
+  expiresAt?: string;
+  decidedAt?: string | null;
+  declineReason?: string | null;
+  approvedByAdmin?: boolean;
+  trust?: { name?: string; companyNumber?: string | null };
+};
+
+export type SignatoryFields = {
+  signatoryName: string;
+  signatoryEmail: string;
+  signatoryJobTitle: string;
+};
 
 export function profilePath(type: AccountType) {
-  if (type === 'teacher') return endpoints.teacherProfile;
-  if (type === 'school') return endpoints.schoolProfile;
-  return endpoints.individualProfile;
+  return type === 'teacher'
+    ? endpoints.teacherProfile
+    : endpoints.schoolProfile;
 }
 
 export function profileMePath(type: AccountType) {
-  if (type === 'teacher') return endpoints.teacherMe;
-  if (type === 'school') return endpoints.schoolMe;
-  return endpoints.individualMe;
+  return type === 'teacher' ? endpoints.teacherMe : endpoints.schoolMe;
+}
+
+function profileStatusPath(type: AccountType) {
+  return type === 'teacher' ? endpoints.teacherStatus : endpoints.schoolStatus;
 }
 
 export async function createProfile(type: AccountType, data: OnboardingData) {
-  const basics: { name: string; phone?: string } = {
-    name: data.fullName.trim(),
-  };
-  if (data.phone.trim()) basics.phone = data.phone.trim();
-  await protectedRequest(endpoints.userBasics, 'PATCH', basics);
   return protectedRequest<Profile>(
     profilePath(type),
     'POST',
@@ -35,4 +56,28 @@ export async function createProfile(type: AccountType, data: OnboardingData) {
 
 export function getProfile(type: AccountType) {
   return protectedRequest<Profile>(profileMePath(type));
+}
+
+export async function submitProfileForReview(type: AccountType) {
+  const profile = await getProfile(type);
+  if (profile.status !== 'INCOMPLETE') return profile;
+  return protectedRequest<Profile>(profileStatusPath(type), 'PATCH');
+}
+
+export function getSignatoryApproval() {
+  return protectedRequest<SignatoryApproval | null>(
+    endpoints.schoolSignatoryApproval,
+  );
+}
+
+export function requestSignatoryApproval(fields: SignatoryFields) {
+  return protectedRequest<SignatoryApproval>(
+    endpoints.schoolSignatoryApproval,
+    'POST',
+    {
+      signatoryName: fields.signatoryName.trim(),
+      signatoryEmail: fields.signatoryEmail.trim().toLowerCase(),
+      signatoryJobTitle: fields.signatoryJobTitle.trim(),
+    },
+  );
 }
