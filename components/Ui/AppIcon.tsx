@@ -14,6 +14,7 @@ import {
   EyeOff,
   Check,
   Circle,
+  Wallet,
 } from 'lucide-react-native';
 import { colors } from './theme';
 
@@ -22,6 +23,7 @@ export type AppIconName =
   | 'applications'
   | 'dashboard'
   | 'bookings'
+  | 'billing'
   | 'messages'
   | 'teachers'
   | 'profile'
@@ -39,6 +41,7 @@ const icons = {
   applications: ClipboardList,
   dashboard: LayoutDashboard,
   bookings: CalendarCheck,
+  billing: Wallet,
   messages: MessageCircle,
   teachers: Users,
   profile: UserCircle,
@@ -58,7 +61,11 @@ type Props = {
   size?: number;
 };
 
-export default function AppIcon({ name, color = colors.muted, size = 18 }: Props) {
+export default function AppIcon({
+  name,
+  color = colors.muted,
+  size = 18,
+}: Props) {
   const Icon = icons[name];
   return <Icon color={color} size={size} strokeWidth={2.2} />;
 }

@@ -4,6 +4,7 @@ import AccountStep from '../../../components/onboarding/AccountStep';
 import ComplianceFields from '../../../components/onboarding/ComplianceFields';
 import OnboardingLayout from '../../../components/onboarding/OnboardingLayout';
 import ProfileConfirmation from '../../../components/onboarding/ProfileConfirmation';
+import ProfileCreated from '../../../components/onboarding/ProfileCreated';
 import ReviewContent from '../../../components/onboarding/ReviewContent';
 import SchoolFields from '../../../components/onboarding/SchoolFields';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
@@ -27,6 +28,23 @@ export default function OnboardingScreen({
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 700;
 
+  if (form.profileCreated) {
+    return (
+      <ProfileCreated
+        user={form.accountUser}
+        creating={form.creating}
+        needsSignatory={form.needsSignatory}
+        signatorySent={form.signatorySent}
+        sendingSignatory={form.sendingSignatory}
+        signatoryError={form.signatoryError}
+        onVerified={form.updateVerifiedUser}
+        onRetrySignatory={form.sendSignatoryEmail}
+        onContinue={form.continueToDocuments}
+        onExit={onExit}
+      />
+    );
+  }
+
   return (
     <>
       <OnboardingLayout
@@ -44,6 +62,7 @@ export default function OnboardingScreen({
             type={form.type}
             data={form.data}
             attempted={form.attempted}
+            phoneLocked={form.phoneLocked}
             wide={wide}
             update={form.update}
           />

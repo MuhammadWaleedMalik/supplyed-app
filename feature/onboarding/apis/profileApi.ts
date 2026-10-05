@@ -1,10 +1,12 @@
 import { endpoints } from '../../../constants/endpoints';
 import { protectedRequest } from '../../../utils/api/request';
+import { setCurrentSessionUser } from '../../../utils/api/session';
 import {
   AccountType,
   OnboardingData,
 } from '../../../utils/onboarding/onboardingData';
 import { profilePayload } from '../../../utils/onboarding/profilePayload';
+import { getCurrentUser } from '../../auth/apis/authApi';
 
 export type Profile = {
   id: string;
@@ -52,6 +54,19 @@ export async function createProfile(type: AccountType, data: OnboardingData) {
     'POST',
     profilePayload(type, data),
   );
+}
+
+export async function saveOnboardingAccount(data: OnboardingData) {
+  const user = await getCurrentUser();
+  // An existing verified number can only be changed through SMS verification.
+  const account = user.phoneVerified
+    ? { name: data.fullName.trim() }
+    : { name: data.fullName.trim(), phone: data.phone.trim() };
+
+  await protectedRequest(endpoints.userBasics, 'PATCH', account);
+  const savedUser = await getCurrentUser();
+  setCurrentSessionUser(savedUser);
+  return savedUser;
 }
 
 export function getProfile(type: AccountType) {

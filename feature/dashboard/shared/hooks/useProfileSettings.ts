@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { User } from '../../../auth/apis/authApi';
 import {
   imagePickWasCancelled,
   pickProfileImage,
@@ -33,6 +34,11 @@ export function useProfileSettings(type: AccountType) {
   function change(name: keyof ProfileFields, value: string | boolean) {
     setSaved('');
     setFields(current => ({ ...current, [name]: value }));
+  }
+
+  function updateUser(user: User) {
+    setSettings(current => current ? { ...current, user } : current);
+    setSaved(user.phoneVerified ? 'Phone verified successfully.' : '');
   }
 
   async function save() {
@@ -112,6 +118,7 @@ export function useProfileSettings(type: AccountType) {
     saved,
     loading,
     change,
+    updateUser,
     save,
     changeImage,
   };

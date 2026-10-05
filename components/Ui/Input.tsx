@@ -12,6 +12,8 @@ type Props = {
   email?: boolean;
   phone?: boolean;
   number?: boolean;
+  decimal?: boolean;
+  maxLength?: number;
   url?: boolean;
   multiline?: boolean;
   required?: boolean;
@@ -27,9 +29,26 @@ type Props = {
 };
 
 export default function Input({
-  label, placeholder, password, email, phone, number, url, multiline,
-  required = true, half, digit, digitNumber, disabled, value, onChangeText,
-  onFocus, onBlur, error,
+  label,
+  placeholder,
+  password,
+  email,
+  phone,
+  number,
+  decimal,
+  maxLength,
+  url,
+  multiline,
+  required = true,
+  half,
+  digit,
+  digitNumber,
+  disabled,
+  value,
+  onChangeText,
+  onFocus,
+  onBlur,
+  error,
 }: Props) {
   const [visible, setVisible] = useState(false);
 
@@ -52,7 +71,13 @@ export default function Input({
       <Text style={styles.label}>
         {label} {required && <Text style={styles.required}>*</Text>}
       </Text>
-      <View style={[styles.inputRow, error && styles.invalid, disabled && { backgroundColor: colors.soft }]}>
+      <View
+        style={[
+          styles.inputRow,
+          error && styles.invalid,
+          disabled && { backgroundColor: colors.soft },
+        ]}
+      >
         <TextInput
           accessibilityLabel={label}
           placeholder={placeholder}
@@ -63,10 +88,15 @@ export default function Input({
           onFocus={onFocus}
           onBlur={onBlur}
           editable={!disabled}
+          maxLength={maxLength}
           multiline={multiline}
           secureTextEntry={password && !visible}
-          keyboardType={getKeyboardType(email, phone, number, url)}
-          autoCapitalize={email || phone || number || url ? 'none' : 'sentences'}
+          keyboardType={
+            decimal ? 'decimal-pad' : getKeyboardType(email, phone, number, url)
+          }
+          autoCapitalize={
+            email || phone || number || decimal || url ? 'none' : 'sentences'
+          }
         />
         {password ? (
           <Pressable
@@ -75,7 +105,11 @@ export default function Input({
             onPress={() => setVisible(!visible)}
             style={styles.eye}
           >
-            <AppIcon name={visible ? 'eyeOff' : 'eye'} color={colors.muted} size={20} />
+            <AppIcon
+              name={visible ? 'eyeOff' : 'eye'}
+              color={colors.muted}
+              size={20}
+            />
           </Pressable>
         ) : null}
       </View>

@@ -39,9 +39,9 @@ export default function ProfileConfirmation({
               <Text style={styles.title}>Create this profile?</Text>
               <Text style={styles.description}>
                 Your account will use this profile type. You can edit its
-                details later in Settings. School and teacher profiles are
-                submitted for review. Posting and applying require full
-                verification.
+                details later in Settings. Next, verify your phone and upload
+                the required documents before sending your profile for review.
+                Posting and applying require full verification.
                 {matSchool
                   ? ' The trust signatory email is sent with this profile.'
                   : ''}
@@ -54,6 +54,7 @@ export default function ProfileConfirmation({
               title="Review again"
               variant="text"
               onPress={onReview}
+              disabled={loading}
               compact
             />
             <Button

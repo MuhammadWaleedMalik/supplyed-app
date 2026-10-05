@@ -1,19 +1,19 @@
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
+import { setCurrentSessionUser } from '../../../../utils/api/session';
 import { AccountType } from '../../../../utils/onboarding/onboardingData';
 import { User } from '../../../auth/apis/authApi';
 
 type ProfileRecord = Record<string, unknown>;
 type SettingsUser = User & {
   phoneVerified?: boolean;
-  lastLogin?: string;
+  lastLogin?: string | null;
   twoFactorEnabled?: boolean;
   createdAt?: string;
 };
 
 export type ProfileFields = {
   accountName: string;
-  phone: string;
   profileName: string;
   bio: string;
   address: string;
@@ -98,6 +98,7 @@ function patchPath(type: AccountType, profile: ProfileRecord) {
 
 export async function getProfileSettings(type: AccountType) {
   const user = await protectedRequest<SettingsUser>(endpoints.currentUser);
+  setCurrentSessionUser(user);
   const profile = await protectedRequest<ProfileRecord>(profilePath(type));
   return { user, profile };
 }
@@ -159,7 +160,6 @@ export async function saveProfileSettings(
 ) {
   await protectedRequest(endpoints.userBasics, 'PATCH', {
     name: fields.accountName.trim(),
-    phone: fields.phone.trim(),
   });
   await protectedRequest(
     patchPath(type, current.profile),
@@ -174,7 +174,6 @@ export function fieldsFromSettings(settings?: ProfileSnapshot): ProfileFields {
   const trustRecord = trust(profile);
   return {
     accountName: settings?.user.name || '',
-    phone: settings?.user.phone || '',
     profileName:
       text(profile.fullName) || text(profile.name) || text(profile.displayName),
     bio: text(profile.bio),

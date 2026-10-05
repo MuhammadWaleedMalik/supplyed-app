@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BackHandler } from 'react-native';
 import { getCurrentUser, User } from '../../feature/auth/apis/authApi';
-import { clearTokens, getAccessToken } from '../api/session';
+import {
+  clearTokens,
+  getAccessToken,
+  getSessionVersion,
+  onSessionExpired,
+  setCurrentSessionUser,
+} from '../api/session';
 import { getAppRole } from '../auth/authUtils';
 import { AccountType } from '../onboarding/onboardingData';
 import { nextAccountScreen } from './nextAccountScreen';
@@ -18,6 +24,7 @@ type AppScreen =
   | 'documents'
   | 'reviewStatus'
   | 'dashboard'
+  | 'adminPayments'
   | 'workspaceProfile'
   | 'security'
   | 'settings';
@@ -61,7 +68,12 @@ function getBackTarget(
     return 'dashboard';
   }
 
-  if (screen === 'dashboard' || screen === 'reviewStatus' || screen === 'restoring') {
+  if (
+    screen === 'dashboard' ||
+    screen === 'adminPayments' ||
+    screen === 'reviewStatus' ||
+    screen === 'restoring'
+  ) {
     return screen;
   }
 
@@ -78,8 +90,14 @@ export function useAppNavigation() {
   const [profileType, setProfileType] = useState<AccountType>('school');
   const [otpToken, setOtpToken] = useState('');
   const [twoFactorToken, setTwoFactorToken] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [restoreError, setRestoreError] = useState('');
 
-  const backTarget = getBackTarget(screen, registerBackScreen);
+  const defaultBackTarget = getBackTarget(screen, registerBackScreen);
+  const backTarget =
+    isAdmin && defaultBackTarget === 'dashboard'
+      ? 'adminPayments'
+      : defaultBackTarget;
 
   function openScreen(nextScreen: AppScreen) {
     const signedIn = Boolean(getAccessToken());
@@ -114,7 +132,7 @@ export function useAppNavigation() {
   }
 
   function showDashboard() {
-    setScreen('dashboard');
+    setScreen(isAdmin ? 'adminPayments' : 'dashboard');
   }
 
   function showWorkspaceProfile() {
@@ -134,6 +152,7 @@ export function useAppNavigation() {
       screen === 'landing' ||
       screen === 'reviewStatus' ||
       screen === 'dashboard' ||
+      screen === 'adminPayments' ||
       screen === 'restoring';
 
     if (!cannotGoBack) {
@@ -154,7 +173,14 @@ export function useAppNavigation() {
   }
 
   async function showAuthenticated(user: User) {
+    const version = getSessionVersion();
     setVerificationEmail(user.email);
+    setCurrentSessionUser(user);
+    setIsAdmin(user.role === 'ADMIN');
+    if (user.role === 'ADMIN') {
+      setScreen('adminPayments');
+      return;
+    }
 
     const role = getAppRole(user.role);
     if (!role) {
@@ -164,11 +190,13 @@ export function useAppNavigation() {
     }
 
     setProfileType(role);
-    setScreen(await nextAccountScreen(role));
+    const nextScreen = await nextAccountScreen(role);
+    if (getSessionVersion() === version) setScreen(nextScreen);
   }
 
   function showLanding() {
     clearTokens();
+    setIsAdmin(false);
     setScreen('landing');
   }
 
@@ -177,34 +205,57 @@ export function useAppNavigation() {
     setScreen('documents');
   }
 
-  useEffect(() => {
-    async function restoreSession() {
-      if (!getAccessToken()) {
+  const restoreSession = useCallback(async () => {
+    const version = getSessionVersion();
+    setRestoreError('');
+    if (!getAccessToken()) {
+      setScreen('landing');
+      return;
+    }
+
+    try {
+      const user = await getCurrentUser();
+      if (getSessionVersion() !== version) return;
+      setVerificationEmail(user.email);
+      setIsAdmin(user.role === 'ADMIN');
+      if (user.role === 'ADMIN') {
+        setScreen('adminPayments');
+        return;
+      }
+
+      const role = getAppRole(user.role);
+      if (!role) {
+        clearTokens();
         setScreen('landing');
         return;
       }
 
-      try {
-        const user = await getCurrentUser();
-        setVerificationEmail(user.email);
-
-        const role = getAppRole(user.role);
-        if (!role) {
-          clearTokens();
-          setScreen('landing');
-          return;
-        }
-
-        setProfileType(role);
-        setScreen(await nextAccountScreen(role));
-      } catch {
-        clearTokens();
-        setScreen('landing');
-      }
+      setProfileType(role);
+      const nextScreen = await nextAccountScreen(role);
+      if (getSessionVersion() === version) setScreen(nextScreen);
+    } catch (problem) {
+      if (getSessionVersion() !== version) return;
+      setRestoreError(
+        problem instanceof Error
+          ? problem.message
+          : 'Unable to load your account. Please try again.',
+      );
+      setScreen('restoring');
     }
-
-    restoreSession();
   }, []);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        setIsAdmin(false);
+        setScreen('login');
+      }),
+    [],
+  );
 
   useEffect(() => {
     function handleBackButton() {
@@ -212,7 +263,12 @@ export function useAppNavigation() {
         return false;
       }
 
-      if (screen === 'dashboard' || screen === 'reviewStatus' || screen === 'restoring') {
+      if (
+        screen === 'dashboard' ||
+        screen === 'adminPayments' ||
+        screen === 'reviewStatus' ||
+        screen === 'restoring'
+      ) {
         return true;
       }
 
@@ -236,6 +292,8 @@ export function useAppNavigation() {
 
   return {
     screen,
+    restoreError,
+    restoreSession,
     verificationEmail,
     profileType,
     otpToken,

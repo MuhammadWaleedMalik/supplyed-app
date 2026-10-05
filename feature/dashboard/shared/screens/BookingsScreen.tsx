@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import Button from '../../../../components/Ui/Button';
 import Input from '../../../../components/Ui/Input';
 import ChoiceField from '../../../../components/dashboard/ChoiceField';
+import BookingInvoiceCard from '../../../../components/dashboard/BookingInvoiceCard';
 import { styles } from '../../../../components/dashboard/dashboardStyles';
 import { jobStyles } from '../../../../components/dashboard/jobStyles';
 import { AccountType } from '../../../../utils/onboarding/onboardingData';
@@ -64,21 +65,26 @@ export default function BookingsScreen({ type }: Props) {
   const [reviewId, setReviewId] = useState('');
   const [rating, setRating] = useState('5');
   const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const working = useRef(false);
 
-  async function loadBookings(nextStatus = status) {
+  const loadBookings = useCallback(async (nextStatus = status) => {
     setLoading(true);
     setError('');
     try {
       setBookings(await getMyBookings(nextStatus));
+      return true;
     } catch (problem) {
       setError(actionError(problem));
+      return false;
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }
+  }, [status]);
 
   useEffect(() => {
     loadBookings(status);
-  }, [status]);
+  }, [status, loadBookings]);
 
   function confirmComplete(booking: Booking) {
     Alert.alert('Mark booking complete?', 'This outcome is final.', [
@@ -95,12 +101,20 @@ export default function BookingsScreen({ type }: Props) {
   }
 
   async function updateBooking(action: () => Promise<unknown>) {
+    if (working.current) return false;
+    working.current = true;
+    setBusy(true);
     setError('');
     try {
       await action();
       await loadBookings();
+      return true;
     } catch (problem) {
       setError(actionError(problem));
+      return false;
+    } finally {
+      working.current = false;
+      setBusy(false);
     }
   }
 
@@ -109,16 +123,18 @@ export default function BookingsScreen({ type }: Props) {
       setError('Enter a reason before cancelling.');
       return;
     }
-    await updateBooking(() => cancelBooking(cancelId, cancelReason));
-    setCancelId('');
-    setCancelReason('');
+    if (await updateBooking(() => cancelBooking(cancelId, cancelReason))) {
+      setCancelId('');
+      setCancelReason('');
+    }
   }
 
   async function sendReview() {
-    await updateBooking(() => createReview(reviewId, Number(rating), comment));
-    setReviewId('');
-    setRating('5');
-    setComment('');
+    if (await updateBooking(() => createReview(reviewId, Number(rating), comment))) {
+      setReviewId('');
+      setRating('5');
+      setComment('');
+    }
   }
 
   return (
@@ -136,6 +152,7 @@ export default function BookingsScreen({ type }: Props) {
           return (
             <Pressable
               key={item}
+              disabled={busy || loading}
               onPress={() => setStatus(item)}
               style={[styles.filter, active && styles.filterActive]}
             >
@@ -197,8 +214,8 @@ export default function BookingsScreen({ type }: Props) {
 
             {showSchoolActions ? (
               <View style={styles.quickButtons}>
-                <Button title="Mark complete" onPress={() => confirmComplete(booking)} compact />
-                <Button title="Report no-show" variant="social" onPress={() => confirmNoShow(booking)} compact />
+                <Button title="Mark complete" onPress={() => confirmComplete(booking)} disabled={busy} compact />
+                <Button title="Report no-show" variant="social" onPress={() => confirmNoShow(booking)} disabled={busy} compact />
               </View>
             ) : null}
 
@@ -212,12 +229,13 @@ export default function BookingsScreen({ type }: Props) {
                       multiline
                       value={cancelReason}
                       onChangeText={setCancelReason}
+                      disabled={busy}
                     />
-                    <Button title="Confirm cancellation" onPress={sendCancel} compact />
-                    <Button title="Keep booking" variant="link" onPress={() => setCancelId('')} compact />
+                    <Button title="Confirm cancellation" onPress={sendCancel} disabled={busy} compact />
+                    <Button title="Keep booking" variant="link" onPress={() => setCancelId('')} disabled={busy} compact />
                   </>
                 ) : (
-                  <Button title="Cancel booking" variant="link" onPress={() => setCancelId(booking.id)} compact />
+                  <Button title="Cancel booking" variant="link" onPress={() => setCancelId(booking.id)} disabled={busy} compact />
                 )}
               </View>
             ) : null}
@@ -234,14 +252,18 @@ export default function BookingsScreen({ type }: Props) {
                       required={false}
                       value={comment}
                       onChangeText={setComment}
+                      disabled={busy}
                     />
-                    <Button title="Submit review" onPress={sendReview} compact />
-                    <Button title="Cancel review" variant="link" onPress={() => setReviewId('')} compact />
+                    <Button title="Submit review" onPress={sendReview} disabled={busy} compact />
+                    <Button title="Cancel review" variant="link" onPress={() => setReviewId('')} disabled={busy} compact />
                   </>
                 ) : (
-                  <Button title="Leave a review" onPress={() => setReviewId(booking.id)} compact />
+                  <Button title="Leave a review" onPress={() => setReviewId(booking.id)} disabled={busy} compact />
                 )}
               </View>
+            ) : null}
+            {booking.status === 'COMPLETED' || booking.invoice ? (
+              <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={loadBookings} />
             ) : null}
           </View>
         );

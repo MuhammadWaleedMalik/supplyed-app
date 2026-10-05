@@ -16,6 +16,7 @@ type Props = {
   data: OnboardingData;
   wide: boolean;
   attempted: boolean;
+  phoneLocked?: boolean;
   update: (field: string, value: string | boolean) => void;
 };
 
@@ -24,6 +25,7 @@ export default function AccountFields({
   data,
   wide,
   attempted,
+  phoneLocked,
   update,
 }: Props) {
   return (
@@ -42,11 +44,16 @@ export default function AccountFields({
             label="PHONE"
             placeholder="+44 7700 900000"
             phone
-            required={false}
             value={data.phone}
+            disabled={phoneLocked}
             onChangeText={value => update('phone', value)}
+            error={requiredError(data.phone, attempted)}
           />
-          <Text style={styles.hint}>Required for full verification later.</Text>
+          <Text style={styles.hint}>
+            {phoneLocked
+              ? 'Your verified number is kept. Change it with SMS verification in Settings.'
+              : 'You can verify this number after creating your profile.'}
+          </Text>
         </View>
       </View>
       {type === 'teacher' && (

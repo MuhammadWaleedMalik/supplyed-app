@@ -115,6 +115,15 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
     setSubmitting(true);
     setError('');
     try {
+      if (needsTrustApproval) {
+        const latestApproval = await getSignatoryApproval();
+        setApproval(latestApproval);
+        if (latestApproval?.status !== 'APPROVED') {
+          setSubmitting(false);
+          onReviewStatus();
+          return;
+        }
+      }
       await submitProfileForReview(type);
       setSubmitting(false);
       onReviewStatus();

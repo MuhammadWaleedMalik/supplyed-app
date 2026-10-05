@@ -1,6 +1,7 @@
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
 import type { Review } from './reviewsApi';
+import type { BookingInvoice } from './invoicesApi';
 
 export type Booking = {
   id: string;
@@ -29,6 +30,7 @@ export type Booking = {
   cancelledById?: string | null;
   cancelReason?: string | null;
   reviews?: Review[];
+  invoice?: BookingInvoice | null;
   createdAt?: string;
   updatedAt?: string;
 };

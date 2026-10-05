@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import DashboardLayout from '../../shared/components/DashboardLayout';
 import BookingsScreen from '../../shared/screens/BookingsScreen';
+import TeacherBillingScreen from './TeacherBillingScreen';
 import MessagesScreen from '../../shared/screens/MessagesScreen';
 import {
   DashboardPage,
@@ -45,6 +46,9 @@ export default function TeacherDashboard(props: Props) {
     }
     if (page === 'Bookings') {
       return <BookingsScreen type="teacher" />;
+    }
+    if (page === 'Billing') {
+      return <TeacherBillingScreen />;
     }
     if (page === 'Messages') {
       return <MessagesScreen role="teacher" />;

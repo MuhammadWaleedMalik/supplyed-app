@@ -171,6 +171,7 @@ export const styles = StyleSheet.create({
   },
   filters: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 7,
     paddingVertical: 2,
   },
@@ -330,7 +331,14 @@ export const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: colors.paleBlue,
   },
+  navScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    backgroundColor: '#ffffff',
+  },
   nav: {
+    flexGrow: 1,
+    minWidth: '100%',
     minHeight: 66,
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -342,6 +350,7 @@ export const styles = StyleSheet.create({
   },
   navTab: {
     flex: 1,
+    minWidth: 80,
     minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',

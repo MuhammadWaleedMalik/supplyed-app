@@ -11,6 +11,7 @@ type Props = {
   type: AccountType;
   data: OnboardingData;
   attempted: boolean;
+  phoneLocked?: boolean;
   wide: boolean;
   update: (field: string, value: string | boolean) => void;
 };
@@ -19,6 +20,7 @@ export default function AccountStep({
   type,
   data,
   attempted,
+  phoneLocked,
   wide,
   update,
 }: Props) {
@@ -30,6 +32,7 @@ export default function AccountStep({
         update={update}
         attempted={attempted}
         wide={wide}
+        phoneLocked={phoneLocked}
       />
       {type === 'teacher' ? (
         <TeacherFields data={data} update={update} wide={wide} />

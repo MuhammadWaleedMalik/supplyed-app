@@ -5,7 +5,7 @@ export function canContinue(
   step: number,
   data: OnboardingData,
 ) {
-  if (!data.fullName.trim()) {
+  if (!data.fullName.trim() || !data.phone.trim()) {
     return false;
   }
   if (type === 'school' && step === 2) {

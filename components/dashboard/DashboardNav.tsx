@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { dashboardTabs } from '../../constants/dashboardData';
 import type { DashboardPage } from '../../feature/dashboard/shared/store/navigationSlice';
 import AppIcon from '../Ui/AppIcon';
@@ -13,7 +13,12 @@ type Props = {
 
 export default function DashboardNav({ selected, onSelect }: Props) {
   return (
-    <View style={styles.nav}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.navScroll}
+      contentContainerStyle={styles.nav}
+    >
       {dashboardTabs.map(tab => {
         const active = selected === tab.label;
 
@@ -43,6 +48,6 @@ export default function DashboardNav({ selected, onSelect }: Props) {
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }

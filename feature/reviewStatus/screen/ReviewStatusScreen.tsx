@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
 import { colors, common } from '../../../components/Ui/theme';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
+import {
+  getDocuments,
+  getRequirements,
+} from '../../documents/apis/documentApi';
+import { requiredDocumentsReady } from '../../../utils/documents/documentUtils';
 import {
   getProfile,
   getSignatoryApproval,
@@ -28,7 +33,8 @@ function canOpenDashboard(
   approval: SignatoryApproval | null,
 ) {
   const profileReady = profile?.status === 'ACTIVE';
-  const approvalReady = !isMatSchool(type, profile) || approval?.status === 'APPROVED';
+  const approvalReady =
+    !isMatSchool(type, profile) || approval?.status === 'APPROVED';
   return profileReady && approvalReady;
 }
 
@@ -41,7 +47,25 @@ function approvalText(approval: SignatoryApproval | null) {
   return approval.status;
 }
 
-export default function ReviewStatusScreen({ type, email, onDashboard }: Props) {
+async function submitIfReady(
+  type: AccountType,
+  profile: Profile,
+  approval: SignatoryApproval | null,
+) {
+  const trustReady =
+    !isMatSchool(type, profile) || approval?.status === 'APPROVED';
+  if (profile.status !== 'INCOMPLETE' || !trustReady) return profile;
+  const requirements = await getRequirements();
+  const documents = await getDocuments();
+  if (!requiredDocumentsReady(requirements, documents)) return profile;
+  return submitProfileForReview(type);
+}
+
+export default function ReviewStatusScreen({
+  type,
+  email,
+  onDashboard,
+}: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [approval, setApproval] = useState<SignatoryApproval | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,17 +77,7 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
   const profileReady = profile?.status === 'ACTIVE';
   const approvalReady = !matSchool || approval?.status === 'APPROVED';
 
-  async function submitIfReady(nextProfile: Profile, nextApproval: SignatoryApproval | null) {
-    const trustReady = !isMatSchool(type, nextProfile) || nextApproval?.status === 'APPROVED';
-
-    if (nextProfile.status === 'INCOMPLETE' && trustReady) {
-      return submitProfileForReview(type);
-    }
-
-    return nextProfile;
-  }
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -74,7 +88,7 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
         nextApproval = await getSignatoryApproval();
       }
 
-      nextProfile = await submitIfReady(nextProfile, nextApproval);
+      nextProfile = await submitIfReady(type, nextProfile, nextApproval);
       setProfile(nextProfile);
       setApproval(nextApproval);
 
@@ -82,24 +96,30 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
         onDashboard();
       }
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Unable to check status.');
+      setError(
+        problem instanceof Error ? problem.message : 'Unable to check status.',
+      );
     }
     setLoading(false);
-  }
+  }, [type, onDashboard]);
 
   async function refreshProfileStatus() {
     setProfileBusy(true);
     setError('');
     try {
       let nextProfile = await getProfile(type);
-      nextProfile = await submitIfReady(nextProfile, approval);
+      nextProfile = await submitIfReady(type, nextProfile, approval);
       setProfile(nextProfile);
 
       if (canOpenDashboard(type, nextProfile, approval)) {
         onDashboard();
       }
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Unable to refresh profile status.');
+      setError(
+        problem instanceof Error
+          ? problem.message
+          : 'Unable to refresh profile status.',
+      );
     }
     setProfileBusy(false);
   }
@@ -114,7 +134,7 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
       let nextProfile = profile;
 
       if (nextProfile) {
-        nextProfile = await submitIfReady(nextProfile, nextApproval);
+        nextProfile = await submitIfReady(type, nextProfile, nextApproval);
         setProfile(nextProfile);
       }
 
@@ -124,20 +144,28 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
         onDashboard();
       }
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : 'Unable to refresh approval status.');
+      setError(
+        problem instanceof Error
+          ? problem.message
+          : 'Unable to refresh approval status.',
+      );
     }
     setApprovalBusy(false);
   }
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>Supply<Text style={styles.brandBlue}>ED</Text></Text>
-        <Text numberOfLines={1} style={styles.email}>{email}</Text>
+        <Text style={styles.brand}>
+          Supply<Text style={styles.brandBlue}>ED</Text>
+        </Text>
+        <Text numberOfLines={1} style={styles.email}>
+          {email}
+        </Text>
       </View>
 
       <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
@@ -146,7 +174,8 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
             <Text style={styles.badge}>PROFILE REVIEW</Text>
             <Text style={common.cardTitle}>Your dashboard is locked</Text>
             <Text style={common.body}>
-              You can access the dashboard after the profile is active{matSchool ? ' and the MAT signatory has approved it.' : '.'}
+              You can access the dashboard after the profile is active
+              {matSchool ? ' and the MAT signatory has approved it.' : '.'}
             </Text>
 
             <View style={styles.statusBox}>
@@ -158,7 +187,9 @@ export default function ReviewStatusScreen({ type, email, onDashboard }: Props) 
               </View>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Signatory approval</Text>
-                <Text style={[styles.statusValue, approvalReady && styles.good]}>
+                <Text
+                  style={[styles.statusValue, approvalReady && styles.good]}
+                >
                   {matSchool ? approvalText(approval) : 'Not required'}
                 </Text>
               </View>

@@ -5,6 +5,7 @@ export type DashboardPage =
   | 'Jobs'
   | 'Applications'
   | 'Bookings'
+  | 'Billing'
   | 'Messages'
   | 'Interviews';
 
