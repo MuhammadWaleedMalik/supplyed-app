@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors, common } from './theme';
+import { createThemedStyles } from './theme';
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles((colors, common) => ({
   field: {
     width: '100%',
     gap: 7,
@@ -20,6 +19,7 @@ export const styles = StyleSheet.create({
   invalid: {
     borderColor: '#c93652',
   },
+  focused: { borderColor: colors.brand, borderWidth: 2 },
   error: {
     color: '#c93652',
     fontSize: 12,
@@ -29,7 +29,7 @@ export const styles = StyleSheet.create({
     minHeight: 48,
     borderWidth: 1,
     borderColor: '#c7d0d9',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
@@ -38,7 +38,8 @@ export const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 14,
     color: colors.ink,
-    fontSize: 14,
+    fontSize: 16,
+    paddingVertical: 12,
   },
   multiline: {
     minHeight: 96,
@@ -62,4 +63,4 @@ export const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 22,
   },
-});
+}));

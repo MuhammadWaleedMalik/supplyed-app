@@ -1,11 +1,13 @@
 import React from 'react';
 import { Text } from 'react-native';
 import TeacherOverview from '../../../../components/dashboard/TeacherOverview';
-import { styles } from '../../../../components/dashboard/dashboardStyles';
+import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import { showPage } from '../../shared/store/navigationSlice';
 
 export default function TeacherDashboardScreen() {
+  const styles = useStyles();
+
   const dispatch = useAppDispatch();
   const jobs = useAppSelector(state => state.teacherDashboard.jobs);
   const applications = useAppSelector(

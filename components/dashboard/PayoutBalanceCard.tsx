@@ -7,7 +7,7 @@ import { readPayoutAmount } from '../../utils/payments/payoutUtils';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 type Props = {
   balance: PayoutBalance;
@@ -18,6 +18,8 @@ type Props = {
 };
 
 export default function PayoutBalanceCard(props: Props) {
+  const settingsStyles = useSettingsStyles();
+
   const [amount, setAmount] = useState('');
   const [amountError, setAmountError] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -86,7 +88,7 @@ export default function PayoutBalanceCard(props: Props) {
         <Text style={settingsStyles.recordLabel}>
           AVAILABLE TO WITHDRAW NOW
         </Text>
-        <Text style={settingsStyles.recordValue}>
+        <Text style={settingsStyles.balanceValue}>
           {formatPence(props.balance.instantAvailablePence)}
         </Text>
       </View>

@@ -1,13 +1,10 @@
 import { AccountType, OnboardingData } from './onboardingData';
+import { optionalNonNegativeNumber, optionalNonNegativeInteger } from '../ui/numberValidation';
 
 function countryCode(country: string) {
   if (country === 'Pakistan') return 'PK';
   if (country === 'Egypt') return 'EG';
   return 'GB';
-}
-
-function numberOrUndefined(value: string) {
-  return value.trim() ? Number(value) : undefined;
 }
 
 function schoolType(value: string) {
@@ -31,13 +28,13 @@ export function profilePayload(type: AccountType, data: OnboardingData) {
       countryCode: countryCode(data.country),
       postalCode: data.postcode.trim(),
       currency: data.currency,
-      dailyRate: numberOrUndefined(data.dailyRate),
-      hourlyRate: numberOrUndefined(data.hourlyRate),
-      experience: numberOrUndefined(data.experience),
+      dailyRate: optionalNonNegativeNumber(data.dailyRate, 'Daily rate'),
+      hourlyRate: optionalNonNegativeNumber(data.hourlyRate, 'Hourly rate'),
+      experience: optionalNonNegativeInteger(data.experience, 'Experience'),
       keyStages: data.keyStages ? [data.keyStages] : [],
       subjects: data.subjects ? [data.subjects] : [],
       skills: data.skills ? [data.skills] : [],
-      maxTravelDistance: numberOrUndefined(data.travelDistance),
+      maxTravelDistance: optionalNonNegativeNumber(data.travelDistance, 'Travel distance'),
     };
   }
   return {
@@ -59,7 +56,7 @@ export function profilePayload(type: AccountType, data: OnboardingData) {
     complianceEmail: data.complianceEmail.trim(),
     coverTypes: data.staffingNeeds ? [data.staffingNeeds] : [],
     staffingNeeds: data.staffingNeeds,
-    typicalPupilCount: numberOrUndefined(data.pupilCount),
+    typicalPupilCount: optionalNonNegativeInteger(data.pupilCount, 'Pupil count'),
     safeguardingConfirmed: data.confirmed,
   };
 }

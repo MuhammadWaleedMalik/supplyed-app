@@ -1,6 +1,6 @@
 import React, { ComponentRef, useRef } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { colors } from '../Ui/theme';
+import { TextInput, View } from 'react-native';
+import { createThemedStyles } from '../Ui/theme';
 
 const positions = [0, 1, 2, 3, 4, 5];
 type CodeInputRef = ComponentRef<typeof TextInput>;
@@ -11,6 +11,8 @@ type Props = {
 };
 
 export default function CodeInputs({ digits, onChange }: Props) {
+  const styles = useStyles();
+
   // Native input refs keep automatic OTP focus and backspace movement working.
   const refs = useRef<Array<CodeInputRef | null>>([]);
 
@@ -50,7 +52,7 @@ export default function CodeInputs({ digits, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   row: { flexDirection: 'row', gap: 8 },
   input: {
     flex: 1,
@@ -63,4 +65,4 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 22,
   },
-});
+}));

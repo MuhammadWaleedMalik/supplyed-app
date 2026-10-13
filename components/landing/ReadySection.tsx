@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Section from './Section';
 import CheckList from './CheckList';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 
 const items = [
   [
@@ -21,6 +21,8 @@ const items = [
 ];
 
 export default function ReadySection() {
+  const common = useCommonStyles();
+
   return (
     <Section>
       <View style={styles.content}>

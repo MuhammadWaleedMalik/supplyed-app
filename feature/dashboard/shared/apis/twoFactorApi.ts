@@ -38,7 +38,7 @@ export function regenerateRecoveryCodes(code: string) {
 }
 
 export function disableTwoFactor(code: string) {
-  return protectedRequest<TwoFactorStatus>(
+  return protectedRequest<{ enabled: boolean }>(
     endpoints.twoFactorDisable,
     'POST',
     { code: code.trim() },

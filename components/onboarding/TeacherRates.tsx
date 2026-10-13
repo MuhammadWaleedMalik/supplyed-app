@@ -57,7 +57,8 @@ export default function TeacherRates({ data, wide, update }: Props) {
         </View>
         <Input
           label="MAXIMUM TRAVEL DISTANCE"
-          placeholder="25 miles"
+          placeholder="25"
+          number
           required={false}
           value={data.travelDistance}
           onChangeText={value => update('travelDistance', value)}

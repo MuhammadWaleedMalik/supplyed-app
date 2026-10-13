@@ -1,5 +1,6 @@
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
+import { getAllPages } from '../../../../utils/api/pagination';
 
 export type Review = {
   id: string;
@@ -26,15 +27,15 @@ export function createReview(
 }
 
 export async function getInstructorReviews(instructorId: string) {
-  const reply = await protectedRequest<{ reviews?: Review[] }>(
-    endpoints.reviews + '/instructor/' + instructorId + '?page=1&limit=100',
+  return getAllPages<Review>(
+    endpoints.reviews + '/instructor/' + encodeURIComponent(instructorId),
+    'reviews',
   );
-  return reply.reviews || [];
 }
 
 export async function getInstitutionReviews(institutionId: string) {
-  const reply = await protectedRequest<{ reviews?: Review[] }>(
-    endpoints.reviews + '/institution/' + institutionId + '?page=1&limit=100',
+  return getAllPages<Review>(
+    endpoints.reviews + '/institution/' + encodeURIComponent(institutionId),
+    'reviews',
   );
-  return reply.reviews || [];
 }

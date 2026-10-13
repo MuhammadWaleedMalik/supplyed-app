@@ -7,9 +7,11 @@ import Checkbox from '../Ui/Checkbox';
 import Input from '../Ui/Input';
 import ChoiceField from './ChoiceField';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 export default function AdminUsersPanel() {
+  const settingsStyles = useSettingsStyles();
+
   const form = useAdminUsers();
   const disabled = form.loading || form.busy;
 

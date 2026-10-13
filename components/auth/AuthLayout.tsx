@@ -3,12 +3,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 import AuthIntro from './AuthIntro';
 import AuthContent from './AuthContent';
 import VerificationContent from './VerificationContent';
@@ -33,6 +32,8 @@ export default function AuthLayout({
   onSwitch,
   actions,
 }: Props) {
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 900;
 
@@ -78,10 +79,10 @@ export default function AuthLayout({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   keyboard: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: colors.dark },
   scroll: { flexGrow: 1, backgroundColor: '#ffffff', paddingBottom: 160 },
   panels: { flexGrow: 1 },
   widePanels: { flexDirection: 'row' },
-});
+}));

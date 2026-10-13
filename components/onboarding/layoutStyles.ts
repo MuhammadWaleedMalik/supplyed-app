@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles(colors => ({
   keyboard: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   topBar: {
@@ -11,15 +10,20 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.brandBorder,
   },
   brand: { color: colors.ink, fontSize: 20, fontWeight: '700' },
-  brandBlue: { color: colors.blue },
-  scroll: { flexGrow: 1, padding: 12, paddingBottom: 170, backgroundColor: '#fbfcfd' },
+  brandBlue: { color: colors.brand },
+  scroll: {
+    flexGrow: 1,
+    padding: 12,
+    paddingBottom: 170,
+    backgroundColor: '#fbfcfd',
+  },
   panels: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     overflow: 'hidden',
     flexGrow: 1,
@@ -32,5 +36,4 @@ export const styles = StyleSheet.create({
   },
   main: { flex: 1, padding: 20, gap: 24 },
   fields: { flexGrow: 1 },
-});
-
+}));

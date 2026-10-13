@@ -1,9 +1,9 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import CodeInputs from './CodeInputs';
-import { verificationStyles as styles } from './verificationStyles';
+import { useVerificationStyles as useStyles } from './verificationStyles';
 import { AuthActions } from '../../feature/auth/apis/authApi';
 import { useVerification } from '../../feature/auth/hooks/useVerification';
 
@@ -22,6 +22,9 @@ export default function VerificationContent({
   wide,
   actions,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const form = useVerification(email, token, actions.onAuthenticated);
 
   return (
@@ -74,4 +77,3 @@ export default function VerificationContent({
     </View>
   );
 }
-

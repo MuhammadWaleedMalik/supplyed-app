@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
-import { StatusBar } from 'react-native';
+import { Linking, StatusBar } from 'react-native';
+import {
+  handleURLCallback,
+  resetPaymentSheetCustomer,
+} from '@stripe/stripe-react-native';
+import { getSessionVersion, onSessionChanged } from './utils/api/session';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LandingPage from './feature/landing/screen/LandingPage';
 import LoginScreen from './feature/auth/screen/LoginScreen';
@@ -21,10 +26,13 @@ import SettingsScreen from './feature/dashboard/shared/screens/SettingsScreen';
 import { useAppNavigation } from './utils/navigation/appNavigation';
 import { store } from './store';
 import SplashScreen from './components/SplashScreen';
+import PublicThemeControls from './components/Ui/PublicThemeControls';
+import { useConversationSocket } from './feature/dashboard/shared/hooks/useConversationSocket';
 
-const SPLASH_DURATION_MS = 5000;
+const SPLASH_DURATION_MS = 2500;
 
 export default function App() {
+  useConversationSocket();
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const {
     screen,
@@ -49,6 +57,38 @@ export default function App() {
     showLanding,
     goBack,
   } = useAppNavigation();
+
+  useEffect(() => {
+    function handleLink(url: string | null | undefined) {
+      if (url?.startsWith('supplyed://stripe-redirect'))
+        handleURLCallback(url).catch(() => {
+          console.warn(
+            'Unable to process the payment redirect. Refresh the invoice to check payment status.',
+          );
+        });
+    }
+    Linking.getInitialURL()
+      .then(handleLink)
+      .catch(() => {
+        console.warn('Unable to read the app launch link.');
+      });
+    const links = Linking.addEventListener('url', event =>
+      handleLink(event.url),
+    );
+    let version = getSessionVersion();
+    const unsubscribe = onSessionChanged(() => {
+      if (getSessionVersion() !== version) {
+        version = getSessionVersion();
+        resetPaymentSheetCustomer().catch(() => {
+          console.warn('Unable to clear the payment sheet customer cache.');
+        });
+      }
+    });
+    return () => {
+      links.remove();
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -76,6 +116,7 @@ export default function App() {
               hidden={false}
               barStyle={
                 [
+                  'landing',
                   'onboarding',
                   'restoring',
                   'documents',
@@ -154,6 +195,8 @@ export default function App() {
                 email={verificationEmail}
                 type={profileType}
                 onDashboard={showDashboard}
+                onDocuments={() => showDocuments(profileType)}
+                onExit={showLanding}
               />
             )}
             {screen === 'dashboard' && profileType === 'school' && (
@@ -188,6 +231,17 @@ export default function App() {
             {screen === 'settings' && (
               <SettingsScreen type={profileType} onBack={goBack} />
             )}
+            {[
+              'landing',
+              'login',
+              'register',
+              'verification',
+              'twoFactor',
+              'forgotPassword',
+              'onboarding',
+              'documents',
+              'reviewStatus',
+            ].includes(screen) && <PublicThemeControls />}
           </>
         )}
       </SafeAreaProvider>

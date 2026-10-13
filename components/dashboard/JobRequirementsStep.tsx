@@ -7,7 +7,7 @@ import DateField from '../Ui/DateField';
 import Input from '../Ui/Input';
 import Select from '../Ui/Select';
 import ChoiceField from './ChoiceField';
-import { jobStyles } from './jobStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   form: JobForm;
@@ -26,6 +26,8 @@ export default function JobRequirementsStep({
   onBack,
   onSave,
 }: Props) {
+  const jobStyles = useJobStyles();
+
   return (
     <View style={jobStyles.formSection}>
       <Text style={jobStyles.sectionTitle}>Teacher requirements</Text>
@@ -93,8 +95,8 @@ export default function JobRequirementsStep({
             loading
               ? 'Publishing...'
               : form.status === 'ACTIVE'
-                ? 'Publish job'
-                : 'Save draft'
+              ? 'Publish job'
+              : 'Save draft'
           }
           onPress={onSave}
           disabled={loading}

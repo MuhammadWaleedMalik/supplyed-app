@@ -1,6 +1,6 @@
-﻿import React, { ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { colors } from '../Ui/theme';
+import React, { ReactNode } from 'react';
+import { View, useWindowDimensions } from 'react-native';
+import { createThemedStyles } from '../Ui/theme';
 import GridBackground from '../Ui/GridBackground';
 
 type Props = {
@@ -11,6 +11,8 @@ type Props = {
 };
 
 export default function Section({ children, soft, dark, grid }: Props) {
+  const styles = useStyles();
+
   const { width } = useWindowDimensions();
 
   return (
@@ -23,7 +25,7 @@ export default function Section({ children, soft, dark, grid }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   section: { backgroundColor: '#ffffff' },
   soft: { backgroundColor: colors.soft },
   dark: { backgroundColor: colors.dark },
@@ -35,4 +37,4 @@ const styles = StyleSheet.create({
     gap: 32,
   },
   mobile: { paddingHorizontal: 20, paddingVertical: 40, gap: 26 },
-});
+}));

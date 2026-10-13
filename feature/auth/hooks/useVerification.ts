@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { resendEmailCode, User, verifyEmailCode } from '../apis/authApi';
+import { saveTokens } from '../../../utils/api/session';
+import { useAuthAttempt } from '../../../utils/auth/useAuthAttempt';
 
 export function useVerification(
   email: string,
@@ -10,6 +12,7 @@ export function useVerification(
   const [token, setToken] = useState(firstToken);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const attempt = useAuthAttempt();
 
   function changeDigit(index: number, value: string) {
     const numbers = value.replace(/\D/g, '');
@@ -32,26 +35,41 @@ export function useVerification(
       setError('Enter the six-digit code from your email.');
       return;
     }
+    const active = attempt.begin();
+    if (!active) return;
     setLoading(true);
     setError('');
     try {
       const reply = await verifyEmailCode(code, token);
+      if (!active()) return;
       if (!reply.user)
         throw new Error('The server did not return your account.');
+      saveTokens(reply);
       await onAuthenticated(reply.user);
     } catch (problem) {
       setError(
         problem instanceof Error ? problem.message : 'Unable to verify email.',
       );
+    } finally {
+      attempt.finish();
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function resend() {
+    const active = attempt.begin();
+    if (!active) return;
     setLoading(true);
     setError('');
     try {
       const reply = await resendEmailCode(email);
+      if (!active()) return;
+      if (reply.emailVerified) {
+        setToken('');
+        setDigits(['', '', '', '', '', '']);
+        setError('Your email is already verified. Return to login to sign in.');
+        return;
+      }
       if (!reply.otpToken) throw new Error('A new code was not returned.');
       setToken(reply.otpToken);
       setDigits(['', '', '', '', '', '']);
@@ -59,8 +77,10 @@ export function useVerification(
       setError(
         problem instanceof Error ? problem.message : 'Unable to resend code.',
       );
+    } finally {
+      attempt.finish();
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return { digits, changeDigit, error, loading, verify, resend };

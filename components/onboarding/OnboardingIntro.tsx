@@ -1,8 +1,8 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import GridBackground from '../Ui/GridBackground';
-import { styles } from './introStyles';
-import { common } from '../Ui/theme';
+import { useStyles } from './introStyles';
+import { useCommonStyles } from '../Ui/theme';
 import { AccountType } from '../../utils/onboarding/onboardingData';
 import {
   getIntroCopy,
@@ -17,6 +17,9 @@ type Props = {
 };
 
 export default function OnboardingIntro({ type, step, steps, wide }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { heading, description } = getIntroCopy(type, step);
   const pathName = getPathName(type);
 

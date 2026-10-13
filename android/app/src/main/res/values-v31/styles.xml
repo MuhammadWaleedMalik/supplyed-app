@@ -7,8 +7,11 @@
         <item name="android:windowFullscreen">true</item>
         <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/supplyed_splash_icon</item>
+        <!-- Android 12 requires a system splash. Keep its icon transparent so
+             the full-screen branded React Native splash is the only visible mark. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 
 </resources>

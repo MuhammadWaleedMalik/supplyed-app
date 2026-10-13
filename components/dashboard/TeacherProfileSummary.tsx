@@ -2,22 +2,30 @@ import { MapPin } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Image, Text, View } from 'react-native';
 import { useLimitedProfile } from '../../feature/dashboard/shared/hooks/useLimitedProfile';
-import { colors } from '../Ui/theme';
-import { applicationStyles } from './applicationStyles';
-import { styles } from './dashboardStyles';
+import { useTheme } from '../Ui/theme';
+import { useApplicationStyles } from './applicationStyles';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   teacherId: string;
+  compact?: boolean;
 };
 
-export default function TeacherProfileSummary({ teacherId }: Props) {
+export default function TeacherProfileSummary({
+  teacherId,
+  compact = false,
+}: Props) {
+  const { colors } = useTheme();
+  const applicationStyles = useApplicationStyles();
+  const styles = useStyles();
+
   const profileState = useLimitedProfile('teacher', teacherId);
   const profile = profileState.profile;
 
   if (profileState.loading) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={colors.blue} />
+        <ActivityIndicator color={colors.brand} />
         <Text style={styles.cardBody}>Loading teacher profile...</Text>
       </View>
     );
@@ -46,8 +54,8 @@ export default function TeacherProfileSummary({ teacherId }: Props) {
       .toUpperCase() || 'T';
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Teacher profile</Text>
+    <View style={compact ? styles.section : styles.card}>
+      {!compact ? <Text style={styles.cardTitle}>Teacher profile</Text> : null}
 
       <View style={applicationStyles.profileHeader}>
         {canShowImage ? (
@@ -72,22 +80,33 @@ export default function TeacherProfileSummary({ teacherId }: Props) {
             </View>
           ) : null}
 
-          {profile.note ? (
+          {profile.note && !compact ? (
             <Text style={styles.teacherMeta}>{profile.note}</Text>
           ) : null}
         </View>
       </View>
 
-      {profile.about ? (
+      {profile.about && !compact ? (
         <Text style={styles.cardBody}>{profile.about}</Text>
       ) : null}
 
-      {profile.tags?.length ? (
+      {profile.tags?.length && !compact ? (
         <View style={applicationStyles.profileTags}>
           {profile.tags.map(tag => (
             <View key={tag} style={applicationStyles.profileTag}>
               <Text style={applicationStyles.profileTagText}>{tag}</Text>
             </View>
+          ))}
+        </View>
+      ) : null}
+
+      {profile.details?.length && !compact ? (
+        <View style={styles.section}>
+          <Text style={styles.eyebrow}>MARKETPLACE DETAILS</Text>
+          {profile.details.map(detail => (
+            <Text key={detail} style={styles.cardBody}>
+              {detail}
+            </Text>
           ))}
         </View>
       ) : null}

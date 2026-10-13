@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import type { SignatoryApproval } from '../../feature/onboarding/apis/profileApi';
 import Button from '../Ui/Button';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 type Props = {
   visible: boolean;
@@ -31,6 +31,9 @@ function statusText(approval: SignatoryApproval | null) {
 }
 
 export default function SignatoryApprovalPanel(props: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   if (!props.visible) return null;
 
   return (
@@ -57,10 +60,10 @@ export default function SignatoryApprovalPanel(props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     padding: 15,
@@ -69,8 +72,8 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     borderRadius: 8,
-    backgroundColor: colors.paleBlue,
-    color: '#006b93',
+    backgroundColor: colors.brandTint,
+    color: colors.brandDark,
     fontSize: 10,
     fontWeight: '800',
     paddingHorizontal: 8,
@@ -78,4 +81,4 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   meta: { color: colors.muted, fontSize: 12 },
-});
+}));

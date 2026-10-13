@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Input from '../Ui/Input';
 import Select from '../Ui/Select';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 import {
   AccountType,
   cities,
@@ -28,6 +28,8 @@ export default function AccountFields({
   phoneLocked,
   update,
 }: Props) {
+  const styles = useStyles();
+
   return (
     <View style={styles.fields}>
       <View style={[styles.row, wide && styles.wide]}>
@@ -91,7 +93,7 @@ export default function AccountFields({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   fields: { gap: 16 },
   row: { gap: 12 },
   wide: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -99,4 +101,4 @@ const styles = StyleSheet.create({
   half: { flex: 1, width: 'auto' },
   phone: { width: '100%', gap: 2 },
   hint: { color: colors.muted, fontSize: 11 },
-});
+}));

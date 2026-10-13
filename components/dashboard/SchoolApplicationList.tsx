@@ -2,8 +2,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { SchoolApplication } from '../../feature/dashboard/school/store/schoolSlice';
 import Button from '../Ui/Button';
-import { applicationStyles } from './applicationStyles';
-import { styles } from './dashboardStyles';
+import RichText from '../Ui/RichText';
+import { useApplicationStyles } from './applicationStyles';
+import { useStyles } from './dashboardStyles';
+import TeacherProfileSummary from './TeacherProfileSummary';
 
 type Props = {
   applications: SchoolApplication[];
@@ -11,6 +13,9 @@ type Props = {
 };
 
 export default function SchoolApplicationList({ applications, onOpen }: Props) {
+  const applicationStyles = useApplicationStyles();
+  const styles = useStyles();
+
   if (!applications.length) {
     return (
       <View style={[styles.card, styles.emptyCard]}>
@@ -35,16 +40,19 @@ export default function SchoolApplicationList({ applications, onOpen }: Props) {
             </View>
           </View>
 
+          <TeacherProfileSummary teacherId={application.instructorId} compact />
           <Text style={styles.teacherMeta}>{application.job.title}</Text>
-          <Text numberOfLines={3} style={styles.cardBody}>
-            {application.coverLetter || 'No cover letter added.'}
-          </Text>
+          <RichText
+            value={application.coverLetter}
+            numberOfLines={3}
+            style={styles.cardBody}
+          />
           <Text style={styles.teacherMeta}>
             Received {application.createdAt?.slice(0, 10) || 'recently'}
           </Text>
           <Button
             compact
-            title="Review application"
+            title="Open application"
             onPress={() => onOpen(application.id)}
           />
         </View>

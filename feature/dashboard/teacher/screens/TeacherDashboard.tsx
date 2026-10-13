@@ -11,9 +11,9 @@ import {
 } from '../../shared/store/navigationSlice';
 import { useLoadTeacherDashboard } from '../hooks/useLoadTeacherDashboard';
 import TeacherApplicationsScreen from './TeacherApplicationsScreen';
-import TeacherInterviewsScreen from './TeacherInterviewsScreen';
 import TeacherJobsScreen from './TeacherJobsScreen';
 import TeacherDashboardScreen from './TeacherDashboardScreen';
+import NotificationsScreen from '../../shared/screens/NotificationsScreen';
 
 type Props = {
   email: string;
@@ -38,6 +38,9 @@ export default function TeacherDashboard(props: Props) {
   }
 
   function pageContent() {
+    if (page === 'Notifications') {
+      return <NotificationsScreen type="teacher" onSettings={props.onSettings} />;
+    }
     if (page === 'Jobs') {
       return <TeacherJobsScreen />;
     }
@@ -52,9 +55,6 @@ export default function TeacherDashboard(props: Props) {
     }
     if (page === 'Messages') {
       return <MessagesScreen role="teacher" />;
-    }
-    if (page === 'Interviews') {
-      return <TeacherInterviewsScreen />;
     }
     return <TeacherDashboardScreen />;
   }

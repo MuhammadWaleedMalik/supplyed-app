@@ -1,13 +1,16 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
 import SectionHeading from './SectionHeading';
 import CheckList from './CheckList';
 import PolicyNotice from './PolicyNotice';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { foundingRoutes } from '../../constants/landingData';
 
 export default function FoundingRoutes() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
 
   return (
@@ -39,19 +42,19 @@ export default function FoundingRoutes() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   cards: { gap: 16 },
   row: { flexDirection: 'row' },
   card: { flex: 1 },
-  enhanced: { borderColor: '#9dd5e8' },
+  enhanced: { borderColor: colors.brandBorder },
   badge: {
     alignSelf: 'flex-end',
-    color: '#007ba6',
-    backgroundColor: colors.paleBlue,
+    color: colors.brand,
+    backgroundColor: colors.brandTint,
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 10,
     fontSize: 10,
     fontWeight: '700',
   },
-});
+}));

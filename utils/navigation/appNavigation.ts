@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
 import { getCurrentUser, User } from '../../feature/auth/apis/authApi';
 import {
@@ -6,6 +6,7 @@ import {
   getAccessToken,
   getSessionVersion,
   onSessionExpired,
+  restoreStoredTokens,
   setCurrentSessionUser,
 } from '../api/session';
 import { getAppRole } from '../auth/authUtils';
@@ -81,7 +82,7 @@ function getBackTarget(
 }
 
 export function useAppNavigation() {
-  const firstScreen: AppScreen = getAccessToken() ? 'restoring' : 'landing';
+  const firstScreen: AppScreen = 'restoring';
 
   const [screen, setScreen] = useState<AppScreen>(firstScreen);
   const [registerBackScreen, setRegisterBackScreen] =
@@ -92,6 +93,7 @@ export function useAppNavigation() {
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [restoreError, setRestoreError] = useState('');
+  const restoreAttempt = useRef(0);
 
   const defaultBackTarget = getBackTarget(screen, registerBackScreen);
   const backTarget =
@@ -131,9 +133,10 @@ export function useAppNavigation() {
     setScreen('reviewStatus');
   }
 
-  function showDashboard() {
+  const showDashboard = useCallback(() => {
+    if (!getAccessToken()) return;
     setScreen(isAdmin ? 'adminPayments' : 'dashboard');
-  }
+  }, [isAdmin]);
 
   function showWorkspaceProfile() {
     setScreen('workspaceProfile');
@@ -173,7 +176,11 @@ export function useAppNavigation() {
   }
 
   async function showAuthenticated(user: User) {
+    if (!getAccessToken()) return;
     const version = getSessionVersion();
+    setOtpToken('');
+    setTwoFactorToken('');
+    setRestoreError('');
     setVerificationEmail(user.email);
     setCurrentSessionUser(user);
     setIsAdmin(user.role === 'ADMIN');
@@ -190,12 +197,23 @@ export function useAppNavigation() {
     }
 
     setProfileType(role);
-    const nextScreen = await nextAccountScreen(role);
-    if (getSessionVersion() === version) setScreen(nextScreen);
+    setScreen('restoring');
+    try {
+      const nextScreen = await nextAccountScreen(role);
+      if (getSessionVersion() === version) setScreen(nextScreen);
+    } catch (problem) {
+      if (getSessionVersion() !== version) return;
+      setRestoreError(problem instanceof Error ? problem.message : 'Unable to load your account. Please try again.');
+    }
   }
 
   function showLanding() {
+    restoreAttempt.current += 1;
     clearTokens();
+    setVerificationEmail('');
+    setOtpToken('');
+    setTwoFactorToken('');
+    setRestoreError('');
     setIsAdmin(false);
     setScreen('landing');
   }
@@ -206,6 +224,19 @@ export function useAppNavigation() {
   }
 
   const restoreSession = useCallback(async () => {
+    const attempt = ++restoreAttempt.current;
+    setRestoreError('');
+    try {
+      await restoreStoredTokens();
+    } catch {
+      if (attempt !== restoreAttempt.current) return;
+      setRestoreError(
+        'Unable to read your saved session. Retry or sign in again.',
+      );
+      setScreen('restoring');
+      return;
+    }
+    if (attempt !== restoreAttempt.current) return;
     const version = getSessionVersion();
     setRestoreError('');
     if (!getAccessToken()) {
@@ -215,7 +246,8 @@ export function useAppNavigation() {
 
     try {
       const user = await getCurrentUser();
-      if (getSessionVersion() !== version) return;
+      if (getSessionVersion() !== version || attempt !== restoreAttempt.current) return;
+      setCurrentSessionUser(user);
       setVerificationEmail(user.email);
       setIsAdmin(user.role === 'ADMIN');
       if (user.role === 'ADMIN') {
@@ -232,9 +264,9 @@ export function useAppNavigation() {
 
       setProfileType(role);
       const nextScreen = await nextAccountScreen(role);
-      if (getSessionVersion() === version) setScreen(nextScreen);
+      if (getSessionVersion() === version && attempt === restoreAttempt.current) setScreen(nextScreen);
     } catch (problem) {
-      if (getSessionVersion() !== version) return;
+      if (getSessionVersion() !== version || attempt !== restoreAttempt.current) return;
       setRestoreError(
         problem instanceof Error
           ? problem.message
@@ -246,11 +278,17 @@ export function useAppNavigation() {
 
   useEffect(() => {
     restoreSession();
+    return () => { restoreAttempt.current += 1; };
   }, [restoreSession]);
 
   useEffect(
     () =>
       onSessionExpired(() => {
+        restoreAttempt.current += 1;
+        setVerificationEmail('');
+        setOtpToken('');
+        setTwoFactorToken('');
+        setRestoreError('');
         setIsAdmin(false);
         setScreen('login');
       }),

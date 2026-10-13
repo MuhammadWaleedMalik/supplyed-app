@@ -1,6 +1,6 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../Ui/theme';
+import React from 'react';
+import { Text, View } from 'react-native';
+import { createThemedStyles } from '../Ui/theme';
 
 const steps = [
   ['Account', 'Email and password are created first.'],
@@ -9,6 +9,8 @@ const steps = [
 ];
 
 export default function AuthSteps() {
+  const styles = useStyles();
+
   return (
     <View style={styles.steps}>
       {steps.map(([title, description], index) => (
@@ -24,7 +26,7 @@ export default function AuthSteps() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   steps: { gap: 10 },
   step: {
     flexDirection: 'row',
@@ -37,7 +39,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1c1d',
   },
   number: {
-    color: colors.blue,
+    color: colors.brand,
     backgroundColor: '#30373d',
     borderRadius: 20,
     overflow: 'hidden',
@@ -49,4 +51,4 @@ const styles = StyleSheet.create({
   copy: { flex: 1, gap: 3 },
   title: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
   description: { color: '#aebbc7', fontSize: 13, lineHeight: 19 },
-});
+}));

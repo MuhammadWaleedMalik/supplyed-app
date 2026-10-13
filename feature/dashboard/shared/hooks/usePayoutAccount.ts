@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { ApiError } from '../../../../utils/api/request';
 import { openStripeConnect } from '../../../../utils/payments/paymentUtils';
 import { payoutResultIsUncertain } from '../../../../utils/payments/payoutUtils';
+import { getSessionVersion } from '../../../../utils/api/session';
 import {
   createInstantPayout,
   createPayoutDashboardLink,
@@ -26,26 +28,34 @@ export function usePayoutAccount() {
   const [notice, setNotice] = useState('');
   // The ref also blocks two taps before React has rendered the disabled button.
   const actionRunning = useRef(false);
+  const requestId = useRef(0);
 
   const refresh = useCallback(async () => {
+    const request = ++requestId.current;
+    const version = getSessionVersion();
+    const active = () => request === requestId.current && getSessionVersion() === version;
     setLoading(true);
     setNeedsRefresh(true);
     setError('');
     try {
       const latestAccount = await getPayoutAccount();
+      if (!active()) return false;
       setAccount(latestAccount);
       if (latestAccount.ready) {
-        setBalance(await getPayoutBalance());
+        const latestBalance = await getPayoutBalance();
+        if (!active()) return false;
+        setBalance(latestBalance);
       } else {
         setBalance(undefined);
       }
       setNeedsRefresh(false);
       return true;
     } catch (problem) {
+      if (!active()) return false;
       setError(errorMessage(problem));
       return false;
     } finally {
-      setLoading(false);
+      if (active()) setLoading(false);
     }
   }, []);
 
@@ -55,7 +65,7 @@ export function usePayoutAccount() {
       // Stripe updates arrive through the backend, so read them again on return.
       if (state === 'active') refresh();
     });
-    return () => subscription.remove();
+    return () => { requestId.current += 1; subscription.remove(); };
   }, [refresh]);
 
   async function openPayouts() {
@@ -66,9 +76,19 @@ export function usePayoutAccount() {
     setNotice('');
     try {
       // Always request a fresh link. Stripe onboarding links expire quickly.
-      const link = account?.ready
-        ? await createPayoutDashboardLink()
-        : await createPayoutOnboardingLink();
+      let link;
+      if (account?.ready) {
+        try {
+          link = await createPayoutDashboardLink();
+        } catch (problem) {
+          if (!(problem instanceof ApiError) || problem.status !== 400)
+            throw problem;
+          setNotice(
+            'Bank details for this account are managed on the SupplyEd website. Sign in there to update them. Your balance and instant withdrawals are available here.',
+          );
+          return;
+        }
+      } else link = await createPayoutOnboardingLink();
       await openStripeConnect(link.url);
     } catch (problem) {
       setError(errorMessage(problem));

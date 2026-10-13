@@ -12,13 +12,23 @@ import Button from '../../../components/Ui/Button';
 import DocumentsIntro from '../../../components/documents/DocumentsIntro';
 import DocumentsUpload from '../../../components/documents/DocumentsUpload';
 import SignatoryApprovalPanel from '../../../components/documents/SignatoryApprovalPanel';
-import { styles } from './documentStyles';
+import { useStyles } from './documentStyles';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
 import { useDocuments } from '../hooks/useDocuments';
 
-type Props = { type: AccountType; onReviewStatus: () => void; onExit: () => void };
+type Props = {
+  type: AccountType;
+  onReviewStatus: () => void;
+  onExit: () => void;
+};
 
-export default function DocumentsScreen({ type, onReviewStatus, onExit }: Props) {
+export default function DocumentsScreen({
+  type,
+  onReviewStatus,
+  onExit,
+}: Props) {
+  const styles = useStyles();
+
   const form = useDocuments(type, onReviewStatus);
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 850;
@@ -47,6 +57,7 @@ export default function DocumentsScreen({ type, onReviewStatus, onExit }: Props)
               documents={form.documents}
               error={form.error}
               loading={form.loading}
+              onRetry={!form.loaded ? form.retryLoad : undefined}
               submitting={form.submitting}
               uploadingId={form.uploadingId}
               previewingId={form.previewingId}

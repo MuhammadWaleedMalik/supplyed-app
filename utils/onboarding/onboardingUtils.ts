@@ -1,4 +1,5 @@
 import { AccountType, OnboardingData } from './onboardingData';
+import { isValidEmail } from '../auth/authValidation';
 
 export function canContinue(
   type: AccountType,
@@ -25,10 +26,10 @@ export function canContinue(
       data.institutionType === 'Single school' ||
       Boolean(
         data.signatoryName.trim() &&
-          data.signatoryEmail.trim() &&
+          isValidEmail(data.signatoryEmail) &&
           data.signatoryJobTitle.trim(),
       );
-    return data.confirmed && signatoryReady;
+    return data.confirmed && signatoryReady && (!data.complianceEmail.trim() || isValidEmail(data.complianceEmail));
   }
   return true;
 }

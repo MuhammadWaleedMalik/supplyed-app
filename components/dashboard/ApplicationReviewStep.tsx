@@ -2,8 +2,9 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
-import { applicationStyles } from './applicationStyles';
-import { jobStyles } from './jobStyles';
+import RichText from '../Ui/RichText';
+import { useApplicationStyles } from './applicationStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   job: Job;
@@ -15,6 +16,9 @@ type Props = {
 };
 
 export default function ApplicationReviewStep(props: Props) {
+  const applicationStyles = useApplicationStyles();
+  const jobStyles = useJobStyles();
+
   return (
     <View style={jobStyles.formSection}>
       <Text style={jobStyles.sectionTitle}>Review your application</Text>
@@ -28,9 +32,10 @@ export default function ApplicationReviewStep(props: Props) {
       </View>
 
       <View style={applicationStyles.cover}>
-        <Text style={applicationStyles.coverText}>
-          {props.coverLetter || 'No cover letter added.'}
-        </Text>
+        <RichText
+          value={props.coverLetter}
+          style={applicationStyles.coverText}
+        />
       </View>
 
       {props.error ? <Text style={jobStyles.error}>{props.error}</Text> : null}

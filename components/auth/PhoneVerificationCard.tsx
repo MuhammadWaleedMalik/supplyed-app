@@ -1,10 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { User } from '../../feature/auth/apis/authApi';
 import { usePhoneVerification } from '../../feature/auth/hooks/usePhoneVerification';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
 type Props = {
   user?: User;
@@ -19,6 +19,8 @@ export default function PhoneVerificationCard({
   disabled = false,
   onVerified,
 }: Props) {
+  const styles = useStyles();
+
   const form = usePhoneVerification(user, onVerified);
   const busy = disabled || form.loading;
   const expiryMinutes = Math.ceil(form.expirySeconds / 60);
@@ -37,7 +39,9 @@ export default function PhoneVerificationCard({
           onChangeText={form.changePhone}
         />
       ) : (
-        <Text style={styles.phone}>{form.phone || 'No saved phone number'}</Text>
+        <Text style={styles.phone}>
+          {form.phone || 'No saved phone number'}
+        </Text>
       )}
       {form.verified ? (
         <Text style={styles.success}>Phone verified</Text>
@@ -49,23 +53,29 @@ export default function PhoneVerificationCard({
               : 'Verify your saved phone number to help complete your account verification.'}
           </Text>
           {editable && form.savedVerified && form.phone !== form.savedPhone ? (
-            <Text style={styles.note}>Current verified phone: {form.savedPhone}</Text>
+            <Text style={styles.note}>
+              Current verified phone: {form.savedPhone}
+            </Text>
           ) : null}
           {!editable && !form.phone ? (
-            <Text style={styles.note}>Add and verify your phone later in Settings.</Text>
+            <Text style={styles.note}>
+              Add and verify your phone later in Settings.
+            </Text>
           ) : null}
           <Button
             title={
               form.loading
                 ? 'Please wait...'
                 : form.resendSeconds > 0
-                  ? `Send code in ${form.resendSeconds}s`
-                  : form.sentPhone
-                    ? 'Resend code'
-                    : 'Verify phone'
+                ? `Send code in ${form.resendSeconds}s`
+                : form.sentPhone
+                ? 'Resend code'
+                : 'Verify phone'
             }
             onPress={form.send}
-            disabled={!user || busy || !form.phone.trim() || form.resendSeconds > 0}
+            disabled={
+              !user || busy || !form.phone.trim() || form.resendSeconds > 0
+            }
             compact
           />
           {form.sentPhone ? (
@@ -82,7 +92,9 @@ export default function PhoneVerificationCard({
               />
               <Text style={styles.note}>
                 {form.expirySeconds > 0
-                  ? `Code expires in ${expiryMinutes} minute${expiryMinutes === 1 ? '' : 's'}.`
+                  ? `Code expires in ${expiryMinutes} minute${
+                      expiryMinutes === 1 ? '' : 's'
+                    }.`
                   : 'This code has expired. Request a new code.'}
               </Text>
               <Button
@@ -95,12 +107,16 @@ export default function PhoneVerificationCard({
           ) : null}
         </>
       )}
-      {form.error ? <Text accessibilityRole="alert" style={styles.error}>{form.error}</Text> : null}
+      {form.error ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          {form.error}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   card: { gap: 12 },
   title: { color: colors.ink, fontSize: 17, fontWeight: '700' },
   phone: { color: colors.ink, fontSize: 15, fontWeight: '600' },
@@ -108,4 +124,4 @@ const styles = StyleSheet.create({
   code: { gap: 10 },
   success: { color: '#17783b', fontSize: 14, fontWeight: '700' },
   error: { color: '#b4233f', fontSize: 12, lineHeight: 18 },
-});
+}));

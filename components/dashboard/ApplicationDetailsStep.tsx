@@ -3,8 +3,8 @@ import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
-import { applicationStyles } from './applicationStyles';
-import { jobStyles } from './jobStyles';
+import { useApplicationStyles } from './applicationStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   job: Job;
@@ -19,6 +19,9 @@ export default function ApplicationDetailsStep({
   onCoverLetter,
   onNext,
 }: Props) {
+  const applicationStyles = useApplicationStyles();
+  const jobStyles = useJobStyles();
+
   return (
     <View style={jobStyles.formSection}>
       <View style={jobStyles.summary}>
@@ -37,9 +40,12 @@ export default function ApplicationDetailsStep({
           </Text>
         </View>
       </View>
+      <Text style={jobStyles.modeBody}>
+        {job.description || 'No role description added.'}
+      </Text>
       <Text style={jobStyles.sectionTitle}>Why are you a good fit?</Text>
       <Input
-        label="COVER LETTER"
+        label="PROPOSAL / COVER LETTER"
         required={false}
         multiline
         value={coverLetter}

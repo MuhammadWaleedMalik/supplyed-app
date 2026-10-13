@@ -15,8 +15,10 @@ import {
   Check,
   Circle,
   Wallet,
+  Bell,
+  Star,
 } from 'lucide-react-native';
-import { colors } from './theme';
+import { useTheme } from './theme';
 
 export type AppIconName =
   | 'jobs'
@@ -34,7 +36,9 @@ export type AppIconName =
   | 'eye'
   | 'eyeOff'
   | 'check'
-  | 'circle';
+  | 'circle'
+  | 'notifications'
+  | 'reviews';
 
 const icons = {
   jobs: Briefcase,
@@ -53,6 +57,8 @@ const icons = {
   eyeOff: EyeOff,
   check: Check,
   circle: Circle,
+  notifications: Bell,
+  reviews: Star,
 };
 
 type Props = {
@@ -61,11 +67,9 @@ type Props = {
   size?: number;
 };
 
-export default function AppIcon({
-  name,
-  color = colors.muted,
-  size = 18,
-}: Props) {
+export default function AppIcon({ name, color, size = 18 }: Props) {
+  const { colors } = useTheme();
+
   const Icon = icons[name];
-  return <Icon color={color} size={size} strokeWidth={2.2} />;
+  return <Icon color={color || colors.muted} size={size} strokeWidth={2.2} />;
 }

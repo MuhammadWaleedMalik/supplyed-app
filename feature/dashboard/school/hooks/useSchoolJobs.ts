@@ -1,13 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { getSessionVersion } from '../../../../utils/api/session';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import { jobDateError } from '../../../../utils/jobs/dateUtils';
-import type { JobForm } from '../../shared/apis/jobsApi';
-import { showPage } from '../../shared/store/navigationSlice';
+import {
+  CURRENT_JOB_STATUSES,
+  getMyJobsByStatusesPage,
+  JobCreatedError,
+  JobForm,
+  type Job,
+} from '../../shared/apis/jobsApi';
 import {
   createSchoolJob,
   getSchoolDashboardData,
 } from '../apis/schoolDashboardApi';
-import { selectSchoolJob, setSchoolData } from '../store/schoolSlice';
+import {
+  clearSchoolJobSelection,
+  selectSchoolJob,
+  setSchoolData,
+  setSchoolError,
+  upsertSchoolJob,
+} from '../store/schoolSlice';
 
 const emptyForm: JobForm = {
   mode: '',
@@ -39,7 +51,10 @@ function messageFromError(problem: unknown) {
 
 export function useSchoolJobs() {
   const dispatch = useAppDispatch();
-  const jobs = useAppSelector(state => state.schoolDashboard.jobs);
+  const dashboardJobs = useAppSelector(state => state.schoolDashboard.jobs);
+  const applications = useAppSelector(
+    state => state.schoolDashboard.applications,
+  );
   const selectedJobId = useAppSelector(
     state => state.schoolDashboard.selectedJobId,
   );
@@ -51,18 +66,101 @@ export function useSchoolJobs() {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [jobs, setJobs] = useState<Job[]>(dashboardJobs.slice(0, 20));
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsLoadingMore, setJobsLoadingMore] = useState(false);
+  const [jobsHasMore, setJobsHasMore] = useState(false);
+  const jobsPage = useRef(0);
+  const jobsRequest = useRef(0);
+  const loadingJobs = useRef(false);
+  const savingRef = useRef(false);
 
-  const visibleJobs = jobs.filter(job => {
-    const isActive = job.status === 'ACTIVE';
-    const matchesStatus =
-      statusFilter === 'ALL' ||
-      (statusFilter === 'ACTIVE' ? isActive : !isActive);
-    const searchText = [job.title, job.subject || '', job.city || '']
-      .join(' ')
-      .toLowerCase();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const request = ++jobsRequest.current;
+      const version = getSessionVersion();
+      loadingJobs.current = true;
+      setJobsLoading(true);
+      setJobsLoadingMore(false);
+      setFormError('');
+      getMyJobsByStatusesPage(1, CURRENT_JOB_STATUSES, {
+        search,
+        status: statusFilter,
+      })
+        .then(result => {
+          if (
+            request !== jobsRequest.current ||
+            version !== getSessionVersion()
+          )
+            return;
+          setJobs(result.jobs);
+          jobsPage.current = result.page;
+          setJobsHasMore(result.hasNextPage);
+        })
+        .catch(problem => {
+          if (
+            request === jobsRequest.current &&
+            version === getSessionVersion()
+          )
+            setFormError(
+              problem instanceof Error
+                ? problem.message
+                : 'Unable to load jobs.',
+            );
+        })
+        .finally(() => {
+          if (request === jobsRequest.current) {
+            loadingJobs.current = false;
+            setJobsLoading(false);
+          }
+        });
+    }, search ? 300 : 0);
+    return () => {
+      clearTimeout(timer);
+      jobsRequest.current += 1;
+      loadingJobs.current = false;
+    };
+  }, [search, statusFilter]);
 
-    return matchesStatus && searchText.includes(search.trim().toLowerCase());
-  });
+  async function loadMoreJobs() {
+    if (loadingJobs.current || !jobsHasMore) return;
+    loadingJobs.current = true;
+    setJobsLoadingMore(true);
+    const request = jobsRequest.current;
+    const version = getSessionVersion();
+    try {
+      const result = await getMyJobsByStatusesPage(
+        jobsPage.current + 1,
+        CURRENT_JOB_STATUSES,
+        { search, status: statusFilter },
+      );
+      if (request !== jobsRequest.current || version !== getSessionVersion())
+        return;
+      setJobs(current => [
+        ...current,
+        ...result.jobs.filter(
+          job => !current.some(existing => existing.id === job.id),
+        ),
+      ]);
+      jobsPage.current = result.page;
+      setJobsHasMore(result.hasNextPage);
+    } catch (problem) {
+      if (request === jobsRequest.current && version === getSessionVersion())
+        setFormError(
+          problem instanceof Error
+            ? problem.message
+            : 'Unable to load more jobs.',
+        );
+    } finally {
+      loadingJobs.current = false;
+      if (request === jobsRequest.current) setJobsLoadingMore(false);
+    }
+  }
+
+  const jobsWithCounts = jobs.map(job => ({
+    ...job,
+    applicationCount: applications.filter(item => item.jobId === job.id).length,
+  }));
 
   function change(name: keyof JobForm, value: string) {
     setFormError('');
@@ -81,6 +179,7 @@ export function useSchoolJobs() {
   }
 
   function cancelPosting() {
+    if (savingRef.current) return;
     setForm(emptyForm);
     setFormError('');
     setPostingStep(0);
@@ -117,6 +216,7 @@ export function useSchoolJobs() {
   }
 
   async function saveJob() {
+    if (savingRef.current) return;
     const dateError = jobDateError(
       form.startDate,
       form.endDate,
@@ -128,29 +228,59 @@ export function useSchoolJobs() {
       return;
     }
 
+    savingRef.current = true;
+    const version = getSessionVersion();
     setSaving(true);
     setFormError('');
 
     try {
-      await createSchoolJob(form);
-      dispatch(setSchoolData(await getSchoolDashboardData()));
+      const created = await createSchoolJob(form);
+      if (getSessionVersion() !== version) return;
+      dispatch(upsertSchoolJob(created));
+      setJobs(current => [created, ...current.filter(job => job.id !== created.id)]);
       setForm(emptyForm);
       setPostingStep(0);
+      try {
+        const data = await getSchoolDashboardData();
+        if (getSessionVersion() === version) dispatch(setSchoolData(data));
+      } catch (problem) {
+        if (getSessionVersion() === version) dispatch(setSchoolError('Job saved. Dashboard refresh failed: ' + messageFromError(problem)));
+      }
     } catch (problem) {
+      if (getSessionVersion() !== version) return;
+      if (problem instanceof JobCreatedError) {
+        dispatch(upsertSchoolJob(problem.job));
+        setJobs(current => [
+          problem.job,
+          ...current.filter(job => job.id !== problem.job.id),
+        ]);
+        setForm(emptyForm);
+        setPostingStep(0);
+      }
       setFormError(messageFromError(problem));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-
-    setSaving(false);
   }
 
   function openApplications(jobId: string) {
     dispatch(selectSchoolJob(jobId));
-    dispatch(showPage('Applications'));
   }
 
   return {
-    jobs: visibleJobs,
+    jobs: jobsWithCounts,
+    jobsLoading,
+    jobsLoadingMore,
+    jobsHasMore,
+    loadMoreJobs,
     selectedJobId,
+    selectedJob:
+      jobsWithCounts.find(job => job.id === selectedJobId) ||
+      dashboardJobs.find(job => job.id === selectedJobId),
+    closeJob: () => {
+      dispatch(clearSchoolJobSelection());
+    },
     form,
     postingStep,
     statusFilter,

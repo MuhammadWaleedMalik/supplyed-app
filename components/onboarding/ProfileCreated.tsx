@@ -3,7 +3,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -11,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '../../feature/auth/apis/authApi';
 import PhoneVerificationCard from '../auth/PhoneVerificationCard';
 import Button from '../Ui/Button';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
 type Props = {
   user?: User;
@@ -27,34 +26,45 @@ type Props = {
 };
 
 export default function ProfileCreated(props: Props) {
+  const styles = useStyles();
+
   const waiting = props.creating || props.sendingSignatory;
   const emailRequired = props.needsSignatory && !props.signatorySent;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>Supply<Text style={styles.brandBlue}>ED</Text></Text>
+        <Text style={styles.brand}>
+          Supply<Text style={styles.brandBlue}>ED</Text>
+        </Text>
         <Button title="Exit" variant="link" compact onPress={props.onExit} />
       </View>
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.page}
+        >
           <View style={styles.card}>
             <Text style={styles.title}>Your profile is created</Text>
             <Text style={styles.note}>
-              Verify your phone, then continue to the required documents and approval steps.
-              Your profile will be sent for review after those steps are complete.
+              Verify your phone, then continue to the required documents and
+              approval steps. Your profile will be sent for review after those
+              steps are complete.
             </Text>
-            <PhoneVerificationCard user={props.user} onVerified={props.onVerified} />
+            <PhoneVerificationCard
+              user={props.user}
+              onVerified={props.onVerified}
+            />
             {props.needsSignatory ? (
               <Text style={styles.note}>
                 {props.sendingSignatory
                   ? 'Sending the trust signatory email...'
                   : props.signatorySent
-                    ? 'The trust signatory email has been sent. Track its approval on the documents screen.'
-                    : 'Send the trust signatory email before continuing.'}
+                  ? 'The trust signatory email has been sent. Track its approval on the documents screen.'
+                  : 'Send the trust signatory email before continuing.'}
               </Text>
             ) : null}
             {props.signatoryError ? (
@@ -74,7 +84,9 @@ export default function ProfileCreated(props: Props) {
               disabled={waiting || emailRequired}
             />
             {!props.user?.phoneVerified ? (
-              <Text style={styles.note}>You can also verify your phone later in Settings.</Text>
+              <Text style={styles.note}>
+                You can also verify your phone later in Settings.
+              </Text>
             ) : null}
           </View>
         </ScrollView>
@@ -83,7 +95,7 @@ export default function ProfileCreated(props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   safeArea: { flex: 1, backgroundColor: '#fbfcfd' },
   keyboard: { flex: 1 },
   topBar: {
@@ -94,11 +106,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.brandBorder,
   },
   brand: { color: colors.ink, fontSize: 20, fontWeight: '700' },
-  brandBlue: { color: colors.blue },
-  page: { flexGrow: 1, padding: 20, paddingBottom: 60, justifyContent: 'center' },
+  brandBlue: { color: colors.brand },
+  page: {
+    flexGrow: 1,
+    padding: 20,
+    paddingBottom: 60,
+    justifyContent: 'center',
+  },
   card: {
     width: '100%',
     maxWidth: 560,
@@ -106,11 +123,11 @@ const styles = StyleSheet.create({
     padding: 22,
     gap: 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 12,
     backgroundColor: '#ffffff',
   },
   title: { color: colors.ink, fontSize: 25, fontWeight: '700' },
   note: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   error: { color: '#b4233f', fontSize: 12, lineHeight: 18 },
-});
+}));

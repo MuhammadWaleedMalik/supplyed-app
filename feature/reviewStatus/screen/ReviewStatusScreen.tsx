@@ -1,8 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
-import { colors, common } from '../../../components/Ui/theme';
+import {
+  createThemedStyles,
+  useTheme,
+  useCommonStyles,
+} from '../../../components/Ui/theme';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
 import {
   getDocuments,
@@ -21,6 +25,8 @@ type Props = {
   type: AccountType;
   email: string;
   onDashboard: () => void;
+  onDocuments?: () => void;
+  onExit?: () => void;
 };
 
 function isMatSchool(type: AccountType, profile: Profile | null) {
@@ -65,7 +71,13 @@ export default function ReviewStatusScreen({
   type,
   email,
   onDashboard,
+  onDocuments,
+  onExit,
 }: Props) {
+  const { colors } = useTheme();
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [approval, setApproval] = useState<SignatoryApproval | null>(null);
   const [loading, setLoading] = useState(true);
@@ -197,7 +209,7 @@ export default function ReviewStatusScreen({
 
             {loading ? (
               <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.blue} />
+                <ActivityIndicator color={colors.brand} />
                 <Text style={styles.small}>Checking latest status...</Text>
               </View>
             ) : null}
@@ -205,6 +217,23 @@ export default function ReviewStatusScreen({
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <View style={styles.actions}>
+              {onDocuments ? (
+                <Button
+                  title="Update documents"
+                  variant="text"
+                  onPress={onDocuments}
+                  disabled={loading || profileBusy || approvalBusy}
+                  compact
+                />
+              ) : null}
+              {onExit ? (
+                <Button
+                  title="Sign out"
+                  variant="link"
+                  onPress={onExit}
+                  compact
+                />
+              ) : null}
               <Button
                 title={profileBusy ? 'Refreshing...' : 'Refetch profile status'}
                 onPress={refreshProfileStatus}
@@ -228,7 +257,7 @@ export default function ReviewStatusScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   safeArea: {
     flex: 1,
     backgroundColor: '#f4f6f8',
@@ -240,7 +269,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     backgroundColor: '#ffffff',
   },
   brand: {
@@ -249,7 +278,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   brandBlue: {
-    color: colors.blue,
+    color: colors.brand,
   },
   email: {
     maxWidth: 180,
@@ -274,8 +303,8 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     borderRadius: 8,
-    backgroundColor: colors.paleBlue,
-    color: '#006b93',
+    backgroundColor: colors.brandTint,
+    color: colors.brandDark,
     fontSize: 10,
     fontWeight: '800',
     paddingHorizontal: 8,
@@ -283,7 +312,7 @@ const styles = StyleSheet.create({
   },
   statusBox: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     overflow: 'hidden',
   },
@@ -296,7 +325,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     borderBottomWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
   },
   statusLabel: {
     color: colors.muted,
@@ -332,4 +361,4 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
-});
+}));

@@ -1,4 +1,7 @@
 export const endpoints = {
+  foundingInterest: '/contact/founding-interest',
+  waitlistDetails: (id: string) =>
+    '/contact/founding-interest/' + encodeURIComponent(id) + '/details',
   register: '/auth/register',
   login: '/auth/login',
   resendCode: '/auth/email/otp/resend',
@@ -32,6 +35,30 @@ export const endpoints = {
   applicationsMine: '/applications/me',
   applicationsByJob: '/applications/job',
   bookings: '/bookings',
+  conversations: '/conversations',
+  notifications: '/notifications',
+  notificationUnread: '/notifications/unread-count',
+  notificationReadAll: '/notifications/read-all',
+  notificationPreferences: '/notifications/preferences',
+  conversationUnread: '/conversations/unread-count',
+  conversationForApplication: (id: string) =>
+    '/conversations/application/' + encodeURIComponent(id),
+  conversation: (id: string) => '/conversations/' + encodeURIComponent(id),
+  conversationMessages: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/messages',
+  conversationRead: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/read',
+  conversationAttachments: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/attachments',
+  conversationDownload: (id: string, attachmentId: string) =>
+    '/conversations/' +
+    encodeURIComponent(id) +
+    '/attachments/' +
+    encodeURIComponent(attachmentId) +
+    '/download-url',
+  invoicePaymentSession: (id: string) =>
+    '/invoices/' + encodeURIComponent(id) + '/payment-session',
+  invoiceSync: (id: string) => '/invoices/' + encodeURIComponent(id) + '/sync',
   bookingsMine: '/bookings/me',
   reviews: '/reviews',
   payoutAccount: '/payments/payout-account',

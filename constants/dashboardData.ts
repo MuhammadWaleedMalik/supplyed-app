@@ -11,7 +11,5 @@ export const dashboardTabs: DashboardTabItem[] = [
   { label: 'Jobs', icon: 'jobs' },
   { label: 'Applications', icon: 'applications' },
   { label: 'Bookings', icon: 'bookings' },
-  { label: 'Billing', icon: 'billing' },
   { label: 'Messages', icon: 'messages' },
-  { label: 'Interviews', icon: 'interview' },
 ];

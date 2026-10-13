@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import type { TeacherApplication } from '../../feature/dashboard/teacher/store/teacherSlice';
 import Button from '../Ui/Button';
-import { styles } from './dashboardStyles';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   jobs: Job[];
@@ -18,6 +18,8 @@ export default function TeacherOverview({
   onJobs,
   onApplications,
 }: Props) {
+  const styles = useStyles();
+
   const interviews = applications.filter(
     application => application.status === 'INTERVIEW',
   ).length;

@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { getSessionVersion } from '../../../../utils/api/session';
+import { assertUploadSession } from '../../../../utils/api/upload';
 import { User } from '../../../auth/apis/authApi';
 import {
   imagePickWasCancelled,
@@ -25,6 +27,7 @@ export function useProfileSettings(type: AccountType) {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(false);
+  const working = useRef(false);
 
   function applySettings(nextSettings: ProfileSnapshot) {
     setSettings(nextSettings);
@@ -42,7 +45,7 @@ export function useProfileSettings(type: AccountType) {
   }
 
   async function save() {
-    if (!settings) {
+    if (!settings || working.current) {
       return;
     }
 
@@ -54,6 +57,7 @@ export function useProfileSettings(type: AccountType) {
       return;
     }
 
+    working.current = true;
     setLoading(true);
     setError('');
     setSaved('');
@@ -66,16 +70,21 @@ export function useProfileSettings(type: AccountType) {
       setError(errorMessage(problem, 'Unable to save settings.'));
     }
 
+    working.current = false;
     setLoading(false);
   }
 
   async function changeImage() {
+    if (working.current) return;
+    working.current = true;
+    const version = getSessionVersion();
     setLoading(true);
     setError('');
     setSaved('');
 
     try {
       const image = await pickProfileImage();
+      assertUploadSession(version);
       const uploaded = await uploadProfileImage(image.file, image.mime);
       setImageUrl(uploaded.imageUrl || uploaded.url || '');
       setSaved('Profile image updated.');
@@ -85,22 +94,26 @@ export function useProfileSettings(type: AccountType) {
       }
     }
 
+    working.current = false;
     setLoading(false);
   }
 
   useEffect(() => {
+    let active = true;
     async function loadSettings() {
       setLoading(true);
       setError('');
 
       try {
         const nextSettings = await getProfileSettings(type);
-        const image = await getProfileImage();
-
+        if (!active) return;
         setSettings(nextSettings);
         setFields(fieldsFromSettings(nextSettings));
+        const image = await getProfileImage();
+        if (!active) return;
         setImageUrl(image.imageUrl || image.url || '');
       } catch (problem) {
+        if (!active) return;
         setError(errorMessage(problem, 'Unable to load settings.'));
       }
 
@@ -108,6 +121,7 @@ export function useProfileSettings(type: AccountType) {
     }
 
     loadSettings();
+    return () => { active = false; };
   }, [type]);
 
   return {

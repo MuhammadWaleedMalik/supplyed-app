@@ -8,9 +8,11 @@ import {
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 export default function AdminPayoutLookup() {
+  const settingsStyles = useSettingsStyles();
+
   const [instructorId, setInstructorId] = useState('');
   const [account, setAccount] = useState<PayoutAccount>();
   const [loading, setLoading] = useState(false);

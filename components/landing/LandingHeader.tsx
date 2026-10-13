@@ -1,15 +1,19 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { colors, serif } from '../Ui/theme';
+import { serif, createThemedStyles } from '../Ui/theme';
 
-type Props = { onLogin: () => void; onRegister: () => void };
+type Props = { onLogin: () => void; onRegister: () => void; light?: boolean };
 
-export default function LandingHeader({ onLogin, onRegister }: Props) {
+export default function LandingHeader({ onLogin, onRegister, light }: Props) {
+  const styles = useStyles();
+
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, light && styles.lightBar]}>
       <View style={styles.content}>
-        <Text style={styles.brand}>SupplyED</Text>
+        <Text style={[styles.brand, light && styles.lightBrand]}>
+          Supply<Text style={styles.brandAccent}>ED</Text>
+        </Text>
         <View style={styles.actions}>
           <Button title="Login" onPress={onLogin} variant="outline" compact />
           <Button title="Register" onPress={onRegister} compact />
@@ -19,7 +23,13 @@ export default function LandingHeader({ onLogin, onRegister }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
+  lightBar: {
+    backgroundColor: '#ffffff',
+    borderBottomColor: colors.brandBorder,
+  },
+  lightBrand: { color: colors.ink },
+  brandAccent: { color: colors.brand },
   bar: {
     backgroundColor: colors.dark,
     borderBottomWidth: 1,
@@ -44,4 +54,4 @@ const styles = StyleSheet.create({
     fontSize: 23,
   },
   actions: { flexDirection: 'row', gap: 8 },
-});
+}));

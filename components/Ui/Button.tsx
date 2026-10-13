@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors } from './theme';
+import { Pressable, Text } from 'react-native';
+import { createThemedStyles } from './theme';
 
 type Props = {
   title: string;
@@ -19,6 +19,8 @@ export default function Button({
   compact,
   disabled,
 }: Props) {
+  const styles = useStyles();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -38,7 +40,10 @@ export default function Button({
         numberOfLines={2}
         style={[
           styles.label,
-          (variant === 'text' || variant === 'social') && styles.darkLabel,
+          (variant === 'text' ||
+            variant === 'social' ||
+            variant === 'outline') &&
+            styles.darkLabel,
           variant === 'link' && styles.linkLabel,
         ]}
       >
@@ -48,43 +53,43 @@ export default function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   button: {
-    minHeight: 46,
+    minHeight: 48,
     paddingHorizontal: 20,
     paddingVertical: 11,
-    borderRadius: 8,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   primary: {
-    backgroundColor: colors.blue,
+    backgroundColor: colors.brandDark,
   },
   outline: {
     borderWidth: 1,
-    borderColor: '#7b8794',
-    backgroundColor: 'transparent',
+    borderColor: colors.brandBorder,
+    backgroundColor: '#ffffff',
   },
   text: {
     paddingHorizontal: 8,
     backgroundColor: 'transparent',
   },
   link: {
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: 4,
     backgroundColor: 'transparent',
   },
   social: {
     width: '100%',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     backgroundColor: '#ffffff',
     paddingHorizontal: 12,
   },
   compact: {
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
@@ -95,6 +100,7 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   label: {
+    flexShrink: 1,
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
@@ -104,6 +110,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   linkLabel: {
-    color: '#006b93',
+    color: colors.brandDark,
   },
-});
+}));

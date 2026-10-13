@@ -6,7 +6,7 @@ import type { AccountType } from '../../utils/onboarding/onboardingData';
 import CommonProfileFields from './CommonProfileFields';
 import SchoolSettingsFields from './SchoolSettingsFields';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 import TeacherSettingsFields from './TeacherSettingsFields';
 
 type Props = {
@@ -22,6 +22,8 @@ export default function ProfileSettingsCard({
   wide,
   onChange,
 }: Props) {
+  const settingsStyles = useSettingsStyles();
+
   const title = type === 'school' ? 'INSTITUTION PROFILE' : 'TEACHER PROFILE';
   return (
     <View style={settingsStyles.card}>

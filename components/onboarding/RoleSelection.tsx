@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, common, serif } from '../Ui/theme';
+import { Pressable, Text, View } from 'react-native';
+import { serif, createThemedStyles, useCommonStyles } from '../Ui/theme';
 import {
   accountTypes,
   AccountType,
@@ -19,6 +19,9 @@ export default function RoleSelection({
   attempted,
   wide,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   return (
     <View style={styles.content}>
       <Text style={styles.label}>CHOOSE PROFILE TYPE *</Text>
@@ -48,14 +51,14 @@ export default function RoleSelection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors, common) => ({
   content: { gap: 8 },
   label: { ...common.bold, fontSize: 11, letterSpacing: 0.8 },
   cards: { gap: 10 },
   wideCards: { flexDirection: 'row' },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     padding: 16,
     minHeight: 124,
@@ -63,13 +66,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   wideCard: { flex: 1 },
-  selected: { borderColor: colors.blue, backgroundColor: colors.paleBlue },
+  selected: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   icon: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.paleBlue,
-    color: colors.blue,
+    backgroundColor: colors.brandTint,
+    color: colors.brand,
     fontSize: 15,
     fontWeight: '800',
     lineHeight: 28,
@@ -82,4 +85,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   error: { color: '#c93251', fontSize: 12 },
-});
+}));

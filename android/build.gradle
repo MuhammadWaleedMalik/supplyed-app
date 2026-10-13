@@ -19,3 +19,17 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// SupplyEd uses PaymentSheet/Connect, not Stripe Issuing push provisioning.
+// AGP 9 lint resolves transitives of Stripe's optional compileOnly dependency,
+// including Google's privately distributed TapAndPay SDK. Keep lint enabled;
+// exclude only that unused SDK from Stripe's lint dependency classpath.
+subprojects { subproject ->
+    if (subproject.name == "stripe_stripe-react-native") {
+        subproject.configurations.configureEach { configuration ->
+            if (configuration.name.endsWith("LintChecksClasspath")) {
+                configuration.exclude group: "com.google.android.gms", module: "play-services-tapandpay"
+            }
+        }
+    }
+}

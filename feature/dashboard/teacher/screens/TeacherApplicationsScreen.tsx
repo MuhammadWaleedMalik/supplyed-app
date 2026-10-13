@@ -2,11 +2,13 @@ import React from 'react';
 import { Text } from 'react-native';
 import LimitedProfileCard from '../../../../components/dashboard/LimitedProfileCard';
 import TeacherApplicationsPanel from '../../../../components/dashboard/TeacherApplicationsPanel';
-import { jobStyles } from '../../../../components/dashboard/jobStyles';
-import { useLimitedProfile } from '../../shared/hooks/useLimitedProfile';
+import { useJobStyles } from '../../../../components/dashboard/jobStyles';
 import { useTeacherApplications } from '../hooks/useTeacherApplications';
+import { useLimitedProfile } from '../../shared/hooks/useLimitedProfile';
 
 export default function TeacherApplicationsScreen() {
+  const jobStyles = useJobStyles();
+
   const applications = useTeacherApplications();
   const profile = useLimitedProfile();
 
@@ -18,14 +20,13 @@ export default function TeacherApplicationsScreen() {
         loading={profile.loading}
         onClose={profile.closeProfile}
       />
-
       <TeacherApplicationsPanel
         applications={applications.applications}
         search={applications.search}
         status={applications.status}
         onSearch={applications.setSearch}
         onStatus={applications.setStatus}
-        onPoster={profile.openPoster}
+        onSchool={profile.openApplicationSchool}
       />
 
       {applications.loading ? (

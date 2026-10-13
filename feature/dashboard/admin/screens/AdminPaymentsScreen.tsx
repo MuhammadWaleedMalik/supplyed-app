@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../../components/Ui/Button';
+import { ThemeSettingsCard } from '../../../../components/Ui/ThemePicker';
 import AdminPayoutLookup from '../../../../components/dashboard/AdminPayoutLookup';
 import AdminUsersPanel from '../../../../components/dashboard/AdminUsersPanel';
 import PhoneVerificationCard from '../../../../components/auth/PhoneVerificationCard';
-import { styles } from '../../../../components/dashboard/dashboardStyles';
+import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import BillingScreen from '../../shared/screens/BillingScreen';
 import { getCurrentUser } from '../../../auth/apis/authApi';
 import { getCurrentSessionUser } from '../../../../utils/api/session';
@@ -21,6 +22,8 @@ export default function AdminPaymentsScreen({
   onSecurity,
   onLogout,
 }: Props) {
+  const styles = useStyles();
+
   const [page, setPage] = useState('Payments');
   const [user, setUser] = useState(getCurrentSessionUser());
   const [error, setError] = useState('');
@@ -64,7 +67,7 @@ export default function AdminPaymentsScreen({
           <Text style={styles.subtitle}>{email}</Text>
         </View>
         <View style={styles.topActions}>
-          {['Payments', 'Users', 'Account'].map(item => (
+          {['Payments', 'Users', 'Account', 'Settings'].map(item => (
             <Button
               key={item}
               title={item}
@@ -81,6 +84,7 @@ export default function AdminPaymentsScreen({
           </>
         ) : null}
         {page === 'Users' ? <AdminUsersPanel /> : null}
+        {page === 'Settings' ? <ThemeSettingsCard /> : null}
         {page === 'Account' ? (
           <View style={styles.card}>
             <PhoneVerificationCard user={user} editable onVerified={setUser} />

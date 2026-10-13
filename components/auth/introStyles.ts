@@ -1,7 +1,6 @@
-﻿import { StyleSheet } from 'react-native';
-import { colors, serif } from '../Ui/theme';
+import { serif, createThemedStyles } from '../Ui/theme';
 
-export const introStyles = StyleSheet.create({
+export const useIntroStyles = createThemedStyles(colors => ({
   panel: { backgroundColor: colors.dark, paddingBottom: 34 },
   wide: { flex: 1, minHeight: 650 },
   header: {
@@ -14,7 +13,7 @@ export const introStyles = StyleSheet.create({
   },
   brandButton: { minHeight: 44, justifyContent: 'center' },
   brand: { color: '#ffffff', fontSize: 22, fontWeight: '700' },
-  blue: { color: colors.blue },
+  blue: { color: colors.brand },
   copy: { paddingHorizontal: 24, paddingTop: 24, gap: 22 },
   wideCopy: { flex: 1, maxWidth: 630, justifyContent: 'center' },
   heading: {
@@ -29,12 +28,12 @@ export const introStyles = StyleSheet.create({
   benefit: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   benefitText: { color: '#d0dae3', fontSize: 15, flex: 1 },
   check: {
-    color: colors.blue,
-    backgroundColor: '#eff9fd',
+    color: colors.brand,
+    backgroundColor: colors.brandTint,
     borderRadius: 18,
     overflow: 'hidden',
     width: 25,
     textAlign: 'center',
     fontSize: 18,
   },
-});
+}));

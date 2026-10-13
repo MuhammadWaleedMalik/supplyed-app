@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const settingsStyles = StyleSheet.create({
+export const useSettingsStyles = createThemedStyles(colors => ({
   page: {
     padding: 18,
     paddingBottom: 36,
@@ -12,7 +11,7 @@ export const settingsStyles = StyleSheet.create({
   },
   heading: { gap: 4, paddingVertical: 4 },
   title: { color: colors.ink, fontSize: 30, fontWeight: '700' },
-  subtitle: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21 },
   layout: { gap: 14 },
   wideLayout: { flexDirection: 'row', alignItems: 'flex-start' },
   main: { flex: 1, gap: 14 },
@@ -20,8 +19,8 @@ export const settingsStyles = StyleSheet.create({
   wideAside: { width: 260 },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
+    borderColor: colors.brandBorder,
+    borderRadius: 16,
     backgroundColor: '#ffffff',
     padding: 16,
     gap: 14,
@@ -33,14 +32,14 @@ export const settingsStyles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
   },
   cardCopy: { flex: 1, gap: 2 },
   cardTitle: { color: colors.ink, fontSize: 12, fontWeight: '800' },
-  cardNote: { color: colors.muted, fontSize: 10, lineHeight: 15 },
+  cardNote: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   imageRow: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     padding: 10,
     flexDirection: 'row',
@@ -58,7 +57,7 @@ export const settingsStyles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -71,7 +70,7 @@ export const settingsStyles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 2,
     borderColor: '#ffffff',
-    backgroundColor: colors.blue,
+    backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -80,19 +79,21 @@ export const settingsStyles = StyleSheet.create({
   imageNote: { color: colors.muted, fontSize: 10, lineHeight: 15 },
   section: { gap: 12 },
   row: { gap: 12 },
+  notificationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   wideRow: { flexDirection: 'row', alignItems: 'flex-start' },
   field: { flex: 1 },
   record: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 7,
     backgroundColor: colors.soft,
     padding: 11,
     gap: 3,
   },
-  recordLabel: { color: colors.muted, fontSize: 9, fontWeight: '800' },
-  recordValue: { color: colors.ink, fontSize: 12, fontWeight: '600' },
+  recordLabel: { color: colors.muted, fontSize: 11, fontWeight: '700' },
+  recordValue: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  balanceValue: { color: colors.ink, fontSize: 30, fontWeight: '800' },
   success: { color: '#17783b', fontSize: 12, fontWeight: '600' },
   error: { color: '#b4233f', fontSize: 12 },
   actions: { gap: 9 },
-});
+}));

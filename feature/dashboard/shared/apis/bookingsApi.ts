@@ -1,12 +1,29 @@
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
+import { getAllPages } from '../../../../utils/api/pagination';
 import type { Review } from './reviewsApi';
 import type { BookingInvoice } from './invoicesApi';
+
+export type BookingStatus =
+  | 'CONFIRMED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW';
+
+export type BookingInvoiceFilter = 'none' | 'unpaid' | 'paid';
+
+export type BookingPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+};
 
 export type Booking = {
   id: string;
   applicationId: string;
-  status: string;
+  status: BookingStatus;
   job: {
     id: string;
     title: string;
@@ -35,20 +52,55 @@ export type Booking = {
   updatedAt?: string;
 };
 
-type BookingPage = {
-  bookings?: Booking[];
-  pagination?: { hasNextPage?: boolean };
+export type BookingQuery = {
+  page?: number;
+  limit?: number;
+  status?: BookingStatus;
+  search?: string;
+  jobId?: string;
+  from?: string;
+  to?: string;
+  invoice?: BookingInvoiceFilter;
+};
+
+export type BookingsPage = {
+  bookings: Booking[];
+  pagination: BookingPagination;
 };
 
 function pathWithStatus(status: string) {
-  return endpoints.bookingsMine + '?page=1&limit=100' +
-    (status && status !== 'ALL' ? '&status=' + status : '');
+  return endpoints.bookingsMine +
+    (status && status !== 'ALL' ? '?status=' + encodeURIComponent(status) : '');
+}
+
+function bookingsPath(query: BookingQuery) {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '')
+      params.set(key, String(value));
+  });
+  const suffix = params.toString();
+  return endpoints.bookingsMine + (suffix ? '?' + suffix : '');
+}
+
+export async function getMyBookingsPage(
+  query: BookingQuery = {},
+): Promise<BookingsPage> {
+  const result = await protectedRequest<Partial<BookingsPage>>(
+    bookingsPath({ page: 1, limit: 20, ...query }),
+  );
+  if (
+    !Array.isArray(result.bookings) ||
+    !result.pagination ||
+    typeof result.pagination.page !== 'number' ||
+    typeof result.pagination.hasNextPage !== 'boolean'
+  )
+    throw new Error('The server returned an invalid bookings page.');
+  return result as BookingsPage;
 }
 
 export async function getMyBookings(status = 'ALL') {
-  const reply = await protectedRequest<BookingPage | Booking[]>(pathWithStatus(status));
-  if (Array.isArray(reply)) return reply;
-  return reply.bookings || [];
+  return getAllPages<Booking>(pathWithStatus(status), 'bookings');
 }
 
 export function completeBooking(id: string) {

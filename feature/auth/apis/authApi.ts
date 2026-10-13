@@ -1,6 +1,6 @@
 import { endpoints } from '../../../constants/endpoints';
 import { apiRequest, protectedRequest } from '../../../utils/api/request';
-import { saveTokens, setCurrentSessionUser } from '../../../utils/api/session';
+import { setCurrentSessionUser } from '../../../utils/api/session';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
 import { backendRole } from '../../../utils/auth/authUtils';
 
@@ -56,7 +56,7 @@ export function loginAccount(email: string, password: string) {
 }
 
 export function resendEmailCode(email: string) {
-  return apiRequest<AuthReply>(endpoints.resendCode, 'POST', {
+  return apiRequest<{ emailVerified: boolean; expiresInMinutes: number; otpToken?: string }>(endpoints.resendCode, 'POST', {
     email: email.trim().toLowerCase(),
   });
 }
@@ -68,7 +68,6 @@ export async function verifyEmailCode(code: string, otpToken: string) {
     { otp: code },
     otpToken,
   );
-  saveTokens(reply);
   return reply;
 }
 
@@ -82,7 +81,6 @@ export async function verifyTwoFactorCode(
     { code },
     twoFactorToken,
   );
-  saveTokens(reply);
   return reply;
 }
 
@@ -121,6 +119,5 @@ export async function exchangeGoogleToken(
     'POST',
     body,
   );
-  saveTokens(reply);
   return reply;
 }

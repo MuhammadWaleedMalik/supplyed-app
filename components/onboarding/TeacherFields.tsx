@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { colors } from '../Ui/theme';
+import { View } from 'react-native';
+import { createThemedStyles } from '../Ui/theme';
 import { OnboardingData } from '../../utils/onboarding/onboardingData';
 import TeacherPreferences from './TeacherPreferences';
 import TeacherRates from './TeacherRates';
@@ -12,6 +12,8 @@ type Props = {
 };
 
 export default function TeacherFields({ data, wide, update }: Props) {
+  const styles = useStyles();
+
   return (
     <View style={styles.card}>
       <TeacherPreferences data={data} wide={wide} update={update} />
@@ -20,13 +22,13 @@ export default function TeacherFields({ data, wide, update }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 14,
     backgroundColor: colors.soft,
     padding: 16,
     gap: 20,
   },
-});
+}));

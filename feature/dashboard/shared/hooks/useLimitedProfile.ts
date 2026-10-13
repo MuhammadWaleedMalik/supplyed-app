@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  getApplicationSchoolProfile,
+  getInstitutionProfile,
   getInstructorProfile,
-  getPosterProfile,
   LimitedProfile,
 } from '../apis/publicProfileApi';
+import { ApiError } from '../../../../utils/api/request';
 
-type ProfileType = 'teacher' | 'poster';
+type ProfileType = 'teacher' | 'school';
 
 function profileError(problem: unknown) {
+  if (
+    problem instanceof ApiError &&
+    (problem.status === 403 || problem.status === 404)
+  )
+    return 'This marketplace profile is unavailable.';
   return problem instanceof Error
     ? problem.message
     : 'Unable to load profile.';
@@ -20,8 +27,10 @@ export function useLimitedProfile(
   const [profile, setProfile] = useState<LimitedProfile>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
   async function loadProfile(type: ProfileType, id: string) {
+    const currentRequest = ++requestId.current;
     setProfile(undefined);
     setError('');
     setLoading(true);
@@ -30,18 +39,33 @@ export function useLimitedProfile(
       const request =
         type === 'teacher'
           ? getInstructorProfile(id)
-          : getPosterProfile(id);
+          : getInstitutionProfile(id);
 
-      setProfile(await request);
+      const result = await request;
+      if (currentRequest === requestId.current) setProfile(result);
     } catch (problem) {
-      setError(profileError(problem));
+      if (currentRequest === requestId.current) setError(profileError(problem));
     }
 
-    setLoading(false);
+    if (currentRequest === requestId.current) setLoading(false);
   }
 
-  function openPoster(userId: string) {
-    loadProfile('poster', userId);
+  async function openApplicationSchool(applicationId: string) {
+    const currentRequest = ++requestId.current;
+    setProfile(undefined);
+    setError('');
+    setLoading(true);
+    try {
+      const result = await getApplicationSchoolProfile(applicationId);
+      if (currentRequest === requestId.current) setProfile(result);
+    } catch (problem) {
+      if (currentRequest === requestId.current) setError(profileError(problem));
+    }
+    if (currentRequest === requestId.current) setLoading(false);
+  }
+
+  function openSchool(id: string) {
+    loadProfile('school', id);
   }
 
   function openInstructor(id: string) {
@@ -49,10 +73,15 @@ export function useLimitedProfile(
   }
 
   function closeProfile() {
+    requestId.current += 1;
     setProfile(undefined);
     setError('');
     setLoading(false);
   }
+
+  useEffect(() => {
+    return () => { requestId.current += 1; };
+  }, []);
 
   useEffect(() => {
     if (!initialType || !initialId) {
@@ -70,7 +99,7 @@ export function useLimitedProfile(
         const request =
           initialType === 'teacher'
             ? getInstructorProfile(initialId)
-            : getPosterProfile(initialId);
+            : getInstitutionProfile(initialId);
         const result = await request;
 
         if (active) {
@@ -98,7 +127,8 @@ export function useLimitedProfile(
     profile,
     error,
     loading,
-    openPoster,
+    openSchool,
+    openApplicationSchool,
     openInstructor,
     closeProfile,
   };

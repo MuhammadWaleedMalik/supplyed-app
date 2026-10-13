@@ -1,14 +1,17 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import GridBackground from '../Ui/GridBackground';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import { AccountType } from '../../utils/onboarding/onboardingData';
 import { getIntroCopy } from '../../utils/onboarding/onboardingText';
-import { styles } from './documentsIntroStyles';
+import { useStyles } from './documentsIntroStyles';
 
 type Props = { type: AccountType; wide: boolean };
 
 export default function DocumentsIntro({ type, wide }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { heading, description } = getIntroCopy(type, 2);
 
   return (

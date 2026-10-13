@@ -4,16 +4,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { AccountType } from '../../utils/onboarding/onboardingData';
 import { useProfileSettings } from '../../feature/dashboard/shared/hooks/useProfileSettings';
 import Button from '../Ui/Button';
+import { ThemeSettingsCard } from '../Ui/ThemePicker';
 import AccountSettingsCard from './AccountSettingsCard';
 import ProfileSettingsCard from './ProfileSettingsCard';
 import SettingsStatusCard from './SettingsStatusCard';
 import PayoutAccountCard from './PayoutAccountCard';
-import { styles } from './dashboardStyles';
-import { settingsStyles } from './settingsStyles';
+import NotificationSettingsCard from './NotificationSettingsCard';
+import { useStyles } from './dashboardStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 type Props = { type: AccountType; title: string; onBack: () => void };
 
 export default function ProfileSettingsPage({ type, title, onBack }: Props) {
+  const styles = useStyles();
+  const settingsStyles = useSettingsStyles();
+
   const form = useProfileSettings(type);
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 850;
@@ -39,6 +44,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
           style={[settingsStyles.layout, wide && settingsStyles.wideLayout]}
         >
           <View style={settingsStyles.main}>
+            {title === 'Settings' ? <ThemeSettingsCard /> : null}
             <AccountSettingsCard
               settings={form.settings}
               fields={form.fields}
@@ -57,6 +63,9 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
             />
             {type === 'teacher' && title === 'Settings' ? (
               <PayoutAccountCard showBalance={false} />
+            ) : null}
+            {title === 'Settings' ? (
+              <NotificationSettingsCard type={type} />
             ) : null}
             {form.error ? (
               <Text style={settingsStyles.error}>{form.error}</Text>

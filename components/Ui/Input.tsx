@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import AppIcon from './AppIcon';
-import { colors } from './theme';
-import { styles } from './inputStyles';
+import { useTheme } from './theme';
+import { useStyles } from './inputStyles';
 import { getKeyboardType } from '../../utils/ui/inputUtils';
 
 type Props = {
@@ -50,7 +50,19 @@ export default function Input({
   onBlur,
   error,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+
   const [visible, setVisible] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const handleFocus = () => {
+    setFocused(true);
+    onFocus?.();
+  };
+  const handleBlur = () => {
+    setFocused(false);
+    onBlur?.();
+  };
 
   if (digit) {
     return (
@@ -60,7 +72,10 @@ export default function Input({
         maxLength={1}
         value={value}
         onChangeText={onChangeText}
-        style={styles.digit}
+        style={[styles.digit, focused && styles.focused]}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        selectionColor={colors.brand}
         textAlign="center"
       />
     );
@@ -74,6 +89,7 @@ export default function Input({
       <View
         style={[
           styles.inputRow,
+          focused && styles.focused,
           error && styles.invalid,
           disabled && { backgroundColor: colors.soft },
         ]}
@@ -85,8 +101,9 @@ export default function Input({
           style={[styles.input, multiline && styles.multiline]}
           value={value}
           onChangeText={onChangeText}
-          onFocus={onFocus}
-          onBlur={onBlur}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          selectionColor={colors.brand}
           editable={!disabled}
           maxLength={maxLength}
           multiline={multiline}

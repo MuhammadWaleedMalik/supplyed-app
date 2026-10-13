@@ -3,14 +3,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
 import Input from '../../../components/Ui/Input';
-import { colors, common } from '../../../components/Ui/theme';
+import {
+  createThemedStyles,
+  useCommonStyles,
+} from '../../../components/Ui/theme';
 import { User } from '../apis/authApi';
 import { useTwoFactor } from '../hooks/useTwoFactor';
 
@@ -25,6 +27,9 @@ export default function TwoFactorScreen({
   onBack,
   onAuthenticated,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const form = useTwoFactor(token, onAuthenticated);
 
   return (
@@ -64,7 +69,7 @@ export default function TwoFactorScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   keyboard: { flex: 1 },
   page: {
@@ -76,10 +81,10 @@ const styles = StyleSheet.create({
   },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     padding: 20,
     gap: 16,
   },
   error: { color: '#c93251', fontSize: 12 },
-});
+}));

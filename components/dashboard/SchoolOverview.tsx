@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
-import { styles } from './dashboardStyles';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   jobs: Job[];
@@ -15,6 +15,8 @@ export default function SchoolOverview({
   onJobs,
   onApplications,
 }: Props) {
+  const styles = useStyles();
+
   const activeJobs = jobs.filter(job => job.status === 'ACTIVE').length;
   const draftJobs = jobs.filter(job => job.status === 'DRAFT').length;
 

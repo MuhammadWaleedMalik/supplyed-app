@@ -4,12 +4,11 @@ import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
 import JobFilterBar from './JobFilterBar';
-import { jobStyles } from './jobStyles';
+import { useJobStyles } from './jobStyles';
 import SchoolJobList from './SchoolJobList';
 
 type Props = {
   jobs: Job[];
-  selectedId: string;
   search: string;
   status: string;
   onSearch: (value: string) => void;
@@ -19,6 +18,8 @@ type Props = {
 };
 
 export default function PostedJobsPanel(props: Props) {
+  const jobStyles = useJobStyles();
+
   return (
     <View style={jobStyles.shell}>
       <View style={jobStyles.listHeader}>
@@ -40,12 +41,9 @@ export default function PostedJobsPanel(props: Props) {
         onSearch={props.onSearch}
         status={props.status}
         onStatus={props.onStatus}
+        statuses={['ALL', 'ACTIVE', 'DRAFT']}
       />
-      <SchoolJobList
-        jobs={props.jobs}
-        selectedId={props.selectedId}
-        onSelect={props.onSelect}
-      />
+      <SchoolJobList jobs={props.jobs} onSelect={props.onSelect} />
     </View>
   );
 }

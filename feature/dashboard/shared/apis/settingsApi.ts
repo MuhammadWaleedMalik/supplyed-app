@@ -3,6 +3,8 @@ import { protectedRequest } from '../../../../utils/api/request';
 import { setCurrentSessionUser } from '../../../../utils/api/session';
 import { AccountType } from '../../../../utils/onboarding/onboardingData';
 import { User } from '../../../auth/apis/authApi';
+import { optionalNonNegativeNumber, optionalNonNegativeInteger } from '../../../../utils/ui/numberValidation';
+import { isValidEmail } from '../../../../utils/auth/authValidation';
 
 type ProfileRecord = Record<string, unknown>;
 type SettingsUser = User & {
@@ -65,8 +67,7 @@ function list(value: string) {
   );
 }
 function number(value: string) {
-  const parsed = Number(value);
-  return value.trim() && Number.isFinite(parsed) ? parsed : undefined;
+  return optionalNonNegativeNumber(value, 'Rates, experience, travel distance and pupil count');
 }
 function trust(profile: ProfileRecord) {
   return profile.trust && typeof profile.trust === 'object'
@@ -124,7 +125,7 @@ function rolePayload(type: AccountType, fields: ProfileFields) {
       keyStages: list(fields.keyStages),
       hourlyRate: number(fields.hourlyRate),
       dailyRate: number(fields.dailyRate),
-      experience: number(fields.experience),
+      experience: optionalNonNegativeInteger(fields.experience, 'Experience'),
       currency: fields.currency || 'GBP',
       maxTravelDistance: number(fields.maxTravelDistance),
     };
@@ -145,7 +146,7 @@ function rolePayload(type: AccountType, fields: ProfileFields) {
     trust: trustPayload(fields),
     staffingNeeds: fields.staffingNeeds.trim() || undefined,
     coverTypes: list(fields.coverTypes),
-    typicalPupilCount: number(fields.typicalPupilCount),
+    typicalPupilCount: optionalNonNegativeInteger(fields.typicalPupilCount, 'Pupil count'),
     complianceContact: fields.complianceContact.trim() || undefined,
     complianceEmail: fields.complianceEmail.trim() || undefined,
     userRole: fields.userRole.trim() || undefined,
@@ -158,13 +159,16 @@ export async function saveProfileSettings(
   current: ProfileSnapshot,
   fields: ProfileFields,
 ) {
+  if (fields.complianceEmail.trim() && !isValidEmail(fields.complianceEmail))
+    throw new Error('Enter a valid compliance email address.');
+  const payload = rolePayload(type, fields);
   await protectedRequest(endpoints.userBasics, 'PATCH', {
     name: fields.accountName.trim(),
   });
   await protectedRequest(
     patchPath(type, current.profile),
     'PATCH',
-    rolePayload(type, fields),
+    payload,
   );
   return getProfileSettings(type);
 }

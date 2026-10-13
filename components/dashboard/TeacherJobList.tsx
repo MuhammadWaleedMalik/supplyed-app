@@ -3,23 +3,25 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
-import { colors } from '../Ui/theme';
-import { applicationStyles } from './applicationStyles';
-import { styles } from './dashboardStyles';
+import { useTheme } from '../Ui/theme';
+import { useApplicationStyles } from './applicationStyles';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   jobs: Job[];
   appliedJobIds: string[];
   onApply: (job: Job) => void;
-  onPoster: (userId: string) => void;
 };
 
 export default function TeacherJobList({
   jobs,
   appliedJobIds,
   onApply,
-  onPoster,
 }: Props) {
+  const { colors } = useTheme();
+  const applicationStyles = useApplicationStyles();
+  const styles = useStyles();
+
   if (!jobs.length) {
     return (
       <View style={[styles.card, styles.emptyCard]}>
@@ -35,6 +37,7 @@ export default function TeacherJobList({
     <View style={styles.section}>
       {jobs.map(job => {
         const alreadyApplied = appliedJobIds.includes(job.id);
+        const unavailable = Boolean(job.status && job.status !== 'ACTIVE');
 
         return (
           <View key={job.id} style={styles.card}>
@@ -67,15 +70,15 @@ export default function TeacherJobList({
 
             <Button
               compact
-              title={alreadyApplied ? 'Already applied' : 'Apply for this role'}
-              disabled={alreadyApplied}
+              title={
+                alreadyApplied
+                  ? 'Already applied'
+                  : unavailable
+                  ? 'Job unavailable'
+                  : 'Apply for this role'
+              }
+              disabled={alreadyApplied || unavailable}
               onPress={() => onApply(job)}
-            />
-            <Button
-              compact
-              variant="link"
-              title="View school profile"
-              onPress={() => onPoster(job.postedByUserId)}
             />
           </View>
         );

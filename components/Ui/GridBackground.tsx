@@ -1,9 +1,12 @@
-﻿import React from 'react';
+import { createThemedStyles } from './theme';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 const lines = Array.from({ length: 24 }, (_, index) => index);
 
 export default function GridBackground() {
+  const styles = useStyles();
+
   return (
     <View
       pointerEvents="none"
@@ -24,8 +27,16 @@ export default function GridBackground() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   columns: { flexDirection: 'row' },
-  vertical: { flex: 1, borderRightWidth: 1, borderColor: '#102027' },
-  horizontal: { flex: 1, borderBottomWidth: 1, borderColor: '#102027' },
-});
+  vertical: {
+    flex: 1,
+    borderRightWidth: 1,
+    borderColor: `rgba(${colors.brandRgb}, 0.12)`,
+  },
+  horizontal: {
+    flex: 1,
+    borderBottomWidth: 1,
+    borderColor: `rgba(${colors.brandRgb}, 0.12)`,
+  },
+}));

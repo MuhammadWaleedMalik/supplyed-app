@@ -21,6 +21,10 @@ export function isBeforeToday(value: string) {
 }
 
 export function jobDateError(startDate: string, endDate: string, expiresAt: string) {
+  for (const value of [startDate, endDate, expiresAt]) {
+    if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || dateInputValue(inputDate(value)) !== value))
+      return 'Enter a valid calendar date.';
+  }
   if (isBeforeToday(startDate) || isBeforeToday(endDate) || isBeforeToday(expiresAt))
     return 'Past dates cannot be selected.';
   if (startDate && endDate && endDate < startDate)

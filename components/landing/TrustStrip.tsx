@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
 import IconBadge from './IconBadge';
-import { common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 const items = [
   ['✓', 'Enhanced DBS on every profile', 'Verified before activation'],
@@ -16,6 +16,9 @@ const items = [
 ];
 
 export default function TrustStrip() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
 
   return (
@@ -40,9 +43,9 @@ export default function TrustStrip() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((_colors, common) => ({
   item: { flexGrow: 1, flexBasis: '40%', gap: 10 },
   wide: { flexBasis: '20%' },
   full: { flexBasis: '100%' },
   title: { ...common.bold, fontSize: 16, lineHeight: 23 },
-});
+}));

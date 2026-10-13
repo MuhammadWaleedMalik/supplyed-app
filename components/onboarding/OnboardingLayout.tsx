@@ -13,7 +13,7 @@ import { AccountType } from '../../utils/onboarding/onboardingData';
 import OnboardingIntro from './OnboardingIntro';
 import OnboardingProgress from './OnboardingProgress';
 import OnboardingFooter from './OnboardingFooter';
-import { styles } from './layoutStyles';
+import { useStyles } from './layoutStyles';
 
 type Props = {
   type: AccountType;
@@ -38,6 +38,8 @@ export default function OnboardingLayout({
   onContinue,
   children,
 }: Props) {
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 850;
 

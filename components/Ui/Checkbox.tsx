@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, common } from './theme';
+import { Pressable, Text } from 'react-native';
+import { createThemedStyles } from './theme';
 
 type Props = {
   label: string;
@@ -9,6 +9,8 @@ type Props = {
 };
 
 export default function Checkbox({ label, checked, onChange }: Props) {
+  const styles = useStyles();
+
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -24,7 +26,7 @@ export default function Checkbox({ label, checked, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors, common) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -43,6 +45,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ffffff',
   },
-  selected: { borderColor: colors.blue, backgroundColor: colors.blue },
+  selected: { borderColor: colors.brand, backgroundColor: colors.brand },
   label: { ...common.body, fontSize: 13, lineHeight: 19, flexShrink: 1 },
-});
+}));

@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const limitedProfileStyles = StyleSheet.create({
+export const useLimitedProfileStyles = createThemedStyles(colors => ({
   overlay: {
     flex: 1,
     padding: 16,
@@ -23,7 +22,7 @@ export const limitedProfileStyles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     shadowColor: '#000000',
     shadowOpacity: 0.2,
     shadowRadius: 20,
@@ -39,7 +38,7 @@ export const limitedProfileStyles = StyleSheet.create({
     height: 38,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -49,17 +48,17 @@ export const limitedProfileStyles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
   },
   avatarEmpty: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  initials: { color: '#006b93', fontSize: 25, fontWeight: '700' },
+  initials: { color: colors.brandDark, fontSize: 25, fontWeight: '700' },
   title: {
     color: colors.ink,
     fontSize: 26,
@@ -76,7 +75,7 @@ export const limitedProfileStyles = StyleSheet.create({
   badgeText: { color: '#17783b', fontSize: 10, fontWeight: '800' },
   section: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.brandBorder,
     paddingTop: 14,
     gap: 8,
   },
@@ -108,4 +107,4 @@ export const limitedProfileStyles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-});
+}));

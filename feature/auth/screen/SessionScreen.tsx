@@ -2,11 +2,13 @@ import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
-import { styles } from '../../../components/dashboard/dashboardStyles';
+import { useStyles } from '../../../components/dashboard/dashboardStyles';
 
 type Props = { error: string; onRetry: () => void; onExit: () => void };
 
 export default function SessionScreen({ error, onRetry, onExit }: Props) {
+  const styles = useStyles();
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.page}>

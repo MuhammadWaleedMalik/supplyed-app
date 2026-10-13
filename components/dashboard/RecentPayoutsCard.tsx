@@ -4,11 +4,13 @@ import { History } from 'lucide-react-native';
 import type { PayoutSummary } from '../../feature/dashboard/shared/apis/paymentsApi';
 import { formatPence } from '../../utils/payments/paymentUtils';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 type Props = { payouts: PayoutSummary[] };
 
 export default function RecentPayoutsCard({ payouts }: Props) {
+  const settingsStyles = useSettingsStyles();
+
   return (
     <View style={settingsStyles.card}>
       <SettingsCardHeader

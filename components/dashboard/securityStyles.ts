@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const securityStyles = StyleSheet.create({
+export const useSecurityStyles = createThemedStyles(colors => ({
   page: {
     padding: 18,
     paddingBottom: 36,
@@ -20,7 +19,7 @@ export const securityStyles = StyleSheet.create({
   wideAside: { width: 260 },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     padding: 16,
@@ -31,7 +30,7 @@ export const securityStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -48,14 +47,14 @@ export const securityStyles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     backgroundColor: '#ffffff',
   },
   qr: { width: '100%', height: '100%' },
   setupFields: { flex: 1, gap: 12 },
   secret: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 7,
     padding: 11,
     color: colors.ink,
@@ -76,4 +75,4 @@ export const securityStyles = StyleSheet.create({
     textAlign: 'center',
   },
   error: { color: '#b4233f', fontSize: 12 },
-});
+}));

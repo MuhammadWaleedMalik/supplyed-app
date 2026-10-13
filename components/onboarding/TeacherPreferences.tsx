@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Select from '../Ui/Select';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import {
   keyStages,
   OnboardingData,
@@ -16,6 +16,8 @@ type Props = {
 };
 
 export default function TeacherPreferences({ data, wide, update }: Props) {
+  const common = useCommonStyles();
+
   return (
     <View style={styles.fields}>
       <Text style={common.cardTitle}>Teaching profile</Text>

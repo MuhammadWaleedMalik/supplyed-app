@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Checkbox from '../Ui/Checkbox';
 import Input from '../Ui/Input';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { OnboardingData } from '../../utils/onboarding/onboardingData';
 import { requiredError } from '../../utils/onboarding/onboardingUtils';
+import { isValidEmail } from '../../utils/auth/authValidation';
 
 type Props = {
   data: OnboardingData;
@@ -19,6 +20,9 @@ export default function ComplianceFields({
   attempted,
   update,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const isMatSchool = data.institutionType === 'MAT school';
 
   return (
@@ -40,6 +44,13 @@ export default function ComplianceFields({
           required={false}
           half={wide}
           onChangeText={value => update('complianceEmail', value)}
+          error={
+            attempted &&
+            data.complianceEmail.trim() &&
+            !isValidEmail(data.complianceEmail)
+              ? 'Enter a valid email address.'
+              : undefined
+          }
         />
       </View>
 
@@ -66,7 +77,11 @@ export default function ComplianceFields({
               email
               half={wide}
               onChangeText={value => update('signatoryEmail', value)}
-              error={requiredError(data.signatoryEmail, attempted)}
+              error={
+                attempted && !isValidEmail(data.signatoryEmail)
+                  ? 'Enter a valid email address.'
+                  : undefined
+              }
             />
           </View>
           <Input
@@ -98,13 +113,13 @@ export default function ComplianceFields({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors, common) => ({
   fields: { gap: 24 },
   row: { gap: 12 },
   wide: { flexDirection: 'row', alignItems: 'flex-start' },
   notice: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     backgroundColor: colors.soft,
     padding: 16,
@@ -112,4 +127,4 @@ const styles = StyleSheet.create({
   },
   title: { ...common.bold, fontSize: 15 },
   error: { color: '#c93251', fontSize: 12 },
-});
+}));

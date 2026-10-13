@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getSessionVersion } from '../../../../utils/api/session';
 import { useAppDispatch } from '../../../../store/hooks';
 import { getSchoolDashboardData } from '../apis/schoolDashboardApi';
 import {
@@ -17,16 +18,21 @@ export function useLoadSchoolDashboard() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
+    let mounted = true;
+    const version = getSessionVersion();
+    const active = () => mounted && getSessionVersion() === version;
     async function loadDashboard() {
       dispatch(startSchoolLoading());
 
       try {
-        dispatch(setSchoolData(await getSchoolDashboardData()));
+        const data = await getSchoolDashboardData();
+        if (active()) dispatch(setSchoolData(data));
       } catch (problem) {
-        dispatch(setSchoolError(messageFromError(problem)));
+        if (active()) dispatch(setSchoolError(messageFromError(problem)));
       }
     }
 
     loadDashboard();
+    return () => { mounted = false; };
   }, [dispatch]);
 }

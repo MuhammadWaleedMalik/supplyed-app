@@ -4,7 +4,7 @@ import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import ApplicationDetailsStep from './ApplicationDetailsStep';
 import ApplicationReviewStep from './ApplicationReviewStep';
 import FlowProgress from './FlowProgress';
-import { jobStyles } from './jobStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   job: Job;
@@ -22,6 +22,8 @@ type Props = {
 const titles = ['Application details', 'Review and submit'];
 
 export default function ApplicationWizard(props: Props) {
+  const jobStyles = useJobStyles();
+
   function showDetails() {
     props.onStep(1);
   }

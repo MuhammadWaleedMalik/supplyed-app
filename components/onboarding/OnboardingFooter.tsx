@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import Button from '../Ui/Button';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
 type Props = { finalStep: boolean; onBack: () => void; onContinue: () => void };
 
@@ -10,6 +10,8 @@ export default function OnboardingFooter({
   onBack,
   onContinue,
 }: Props) {
+  const styles = useStyles();
+
   return (
     <View style={styles.footer}>
       <Button title="Back" variant="text" onPress={onBack} compact />
@@ -22,14 +24,14 @@ export default function OnboardingFooter({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   footer: {
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     paddingTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-});
+}));

@@ -6,11 +6,13 @@ import Button from '../Ui/Button';
 import PayoutBalanceCard from './PayoutBalanceCard';
 import RecentPayoutsCard from './RecentPayoutsCard';
 import SettingsCardHeader from './SettingsCardHeader';
-import { settingsStyles } from './settingsStyles';
+import { useSettingsStyles } from './settingsStyles';
 
 type Props = { showBalance?: boolean };
 
 export default function PayoutAccountCard({ showBalance = true }: Props) {
+  const settingsStyles = useSettingsStyles();
+
   const payouts = usePayoutAccount();
   const account = payouts.account;
   const disabled = payouts.busy || payouts.loading;

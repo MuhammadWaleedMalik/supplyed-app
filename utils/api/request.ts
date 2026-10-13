@@ -22,7 +22,7 @@ export class ApiError extends Error {
   requestId: string;
 
   constructor(message: string, status: number, code = '', requestId = '') {
-    super(message);
+    super(requestId ? message + '\nSupport reference: ' + requestId : message);
     this.status = status;
     this.code = code;
     this.requestId = requestId;
@@ -34,12 +34,34 @@ function errorMessage(reply: Reply) {
   return reply.message || 'Something went wrong. Please try again.';
 }
 
+function parseReply(value: unknown): Reply {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const record = value as Record<string, unknown>;
+  const meta = record.meta;
+  return {
+    ...('data' in record ? { data: record.data } : {}),
+    success: typeof record.success === 'boolean' ? record.success : undefined,
+    message: typeof record.message === 'string'
+      ? record.message
+      : Array.isArray(record.message)
+        ? record.message.filter((item): item is string => typeof item === 'string')
+        : undefined,
+    code: typeof record.code === 'string' ? record.code : undefined,
+    meta: meta && typeof meta === 'object' && 'requestId' in meta && typeof meta.requestId === 'string'
+      ? { requestId: meta.requestId }
+      : undefined,
+  };
+}
+
 export async function apiRequest<T>(
   path: string,
   method = 'GET',
   body?: object,
   token = '',
 ): Promise<T> {
+  if (!__DEV__ && !API_URL.startsWith('https://')) {
+    throw new ApiError('A secure production API address is required.', 0, 'API_CONFIGURATION');
+  }
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -48,6 +70,7 @@ export async function apiRequest<T>(
   const timeout = setTimeout(() => controller.abort(), 30000);
   let response: Response;
   let reply: Reply;
+  let headerRequestId = '';
   try {
     response = await fetch(API_URL + path, {
       method,
@@ -55,12 +78,22 @@ export async function apiRequest<T>(
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
+    headerRequestId = response.headers?.get('X-Request-Id') || '';
     if (response.status === 204) return undefined as T;
-    reply = (await response.json()) as Reply;
-    if (!reply || typeof reply !== 'object') {
-      throw new Error('Invalid API response');
+    try {
+      reply = parseReply(await response.json());
+    } catch {
+      if (controller.signal.aborted) throw new Error('Request aborted');
+      // Preserve the HTTP status when proxies return HTML or empty error bodies.
+      throw new ApiError(
+        response.ok ? 'SupplyED returned an invalid response. Refresh before retrying.' : 'SupplyED could not complete the request. Please try again.',
+        response.ok ? 0 : response.status,
+        'INVALID_RESPONSE',
+        headerRequestId,
+      );
     }
-  } catch {
+  } catch (problem) {
+    if (problem instanceof ApiError) throw problem;
     throw new ApiError(
       controller.signal.aborted
         ? 'The request timed out. Refresh to check the latest status before trying again.'
@@ -85,7 +118,7 @@ export async function apiRequest<T>(
       errorMessage(reply),
       response.status,
       reply.code,
-      reply.meta?.requestId,
+      reply.meta?.requestId || headerRequestId,
     );
   }
   if (reply.success !== true || !('data' in reply)) {
@@ -93,7 +126,7 @@ export async function apiRequest<T>(
       'SupplyED returned an incomplete response. Refresh the latest status before retrying.',
       0,
       'INVALID_RESPONSE',
-      reply.meta?.requestId,
+      reply.meta?.requestId || headerRequestId,
     );
   }
   return reply.data as T;
@@ -116,9 +149,29 @@ async function refreshAccessToken() {
     }
     saveTokens(refreshed);
   } catch (error) {
-    if (getSessionVersion() === version) expireSession();
+    if (
+      getSessionVersion() === version &&
+      error instanceof ApiError &&
+      (error.status === 401 || error.status === 403)
+    )
+      expireSession();
     throw error;
   }
+}
+
+export function refreshSessionToken() {
+  const version = getSessionVersion();
+  if (!getRefreshToken()) {
+    expireSession();
+    return Promise.reject(new ApiError('Please sign in again.', 401));
+  }
+  if (!refreshRequest || refreshVersion !== version) {
+    refreshVersion = version;
+    refreshRequest = refreshAccessToken().finally(() => {
+      if (refreshVersion === version) refreshRequest = undefined;
+    });
+  }
+  return refreshRequest;
 }
 
 export async function protectedRequest<T>(
@@ -155,13 +208,7 @@ export async function protectedRequest<T>(
     }
     // Another request may already have replaced the expired access token.
     if (token === getAccessToken()) {
-      if (!refreshRequest || refreshVersion !== version) {
-        refreshVersion = version;
-        refreshRequest = refreshAccessToken().finally(() => {
-          if (refreshVersion === version) refreshRequest = undefined;
-        });
-      }
-      await refreshRequest;
+      await refreshSessionToken();
     }
     if (getSessionVersion() !== version) throw error;
     try {

@@ -3,16 +3,24 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { TeacherApplication } from '../../feature/dashboard/teacher/store/teacherSlice';
 import Button from '../Ui/Button';
-import { colors } from '../Ui/theme';
-import { applicationStyles } from './applicationStyles';
-import { styles } from './dashboardStyles';
+import RichText from '../Ui/RichText';
+import { useTheme } from '../Ui/theme';
+import { useApplicationStyles } from './applicationStyles';
+import { useStyles } from './dashboardStyles';
+import { useAppDispatch } from '../../store/hooks';
+import { openMessages } from '../../feature/dashboard/shared/store/navigationSlice';
 
 type Props = {
   applications: TeacherApplication[];
-  onPoster: (id: string) => void;
+  onSchool: (applicationId: string) => void;
 };
 
-export default function MyApplicationsList({ applications, onPoster }: Props) {
+export default function MyApplicationsList({ applications, onSchool }: Props) {
+  const { colors } = useTheme();
+  const applicationStyles = useApplicationStyles();
+  const styles = useStyles();
+
+  const dispatch = useAppDispatch();
   if (!applications.length) {
     return (
       <View style={[styles.card, styles.emptyCard]}>
@@ -33,7 +41,7 @@ export default function MyApplicationsList({ applications, onPoster }: Props) {
           <View key={application.id} style={styles.card}>
             <View style={styles.sectionHead}>
               <Text style={styles.cardTitle}>
-                {job?.title || 'Application'}
+                {job?.title || application.jobName || 'Application'}
               </Text>
               <View style={applicationStyles.status}>
                 <Text style={applicationStyles.statusText}>
@@ -57,18 +65,19 @@ export default function MyApplicationsList({ applications, onPoster }: Props) {
               </Text>
             </View>
 
-            <Text style={styles.cardBody}>
-              {application.coverLetter || 'No cover letter added.'}
-            </Text>
+            <RichText value={application.coverLetter} style={styles.cardBody} />
 
-            {job?.postedByUserId ? (
-              <Button
-                compact
-                variant="link"
-                title="View school profile"
-                onPress={() => onPoster(job.postedByUserId)}
-              />
-            ) : null}
+            <Button
+              title="Message school"
+              variant="social"
+              onPress={() => dispatch(openMessages(application.id))}
+            />
+            <Button
+              compact
+              variant="link"
+              title="View school profile"
+              onPress={() => onSchool(application.id)}
+            />
           </View>
         );
       })}

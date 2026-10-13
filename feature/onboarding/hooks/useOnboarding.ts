@@ -10,6 +10,7 @@ import {
   teacherSteps,
 } from '../../../utils/onboarding/onboardingData';
 import { canContinue } from '../../../utils/onboarding/onboardingUtils';
+import { profilePayload } from '../../../utils/onboarding/profilePayload';
 import {
   createProfile as createRoleProfile,
   getProfile,
@@ -108,6 +109,8 @@ export function useOnboarding(
     setCreating(true);
     setCreateError('');
     try {
+      // Validate numeric profile fields before changing the account owner record.
+      profilePayload(type, data);
       let alreadyCreated = false;
       if (profileMayExist) {
         // A failed connection can hide a successful creation. Check before retrying.

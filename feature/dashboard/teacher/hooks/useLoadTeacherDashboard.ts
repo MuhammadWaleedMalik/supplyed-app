@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getSessionVersion } from '../../../../utils/api/session';
 import { useAppDispatch } from '../../../../store/hooks';
 import { getTeacherDashboardData } from '../apis/teacherDashboardApi';
 import {
@@ -17,16 +18,21 @@ export function useLoadTeacherDashboard() {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
+    let mounted = true;
+    const version = getSessionVersion();
+    const active = () => mounted && getSessionVersion() === version;
     async function loadDashboard() {
       dispatch(startTeacherLoading());
 
       try {
-        dispatch(setTeacherData(await getTeacherDashboardData()));
+        const data = await getTeacherDashboardData();
+        if (active()) dispatch(setTeacherData(data));
       } catch (problem) {
-        dispatch(setTeacherError(messageFromError(problem)));
+        if (active()) dispatch(setTeacherError(messageFromError(problem)));
       }
     }
 
     loadDashboard();
+    return () => { mounted = false; };
   }, [dispatch]);
 }

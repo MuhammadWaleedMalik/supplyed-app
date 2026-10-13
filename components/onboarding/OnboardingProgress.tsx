@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, common } from '../Ui/theme';
+import { Text, View } from 'react-native';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { getProgressPercent } from '../../utils/onboarding/onboardingText';
 
 type Props = {
@@ -18,6 +18,9 @@ export default function OnboardingProgress({
   step,
   total,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const percent = getProgressPercent(step, total);
 
   return (
@@ -52,11 +55,11 @@ export default function OnboardingProgress({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   content: { gap: 8 },
   badge: {
-    color: '#006b93',
-    backgroundColor: colors.paleBlue,
+    color: colors.brandDark,
+    backgroundColor: colors.brandTint,
     alignSelf: 'flex-start',
     borderRadius: 10,
     paddingHorizontal: 8,
@@ -81,17 +84,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff1f4',
     overflow: 'hidden',
   },
-  fill: { height: 6, backgroundColor: colors.blue },
+  fill: { height: 6, backgroundColor: colors.brand },
   notice: {
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     borderWidth: 1,
-    borderColor: '#bae2f1',
+    borderColor: colors.brandBorder,
     borderRadius: 14,
     padding: 15,
     marginTop: 14,
     gap: 4,
   },
-  noticeTitle: { color: '#006b93', fontWeight: '700', fontSize: 14 },
-  noticeBody: { color: '#3d718a', fontSize: 12, lineHeight: 18 },
-});
-
+  noticeTitle: { color: colors.brandDark, fontWeight: '700', fontSize: 14 },
+  noticeBody: { color: colors.brandDark, fontSize: 12, lineHeight: 18 },
+}));

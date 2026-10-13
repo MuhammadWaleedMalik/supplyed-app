@@ -11,9 +11,11 @@ import {
 } from '../../shared/store/navigationSlice';
 import { useLoadSchoolDashboard } from '../hooks/useLoadSchoolDashboard';
 import SchoolApplicationsScreen from './SchoolApplicationsScreen';
-import SchoolInterviewsScreen from './SchoolInterviewsScreen';
+import { clearSchoolJobSelection } from '../store/schoolSlice';
 import SchoolJobsScreen from './SchoolJobsScreen';
 import SchoolDashboardScreen from './SchoolDashboardScreen';
+import SchoolJobHistoryScreen from './SchoolJobHistoryScreen';
+import NotificationsScreen from '../../shared/screens/NotificationsScreen';
 
 type Props = {
   email: string;
@@ -26,6 +28,9 @@ type Props = {
 export default function SchoolDashboard(props: Props) {
   const dispatch = useAppDispatch();
   const page = useAppSelector(state => state.dashboardNavigation.page);
+  const applicationJobId = useAppSelector(
+    state => state.dashboardNavigation.notificationApplicationJobId,
+  );
 
   useLoadSchoolDashboard();
 
@@ -34,15 +39,19 @@ export default function SchoolDashboard(props: Props) {
   }, [dispatch]);
 
   function changePage(nextPage: DashboardPage) {
+    dispatch(clearSchoolJobSelection());
     dispatch(showPage(nextPage));
   }
 
   function pageContent() {
+    if (page === 'Notifications') {
+      return <NotificationsScreen type="school" onSettings={props.onSettings} />;
+    }
     if (page === 'Jobs') {
       return <SchoolJobsScreen />;
     }
     if (page === 'Applications') {
-      return <SchoolApplicationsScreen />;
+      return <SchoolApplicationsScreen jobId={applicationJobId} />;
     }
     if (page === 'Bookings') {
       return <BookingsScreen type="school" />;
@@ -53,8 +62,8 @@ export default function SchoolDashboard(props: Props) {
     if (page === 'Messages') {
       return <MessagesScreen role="school" />;
     }
-    if (page === 'Interviews') {
-      return <SchoolInterviewsScreen />;
+    if (page === 'History') {
+      return <SchoolJobHistoryScreen />;
     }
     return <SchoolDashboardScreen />;
   }
@@ -66,6 +75,7 @@ export default function SchoolDashboard(props: Props) {
       onPage={changePage}
       onLogout={props.onExit}
       onProfile={props.onProfile}
+      onHistory={() => changePage('History')}
       onSecurity={props.onSecurity}
       onSettings={props.onSettings}
     >

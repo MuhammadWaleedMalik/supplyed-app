@@ -1,11 +1,13 @@
-﻿import React from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Section from './Section';
 import Button from '../Ui/Button';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import { openRegistration } from '../../utils/landing/openRegistration';
 
 export default function ShareSection() {
+  const common = useCommonStyles();
+
   return (
     <Section dark>
       <View style={styles.content}>

@@ -2,16 +2,18 @@ import React from 'react';
 import { Alert, Text, View } from 'react-native';
 import type { SchoolApplication } from '../../feature/dashboard/school/store/schoolSlice';
 import Button from '../Ui/Button';
-import { applicationStyles } from './applicationStyles';
-import { styles } from './dashboardStyles';
-import { jobStyles } from './jobStyles';
+import RichText from '../Ui/RichText';
+import { useApplicationStyles } from './applicationStyles';
+import { useStyles } from './dashboardStyles';
+import { useJobStyles } from './jobStyles';
 import TeacherProfileSummary from './TeacherProfileSummary';
 
 type Props = {
   application: SchoolApplication;
   onBack: () => void;
   onStatus: (id: string, status: string) => void;
-  onMessage: (teacherId: string) => void;
+  onMessage: (applicationId: string) => void;
+  busy?: boolean;
 };
 
 const hiringSteps = [
@@ -38,11 +40,16 @@ const hiringSteps = [
 ];
 
 export default function SchoolApplicationDetail(props: Props) {
+  const applicationStyles = useApplicationStyles();
+  const styles = useStyles();
+  const jobStyles = useJobStyles();
+
   const application = props.application;
   const currentIndex = hiringSteps.findIndex(
     step => step.status === application.status,
   );
-  const canProgress = application.status !== 'REJECTED' && application.status !== 'HIRED';
+  const canProgress =
+    application.status !== 'REJECTED' && application.status !== 'HIRED';
 
   function changeStatus(nextStatus: string) {
     if (nextStatus !== 'HIRED') {
@@ -55,7 +62,10 @@ export default function SchoolApplicationDetail(props: Props) {
       'Hiring creates a booking and closes this job. This cannot be undone from the application.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Hire teacher', onPress: () => props.onStatus(application.id, nextStatus) },
+        {
+          text: 'Hire teacher',
+          onPress: () => props.onStatus(application.id, nextStatus),
+        },
       ],
     );
   }
@@ -72,9 +82,7 @@ export default function SchoolApplicationDetail(props: Props) {
       <View style={styles.sectionHead}>
         <Text style={styles.cardTitle}>Application status</Text>
         <View style={applicationStyles.status}>
-          <Text style={applicationStyles.statusText}>
-            {application.status}
-          </Text>
+          <Text style={applicationStyles.statusText}>{application.status}</Text>
         </View>
       </View>
 
@@ -84,9 +92,10 @@ export default function SchoolApplicationDetail(props: Props) {
         <Text style={styles.cardTitle}>Application</Text>
         <Text style={jobStyles.sectionTitle}>Cover letter</Text>
         <View style={applicationStyles.cover}>
-          <Text style={applicationStyles.coverText}>
-            {application.coverLetter || 'No cover letter added.'}
-          </Text>
+          <RichText
+            value={application.coverLetter}
+            style={applicationStyles.coverText}
+          />
         </View>
         <Text style={styles.teacherMeta}>
           Submitted {application.createdAt?.slice(0, 10) || 'recently'}
@@ -96,7 +105,8 @@ export default function SchoolApplicationDetail(props: Props) {
       <View style={styles.section}>
         <Text style={styles.cardTitle}>Hiring progress</Text>
         <Text style={styles.cardBody}>
-          Hire is final for the application. After hire, manage the work on the Bookings tab.
+          Hire is final for the application. After hire, manage the work on the
+          Bookings tab.
         </Text>
 
         <View style={applicationStyles.workflow}>
@@ -109,7 +119,7 @@ export default function SchoolApplicationDetail(props: Props) {
                 key={step.status}
                 title={isComplete ? step.complete : step.action}
                 variant={isNext ? 'primary' : 'social'}
-                disabled={!isNext}
+                disabled={!isNext || props.busy}
                 onPress={() => changeStatus(step.status)}
               />
             );
@@ -120,7 +130,7 @@ export default function SchoolApplicationDetail(props: Props) {
       <Button
         title="Message teacher"
         variant="social"
-        onPress={() => props.onMessage(application.instructorId)}
+        onPress={() => props.onMessage(application.id)}
       />
       <Button
         compact

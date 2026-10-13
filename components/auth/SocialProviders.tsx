@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
 import Icon from '../Ui/Icon';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 import { showAuthMessage } from '../../utils/auth/authUtils';
 import { AccountType } from '../../utils/onboarding/onboardingData';
 
@@ -11,9 +11,11 @@ type Props = {
 };
 
 export default function SocialProviders({ role }: Props) {
+  const styles = useStyles();
+
   const note = role
-    ? 'Social signup will use the selected profile type when credentials are configured.'
-    : 'Social providers need credentials configured before they can connect.';
+    ? 'Use email to sign up with your selected profile type.'
+    : 'Social sign-in is currently unavailable. Use email to continue.';
 
   return (
     <View style={styles.content}>
@@ -36,8 +38,8 @@ export default function SocialProviders({ role }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   content: { gap: 10 },
   buttons: { gap: 10 },
   note: { color: colors.muted, fontSize: 11, lineHeight: 17 },
-});
+}));

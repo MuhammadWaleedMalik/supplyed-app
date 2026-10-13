@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, common } from '../Ui/theme';
+import { Text, View } from 'react-native';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import AuthSwitch from './AuthSwitch';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
@@ -20,6 +20,9 @@ export default function AuthContent({
   onSwitch,
   actions,
 }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   return (
     <View style={[styles.panel, wide && styles.widePanel]}>
       <View style={[styles.content, register && styles.registerContent]}>
@@ -54,7 +57,7 @@ export default function AuthContent({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   panel: {
     backgroundColor: '#ffffff',
     paddingHorizontal: 20,
@@ -65,7 +68,7 @@ const styles = StyleSheet.create({
   registerContent: { maxWidth: 720 },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     backgroundColor: '#ffffff',
     padding: 20,
@@ -74,11 +77,11 @@ const styles = StyleSheet.create({
   },
   wideCard: { padding: 24 },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  line: { height: 1, flex: 1, backgroundColor: colors.border },
+  line: { height: 1, flex: 1, backgroundColor: colors.brandBorder },
   dividerText: {
     color: colors.muted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-});
+}));

@@ -3,17 +3,20 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
-import { colors } from '../Ui/theme';
-import { styles } from './dashboardStyles';
-import { jobStyles } from './jobStyles';
+import { useTheme } from '../Ui/theme';
+import { useStyles } from './dashboardStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   jobs: Job[];
-  selectedId: string;
   onSelect: (id: string) => void;
 };
 
-export default function SchoolJobList({ jobs, selectedId, onSelect }: Props) {
+export default function SchoolJobList({ jobs, onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const jobStyles = useJobStyles();
+
   if (!jobs.length)
     return (
       <View style={[styles.card, styles.emptyCard]}>
@@ -59,7 +62,7 @@ export default function SchoolJobList({ jobs, selectedId, onSelect }: Props) {
             </View>
             <Button
               compact
-              variant={selectedId === job.id ? 'primary' : 'social'}
+              variant="social"
               title="Review applications"
               onPress={() => onSelect(job.id)}
             />

@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const jobStyles = StyleSheet.create({
+export const useJobStyles = createThemedStyles(colors => ({
   shell: {
     gap: 18,
   },
@@ -14,7 +13,7 @@ export const jobStyles = StyleSheet.create({
   },
   wizard: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     padding: 16,
@@ -30,7 +29,7 @@ export const jobStyles = StyleSheet.create({
     gap: 4,
   },
   stepLabel: {
-    color: colors.blue,
+    color: colors.brand,
     fontSize: 10,
     fontWeight: '800',
   },
@@ -43,7 +42,7 @@ export const jobStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     backgroundColor: '#ffffff',
     alignItems: 'center',
@@ -57,10 +56,10 @@ export const jobStyles = StyleSheet.create({
     height: 5,
     flex: 1,
     borderRadius: 3,
-    backgroundColor: colors.border,
+    backgroundColor: colors.brandBorder,
   },
   progressActive: {
-    backgroundColor: colors.blue,
+    backgroundColor: colors.brand,
   },
   modeGrid: {
     gap: 12,
@@ -68,7 +67,7 @@ export const jobStyles = StyleSheet.create({
   modeCard: {
     minHeight: 156,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     padding: 18,
     backgroundColor: '#ffffff',
@@ -76,8 +75,8 @@ export const jobStyles = StyleSheet.create({
     gap: 14,
   },
   modePrimary: {
-    borderColor: colors.blue,
-    backgroundColor: colors.paleBlue,
+    borderColor: colors.brand,
+    backgroundColor: colors.brandTint,
   },
   modeIcon: {
     width: 44,
@@ -117,15 +116,15 @@ export const jobStyles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
   choiceActive: {
-    borderColor: colors.blue,
-    backgroundColor: colors.paleBlue,
+    borderColor: colors.brand,
+    backgroundColor: colors.brandTint,
   },
   choiceText: {
     color: colors.muted,
@@ -133,7 +132,7 @@ export const jobStyles = StyleSheet.create({
     fontSize: 13,
   },
   choiceTextActive: {
-    color: '#006b93',
+    color: colors.brandDark,
   },
   actions: {
     gap: 9,
@@ -174,4 +173,4 @@ export const jobStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-});
+}));

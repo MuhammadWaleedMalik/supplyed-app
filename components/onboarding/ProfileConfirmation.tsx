@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { styles } from './profileConfirmationStyles';
+import { useStyles } from './profileConfirmationStyles';
 
 type Props = {
   visible: boolean;
@@ -22,6 +22,8 @@ export default function ProfileConfirmation({
   onReview,
   onCreate,
 }: Props) {
+  const styles = useStyles();
+
   return (
     <Modal
       visible={visible}

@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { getSessionVersion } from '../../../utils/api/session';
+import { assertUploadSession } from '../../../utils/api/upload';
 import { Linking } from 'react-native';
 import {
   getProfile,
@@ -25,14 +27,21 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingId, setUploadingId] = useState('');
   const [previewingId, setPreviewingId] = useState('');
   const [needsTrustApproval, setNeedsTrustApproval] = useState(false);
   const [approval, setApproval] = useState<SignatoryApproval | null>(null);
   const [refreshingApproval, setRefreshingApproval] = useState(false);
+  const uploading = useRef(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
+    let active = true;
+    setLoaded(false);
+    setLoading(true);
+    setError('');
     async function load() {
       try {
         const required = await getRequirements();
@@ -40,23 +49,33 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
         const profile = await getProfile(type);
         const isMatSchool =
           type === 'school' && profile.institutionType === 'MAT_SCHOOL';
+        if (!active) return;
 
         setRequirements(required);
         setDocuments(uploaded);
         setNeedsTrustApproval(isMatSchool);
 
         if (isMatSchool) {
-          setApproval(await getSignatoryApproval());
+          const latest = await getSignatoryApproval();
+          if (!active) return;
+          setApproval(latest);
         }
 
         setLoaded(true);
       } catch (problem) {
+        if (!active) return;
         setError(problem instanceof Error ? problem.message : 'Unable to load documents.');
       }
       setLoading(false);
     }
     load();
-  }, [type]);
+    return () => { active = false; };
+  }, [type, loadAttempt]);
+
+  function retryLoad() {
+    if (loading || uploading.current || submittingRef.current) return;
+    setLoadAttempt(current => current + 1);
+  }
 
   async function refreshApprovalStatus() {
     if (!needsTrustApproval) return;
@@ -71,22 +90,26 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   }
 
   async function addDocument(requirement: Requirement) {
-    if (uploadingId) return;
+    if (uploading.current || submittingRef.current) return;
+    uploading.current = true;
+    const version = getSessionVersion();
     setUploadingId(requirement.id);
     setError('');
     try {
       const selected = await pickDocument(requirement);
+      assertUploadSession(version);
       const uploaded = await uploadDocument(
         requirement.id, selected.file, selected.name, selected.mime,
       );
-      setDocuments([
-        ...documents.filter(item => item.requirementId !== requirement.id),
+      setDocuments(current => [
+        ...current.filter(item => item.requirementId !== requirement.id),
         { ...uploaded, requirementId: requirement.id },
       ]);
     } catch (problem) {
       if (!pickWasCancelled(problem))
         setError(problem instanceof Error ? problem.message : 'Unable to upload document.');
     }
+    uploading.current = false;
     setUploadingId('');
   }
 
@@ -103,6 +126,7 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   }
 
   async function continueToReviewStatus() {
+    if (submittingRef.current || uploading.current) return;
     if (!loaded) {
       setError('Document requirements could not be loaded. Try again.');
       return;
@@ -112,11 +136,14 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
       return;
     }
 
+    submittingRef.current = true;
+    const version = getSessionVersion();
     setSubmitting(true);
     setError('');
     try {
       if (needsTrustApproval) {
         const latestApproval = await getSignatoryApproval();
+        assertUploadSession(version);
         setApproval(latestApproval);
         if (latestApproval?.status !== 'APPROVED') {
           setSubmitting(false);
@@ -125,6 +152,7 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
         }
       }
       await submitProfileForReview(type);
+      assertUploadSession(version);
       setSubmitting(false);
       onReviewStatus();
     } catch (problem) {
@@ -140,12 +168,15 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
       } else {
         setError(message);
       }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
   return {
     requirements, documents, error, loading, submitting, uploadingId, previewingId,
-    needsTrustApproval, approval, refreshingApproval,
+    needsTrustApproval, approval, refreshingApproval, loaded, retryLoad,
     refreshApprovalStatus, addDocument, previewDocument, continueToReviewStatus,
   };
 }

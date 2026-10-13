@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { TeacherApplication } from '../../feature/dashboard/teacher/store/teacherSlice';
 import ApplicationFilterBar from './ApplicationFilterBar';
-import { jobStyles } from './jobStyles';
+import { useJobStyles } from './jobStyles';
 import MyApplicationsList from './MyApplicationsList';
 
 type Props = {
@@ -11,10 +11,12 @@ type Props = {
   status: string;
   onSearch: (value: string) => void;
   onStatus: (value: string) => void;
-  onPoster: (id: string) => void;
+  onSchool: (applicationId: string) => void;
 };
 
 export default function TeacherApplicationsPanel(props: Props) {
+  const jobStyles = useJobStyles();
+
   return (
     <View style={jobStyles.shell}>
       <View style={jobStyles.progressCopy}>
@@ -33,7 +35,7 @@ export default function TeacherApplicationsPanel(props: Props) {
 
       <MyApplicationsList
         applications={props.applications}
-        onPoster={props.onPoster}
+        onSchool={props.onSchool}
       />
     </View>
   );

@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const applicationStyles = StyleSheet.create({
+export const useApplicationStyles = createThemedStyles(colors => ({
   header: {
     gap: 5,
     flex: 1,
@@ -33,18 +32,18 @@ export const applicationStyles = StyleSheet.create({
   status: {
     alignSelf: 'flex-start',
     borderRadius: 6,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     paddingHorizontal: 9,
     paddingVertical: 5,
   },
   statusText: {
-    color: '#006b93',
+    color: colors.brandDark,
     fontSize: 10,
     fontWeight: '800',
   },
   cover: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.blue,
+    borderLeftColor: colors.brand,
     paddingLeft: 12,
   },
   coverText: {
@@ -64,7 +63,7 @@ export const applicationStyles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
   },
   profileAvatarEmpty: {
     width: 72,
@@ -72,10 +71,10 @@ export const applicationStyles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
   },
   profileInitials: {
-    color: '#006b93',
+    color: colors.brandDark,
     fontSize: 20,
     fontWeight: '800',
   },
@@ -119,4 +118,4 @@ export const applicationStyles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
-});
+}));

@@ -5,7 +5,7 @@ import FlowProgress from './FlowProgress';
 import JobDetailsStep from './JobDetailsStep';
 import JobModeStep from './JobModeStep';
 import JobRequirementsStep from './JobRequirementsStep';
-import { jobStyles } from './jobStyles';
+import { useJobStyles } from './jobStyles';
 
 type Props = {
   step: number;
@@ -21,6 +21,8 @@ type Props = {
 };
 
 export default function JobPostingFlow(props: Props) {
+  const jobStyles = useJobStyles();
+
   const titles = [
     'Choose how to hire',
     'Tell teachers about the role',

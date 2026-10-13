@@ -28,6 +28,11 @@ const schoolSlice = createSlice({
   name: 'schoolDashboard',
   initialState,
   reducers: {
+    upsertSchoolJob(state, action: PayloadAction<Job>) {
+      const index = state.jobs.findIndex(job => job.id === action.payload.id);
+      if (index < 0) state.jobs.unshift(action.payload);
+      else state.jobs[index] = action.payload;
+    },
     startSchoolLoading(state) {
       state.loading = true;
       state.error = '';
@@ -66,6 +71,7 @@ const schoolSlice = createSlice({
 });
 
 export const {
+  upsertSchoolJob,
   startSchoolLoading,
   setSchoolData,
   setSchoolError,

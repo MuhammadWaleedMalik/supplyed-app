@@ -1,5 +1,7 @@
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
+import { getSessionVersion } from '../../../../utils/api/session';
+import { uploadFile } from '../../../../utils/api/upload';
 
 export type ProfileImage = {
   imageUrl?: string | null;
@@ -12,6 +14,7 @@ export async function getProfileImage() {
 }
 
 export async function uploadProfileImage(file: Blob, contentType: string) {
+  const version = getSessionVersion();
   const signed = await protectedRequest<{
     url: string;
     fileKey: string;
@@ -22,12 +25,7 @@ export async function uploadProfileImage(file: Blob, contentType: string) {
   });
   if (!signed.url || !signed.fileKey)
     throw new Error('The backend did not return a profile image upload URL.');
-  const upload = await fetch(signed.url, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType, ...signed.requiredHeaders },
-    body: file,
-  });
-  if (!upload.ok) throw new Error('Profile image upload failed.');
+  await uploadFile(signed.url, file, { 'Content-Type': contentType, ...signed.requiredHeaders }, version);
   return protectedRequest<ProfileImage>(endpoints.profileImageComplete, 'POST', {
     fileKey: signed.fileKey,
   });

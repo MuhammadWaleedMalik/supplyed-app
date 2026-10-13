@@ -1,15 +1,17 @@
 import React from 'react';
-import { ImageBackground, StatusBar, StyleSheet } from 'react-native';
+import { Image, StatusBar, StyleSheet, View } from 'react-native';
 
 export default function SplashScreen() {
   return (
     <>
       <StatusBar hidden barStyle="light-content" />
-      <ImageBackground
-        source={require('../public/supplyed.png')}
-        resizeMode="cover"
-        style={styles.container}
-      />
+      <View style={styles.container}>
+        <Image
+          source={require('../public/supplyed.png')}
+          resizeMode="cover"
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
     </>
   );
 }

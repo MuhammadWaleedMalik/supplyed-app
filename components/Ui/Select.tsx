@@ -1,14 +1,7 @@
 import { Check, ChevronDown, X } from 'lucide-react-native';
 import React, { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { colors, common } from './theme';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { createThemedStyles, useTheme } from './theme';
 
 type Props = {
   label: string;
@@ -29,6 +22,9 @@ export default function Select({
   required,
   error,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+
   const [open, setOpen] = useState(false);
 
   function chooseOption(option: string) {
@@ -122,7 +118,7 @@ export default function Select({
                       {option}
                     </Text>
                     {selected ? (
-                      <Check color={colors.blue} size={19} strokeWidth={2.5} />
+                      <Check color={colors.brand} size={19} strokeWidth={2.5} />
                     ) : null}
                   </Pressable>
                 );
@@ -135,7 +131,7 @@ export default function Select({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors, common) => ({
   field: {
     width: '100%',
     gap: 7,
@@ -201,7 +197,7 @@ const styles = StyleSheet.create({
   sheetHeader: {
     minHeight: 70,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.brandBorder,
     paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
@@ -212,7 +208,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   sheetLabel: {
-    color: colors.blue,
+    color: colors.brand,
     fontSize: 10,
     fontWeight: '800',
   },
@@ -225,7 +221,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -242,7 +238,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   selectedOption: {
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
   },
   optionPressed: {
     backgroundColor: colors.soft,
@@ -253,7 +249,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   selectedOptionText: {
-    color: '#006b93',
+    color: colors.brandDark,
     fontWeight: '700',
   },
-});
+}));
