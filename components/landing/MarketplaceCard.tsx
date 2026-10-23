@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import IconBadge from './IconBadge';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 const features = [
   [
@@ -22,6 +22,9 @@ const features = [
 ];
 
 export default function MarketplaceCard() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   return (
     <View style={common.card}>
       <Text style={common.eyebrow}>VERIFIED MARKETPLACE</Text>
@@ -58,25 +61,25 @@ export default function MarketplaceCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   row: {
     flexDirection: 'row',
     gap: 12,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.brandBorder,
   },
   copy: { flex: 1, gap: 5 },
   number: { color: colors.muted, fontSize: 11 },
   notice: {
     flexDirection: 'row',
     gap: 10,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     borderWidth: 1,
-    borderColor: '#ace0f1',
+    borderColor: colors.brandBorder,
     borderRadius: 12,
     padding: 14,
   },
-  check: { color: colors.blue, fontSize: 20 },
-  noticeTitle: { color: '#007ba6', fontWeight: '600', fontSize: 15 },
-});
+  check: { color: colors.brand, fontSize: 20 },
+  noticeTitle: { color: colors.brand, fontWeight: '600', fontSize: 15 },
+}));

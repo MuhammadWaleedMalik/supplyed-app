@@ -1,11 +1,14 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 const places = Array.from({ length: 20 }, (_, index) => index + 1);
 
 export default function Cohort() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 950;
 
@@ -43,7 +46,7 @@ export default function Cohort() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   layout: { gap: 28 },
   wide: { flexDirection: 'row', alignItems: 'center' },
   grid: {
@@ -58,7 +61,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     backgroundColor: '#ffffff',
     borderRadius: 12,
     alignItems: 'center',
@@ -72,4 +75,4 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     textAlign: 'center',
   },
-});
+}));

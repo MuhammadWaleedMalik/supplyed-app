@@ -1,0 +1,238 @@
+--- a/src/modules/payments/dto/payout-balance.dto.ts
++++ b/src/modules/payments/dto/payout-balance.dto.ts
+@@ -1,7 +1,15 @@
+ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsInt, IsOptional, Min } from 'class-validator';
++import { IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+ 
+ export class InstantPayoutDto {
++  @ApiPropertyOptional({
++    description: 'A new UUID for each intended withdrawal. Reuse it and the exact body when retrying an uncertain response.',
++    format: 'uuid',
++  })
++  @IsOptional()
++  @IsUUID('4')
++  requestId?: string;
++
+   @ApiPropertyOptional({
+     example: 10000,
+     minimum: 40,
+--- a/src/modules/payments/payments.controller.ts
++++ b/src/modules/payments/payments.controller.ts
+@@ -65,7 +65,7 @@
+   @ResponseMessage('Withdrawal on its way')
+   @swagger.instantPayout()
+   withdraw(@CurrentUser() user: AuthUser, @Body() dto: InstantPayoutDto) {
+-    return this.instantPayoutsService.withdraw(user, dto.amountPence);
++    return this.instantPayoutsService.withdraw(user, dto.amountPence, dto.requestId);
+   }
+ 
+   @Get('payout-account')
+--- a/src/modules/payments/payout-accounts.repository.ts
++++ b/src/modules/payments/payout-accounts.repository.ts
+@@ -1,4 +1,5 @@
+ import { Injectable } from '@nestjs/common';
++import { Prisma } from '@prisma/client';
+ import { PrismaService } from '../../prisma/prisma.service';
+ 
+ /** The parts of a Stripe account the app mirrors. */
+@@ -13,6 +14,37 @@
+ @Injectable()
+ export class PayoutAccountsRepository {
+   constructor(private readonly prisma: PrismaService) {}
++
++  findPayoutRequest(payoutAccountId: string, requestId: string) {
++    return this.prisma.instantPayoutRequest.findUnique({
++      where: { payoutAccountId_requestId: { payoutAccountId, requestId } },
++    });
++  }
++
++  // Concurrent retries use the first saved amount and destination.
++  async reservePayoutRequest(data: {
++    payoutAccountId: string;
++    requestId: string;
++    requestedAmountPence: number | null;
++    amountPence: number;
++    stripeAccountId: string;
++    destinationId: string;
++  }) {
++    const where = { payoutAccountId_requestId: { payoutAccountId: data.payoutAccountId, requestId: data.requestId } };
++    try {
++      return await this.prisma.instantPayoutRequest.upsert({ where, create: data, update: {} });
++    } catch (error) {
++      // Prisma may emulate an upsert. A racing insert has already reserved the request.
++      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
++        return this.prisma.instantPayoutRequest.findUniqueOrThrow({ where });
++      }
++      throw error;
++    }
++  }
++
++  finishPayoutRequest(id: string, stripePayoutId: string) {
++    return this.prisma.instantPayoutRequest.update({ where: { id }, data: { stripePayoutId } });
++  }
+ 
+   findByInstructorId(instructorId: string) {
+     return this.prisma.instructorPayoutAccount.findUnique({ where: { instructorId } });
+--- a/src/modules/payments/instant-payouts.service.ts
++++ b/src/modules/payments/instant-payouts.service.ts
+@@ -1,4 +1,5 @@
+-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
++import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
++import { randomUUID } from 'node:crypto';
+ import type Stripe from 'stripe';
+ import type { AuthUser } from '../../common/types/auth-user.type';
+ import { InstructorsRepository } from '../instructors/instructors.repository';
+@@ -57,49 +58,70 @@
+   }
+ 
+   /** Sends the whole instantly available balance, or the amount asked for, to the teacher's bank or card now. */
+-  async withdraw(user: AuthUser, amountPence?: number) {
++  async withdraw(user: AuthUser, amountPence?: number, requestId?: string) {
+     const account = await this.findAccount(user);
++    if (!account) throw new BadRequestException('Finish setting up payouts before withdrawing');
+ 
+-    if (!account || !isPayoutReady(account)) {
+-      throw new BadRequestException('Finish setting up payouts before withdrawing');
++    // Older clients still work, but only callers that retain a requestId can retry exactly.
++    const key = requestId ?? randomUUID();
++    let withdrawal = await this.payoutAccountsRepository.findPayoutRequest(account.id, key);
++    if (!withdrawal) {
++      if (!isPayoutReady(account)) {
++        throw new BadRequestException('Finish setting up payouts before withdrawing');
++      }
++      const balance = await this.readBalance(account.stripeAccountId);
++      if (!balance.instantDestination) {
++        throw new BadRequestException(
++          'Your bank account does not support instant payouts. Add a debit card in Manage payouts to withdraw instantly',
++        );
++      }
++      const amount = amountPence ?? balance.instantAvailablePence;
++      if (amount < MIN_INSTANT_PAYOUT_PENCE || balance.instantAvailablePence < MIN_INSTANT_PAYOUT_PENCE) {
++        throw new BadRequestException('Instant payouts start at GBP 0.40');
++      }
++      if (amount > balance.instantAvailablePence) {
++        throw new BadRequestException('The amount exceeds your available instant balance');
++      }
++      withdrawal = await this.payoutAccountsRepository.reservePayoutRequest({
++        payoutAccountId: account.id,
++        requestId: key,
++        requestedAmountPence: amountPence ?? null,
++        amountPence: amount,
++        stripeAccountId: account.stripeAccountId,
++        destinationId: balance.instantDestination.id,
++      });
+     }
+ 
+-    const balance = await this.readBalance(account.stripeAccountId);
+-
+-    if (!balance.instantDestination) {
+-      throw new BadRequestException(
+-        'Your bank account does not support instant payouts. Add a debit card in Manage payouts to withdraw instantly',
++    if (withdrawal.requestedAmountPence !== (amountPence ?? null)) {
++      throw new ConflictException('This withdrawal request was already used with a different amount');
++    }
++    if (withdrawal.stripePayoutId) {
++      const payoutId = withdrawal.stripePayoutId;
++      const payout = await this.stripe.call('read the existing withdrawal', (stripe) =>
++        stripe.payouts.retrieve(payoutId, {}, { stripeAccount: withdrawal.stripeAccountId }),
++      );
++      return toPayoutSummary(payout);
++    }
++    // Stripe may prune idempotency keys after 24 hours. Never risk a second payment then.
++    if (Date.now() - withdrawal.createdAt.getTime() >= 23 * 60 * 60 * 1000) {
++      throw new ConflictException(
++        'This withdrawal still needs confirmation. Review payout history or contact support before trying again',
+       );
+     }
+ 
+-    const amount = amountPence ?? balance.instantAvailablePence;
+-
+-    if (balance.instantAvailablePence < MIN_INSTANT_PAYOUT_PENCE || amount < MIN_INSTANT_PAYOUT_PENCE) {
+-      throw new BadRequestException('Instant payouts start at £0.40');
+-    }
+-
+-    if (amount > balance.instantAvailablePence) {
+-      throw new BadRequestException(
+-        `At most £${(balance.instantAvailablePence / 100).toFixed(2)} can be withdrawn now`,
+-      );
+-    }
+-
+-    const stripeAccount = account.stripeAccountId;
+-    const destination = balance.instantDestination.id;
+     const payout = await this.stripe.call('send the instant payout', (stripe) =>
+       stripe.payouts.create(
+         {
+-          amount,
++          amount: withdrawal.amountPence,
+           currency: INVOICE_CURRENCY,
+           method: 'instant',
+-          destination,
+-          metadata: { instructorId: account.instructorId },
++          destination: withdrawal.destinationId,
++          metadata: { instructorId: account.instructorId, requestId: withdrawal.requestId },
+         },
+-        // The same withdrawal from the same balance is one payout, however often the button is pressed.
+-        { stripeAccount, idempotencyKey: `instant-payout-${stripeAccount}-${balance.instantAvailablePence}-${amount}` },
++        { stripeAccount: withdrawal.stripeAccountId, idempotencyKey: `instant-payout-${withdrawal.id}` },
+       ),
+     );
+-
++    await this.payoutAccountsRepository.finishPayoutRequest(withdrawal.id, payout.id);
+     return toPayoutSummary(payout);
+   }
+ 
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -773,6 +773,7 @@
+ // The teacher's Stripe Express account, which receives their share of each paid invoice.
+ // The flags mirror Stripe and are refreshed from account.updated webhooks and on read.
+ model InstructorPayoutAccount {
++  withdrawalRequests InstantPayoutRequest[]
+   id String @id @default(uuid())
+ 
+   instructorId String            @unique
+@@ -787,6 +788,23 @@
+ 
+   createdAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
++}
++
++// Frozen withdrawal requests make retries safe even after balance or bank details change.
++model InstantPayoutRequest {
++  id                   String                  @id @default(uuid())
++  payoutAccountId      String
++  payoutAccount        InstructorPayoutAccount @relation(fields: [payoutAccountId], references: [id], onDelete: Restrict)
++  requestId            String
++  requestedAmountPence Int?
++  amountPence          Int
++  stripeAccountId      String
++  destinationId        String
++  stripePayoutId       String?                 @unique
++  createdAt            DateTime                @default(now())
++  updatedAt            DateTime                @updatedAt
++
++  @@unique([payoutAccountId, requestId])
+ }
+ 
+ // What the school is billed for a completed booking. The school pays Stripe; on payment the
+--- /dev/null
++++ b/prisma/migrations/20261020150000_instant_payout_requests/migration.sql
+@@ -0,0 +1,17 @@
++-- Additive only: existing payout accounts and balances are unchanged.
++CREATE TABLE "InstantPayoutRequest" (
++    "id" TEXT NOT NULL,
++    "payoutAccountId" TEXT NOT NULL,
++    "requestId" TEXT NOT NULL,
++    "requestedAmountPence" INTEGER,
++    "amountPence" INTEGER NOT NULL,
++    "stripeAccountId" TEXT NOT NULL,
++    "destinationId" TEXT NOT NULL,
++    "stripePayoutId" TEXT,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++    CONSTRAINT "InstantPayoutRequest_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX "InstantPayoutRequest_payoutAccountId_requestId_key" ON "InstantPayoutRequest"("payoutAccountId", "requestId");
++CREATE UNIQUE INDEX "InstantPayoutRequest_stripePayoutId_key" ON "InstantPayoutRequest"("stripePayoutId");
++ALTER TABLE "InstantPayoutRequest" ADD CONSTRAINT "InstantPayoutRequest_payoutAccountId_fkey" FOREIGN KEY ("payoutAccountId") REFERENCES "InstructorPayoutAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

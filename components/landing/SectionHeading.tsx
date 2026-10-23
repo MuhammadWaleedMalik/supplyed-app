@@ -1,10 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 
 type Props = { label: string; title: string; description?: string };
 
 export default function SectionHeading({ label, title, description }: Props) {
+  const common = useCommonStyles();
+
   return (
     <View style={styles.heading}>
       <Text style={[common.eyebrow, styles.center]}>{label}</Text>

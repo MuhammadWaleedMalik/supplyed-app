@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors, serif } from '../Ui/theme';
+import { serif, createThemedStyles } from '../Ui/theme';
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles(colors => ({
   intro: { backgroundColor: colors.dark, padding: 24, gap: 16 },
   wideIntro: { width: '32%', minHeight: 650 },
   title: {
@@ -15,7 +14,7 @@ export const styles = StyleSheet.create({
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14 },
   stepIcon: {
     backgroundColor: '#ffffff',
-    color: colors.blue,
+    color: colors.brand,
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -41,4 +40,4 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pathDescription: { color: '#b6c0cb', fontSize: 12, lineHeight: 18 },
-});
+}));

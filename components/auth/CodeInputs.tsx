@@ -1,6 +1,6 @@
 import React, { ComponentRef, useRef } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { colors } from '../Ui/theme';
+import { TextInput, View } from 'react-native';
+import { createThemedStyles } from '../Ui/theme';
 
 const positions = [0, 1, 2, 3, 4, 5];
 type CodeInputRef = ComponentRef<typeof TextInput>;
@@ -11,13 +11,17 @@ type Props = {
 };
 
 export default function CodeInputs({ digits, onChange }: Props) {
+  const styles = useStyles();
+
+  // Native input refs keep automatic OTP focus and backspace movement working.
   const refs = useRef<Array<CodeInputRef | null>>([]);
 
   function changeCode(index: number, value: string) {
-    const numbers = value.replace(/\D/g, '');
+    const numbers = value;
     onChange(index, numbers);
     if (numbers.length === 1 && index < 5) refs.current[index + 1]?.focus();
-    if (numbers.length > 1) refs.current[Math.min(index + numbers.length, 5)]?.focus();
+    if (numbers.length > 1)
+      refs.current[Math.min(index + numbers.length, 5)]?.focus();
   }
 
   function pressKey(index: number, key: string) {
@@ -31,10 +35,11 @@ export default function CodeInputs({ digits, onChange }: Props) {
       {positions.map(index => (
         <TextInput
           key={index}
-          ref={input => { refs.current[index] = input; }}
+          ref={input => {
+            refs.current[index] = input;
+          }}
           accessibilityLabel={'Code digit ' + (index + 1)}
           keyboardType="number-pad"
-          maxLength={6}
           value={digits[index]}
           onChangeText={value => changeCode(index, value)}
           onKeyPress={({ nativeEvent }) => pressKey(index, nativeEvent.key)}
@@ -46,7 +51,7 @@ export default function CodeInputs({ digits, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   row: { flexDirection: 'row', gap: 8 },
   input: {
     flex: 1,
@@ -59,4 +64,4 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 22,
   },
-});
+}));

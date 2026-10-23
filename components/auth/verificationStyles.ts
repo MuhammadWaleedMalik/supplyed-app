@@ -1,7 +1,6 @@
-﻿import { StyleSheet } from 'react-native';
-import { colors } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
-export const verificationStyles = StyleSheet.create({
+export const useVerificationStyles = createThemedStyles(colors => ({
   panel: {
     backgroundColor: '#ffffff',
     paddingHorizontal: 20,
@@ -11,7 +10,7 @@ export const verificationStyles = StyleSheet.create({
   content: { width: '100%', maxWidth: 490, alignSelf: 'center', gap: 12 },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     padding: 24,
     gap: 18,
@@ -25,8 +24,8 @@ export const verificationStyles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   required: { color: '#db4262' },
-  notice: { backgroundColor: colors.paleBlue, borderRadius: 12, padding: 14 },
-  noticeText: { color: '#106b91', fontSize: 13, lineHeight: 20 },
+  notice: { backgroundColor: colors.brandTint, borderRadius: 12, padding: 14 },
+  noticeText: { color: colors.brandDark, fontSize: 13, lineHeight: 20 },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -36,7 +35,7 @@ export const verificationStyles = StyleSheet.create({
   error: { color: '#c93251', fontSize: 12 },
   resend: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 10,
     color: colors.muted,
     textAlign: 'center',
@@ -51,4 +50,4 @@ export const verificationStyles = StyleSheet.create({
   },
   footer: { backgroundColor: colors.soft, borderRadius: 12, padding: 12 },
   footerText: { color: colors.muted, fontSize: 11, lineHeight: 17 },
-});
+}));

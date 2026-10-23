@@ -1,11 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import {
-  currencies,
-  OnboardingData,
-} from '../../utils/onboarding/onboardingData';
+import DynamicSelect from '../Ui/DynamicSelect';
+import { OnboardingData } from '../../utils/onboarding/onboardingData';
 
 type Props = {
   data: OnboardingData;
@@ -21,7 +18,7 @@ export default function TeacherRates({ data, wide, update }: Props) {
           label="YEARS OF EXPERIENCE"
           placeholder="5"
           number
-          required={false}
+          required
           value={data.experience}
           onChangeText={value => update('experience', value)}
           half={wide}
@@ -47,36 +44,29 @@ export default function TeacherRates({ data, wide, update }: Props) {
       </View>
       <View style={[styles.row, wide && styles.wide]}>
         <View style={[styles.field, wide && styles.half]}>
-          <Select
+          <DynamicSelect
             label="CURRENCY"
             value={data.currency}
             placeholder="Select currency"
-            options={currencies}
+            name="currency"
             onChange={value => update('currency', value)}
           />
         </View>
         <Input
           label="MAXIMUM TRAVEL DISTANCE"
-          placeholder="25 miles"
+          placeholder="25"
+          number
           required={false}
           value={data.travelDistance}
           onChangeText={value => update('travelDistance', value)}
-          half={wide}
-        />
-        <Input
-          label="TEACHING REFERENCE NUMBER"
-          placeholder="TRN number"
-          required={false}
-          value={data.trn}
-          onChangeText={value => update('trn', value)}
           half={wide}
         />
       </View>
       <Input
         label="TEACHING BIO"
         multiline
-        required={false}
-        placeholder="Describe your classroom style, specialist subjects, and availability."
+        required
+        placeholder="Describe your classroom style and specialist subjects (at least 40 characters)."
         value={data.bio}
         onChangeText={value => update('bio', value)}
       />

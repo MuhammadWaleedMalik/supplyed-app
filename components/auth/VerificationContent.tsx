@@ -1,9 +1,9 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import CodeInputs from './CodeInputs';
-import { verificationStyles as styles } from './verificationStyles';
+import { useVerificationStyles as useStyles } from './verificationStyles';
 import { AuthActions } from '../../feature/auth/apis/authApi';
 import { useVerification } from '../../feature/auth/hooks/useVerification';
 
@@ -22,7 +22,15 @@ export default function VerificationContent({
   wide,
   actions,
 }: Props) {
-  const form = useVerification(email, token, actions.onAuthenticated);
+  const common = useCommonStyles();
+  const styles = useStyles();
+
+  const form = useVerification(
+    email,
+    token,
+    actions.onAuthenticated,
+    actions.onTwoFactor,
+  );
 
   return (
     <View style={[styles.panel, wide && styles.widePanel]}>
@@ -42,14 +50,14 @@ export default function VerificationContent({
           <CodeInputs digits={form.digits} onChange={form.changeDigit} />
           <View style={styles.notice}>
             <Text style={styles.noticeText}>
-              Codes are validated by SupplyED before a workspace session is
-              created.
+              Enter the latest code we sent to your email.
             </Text>
           </View>
           {form.error ? <Text style={styles.error}>{form.error}</Text> : null}
           <Button
             title={form.loading ? 'Please wait...' : 'Verify and continue'}
             onPress={form.verify}
+            disabled={form.loading}
           />
           <View style={styles.actions}>
             <Button title="Back" variant="text" onPress={onBack} compact />
@@ -57,6 +65,7 @@ export default function VerificationContent({
               title="Resend code"
               variant="link"
               onPress={form.resend}
+              disabled={form.loading}
               compact
             />
           </View>
@@ -65,8 +74,7 @@ export default function VerificationContent({
           </Text>
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              After verification, SupplyED signs you in and checks whether
-              onboarding is needed.
+              After verification, continue setting up your profile.
             </Text>
           </View>
         </View>
@@ -74,4 +82,3 @@ export default function VerificationContent({
     </View>
   );
 }
-

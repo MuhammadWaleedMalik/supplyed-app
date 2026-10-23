@@ -1,7 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
 import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { styles } from './dashboardStyles';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   title: string;
@@ -11,11 +11,18 @@ type Props = {
 };
 
 export default function DashboardEmpty({
-  title, description, action, onAction,
+  title,
+  description,
+  action,
+  onAction,
 }: Props) {
+  const styles = useStyles();
+
   return (
     <View style={styles.section}>
-      <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.title}>
+        {title}
+      </Text>
       <View style={[styles.card, styles.emptyCard]}>
         <Text style={styles.cardTitle}>{description}</Text>
         <Text style={[styles.cardBody, styles.centerText]}>
@@ -28,4 +35,3 @@ export default function DashboardEmpty({
     </View>
   );
 }
-

@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors, serif } from '../Ui/theme';
+import { serif, createThemedStyles } from '../Ui/theme';
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles(colors => ({
   panel: { backgroundColor: colors.dark, padding: 24, gap: 16 },
   wide: { width: '32%', minHeight: 650 },
   heading: {
@@ -25,7 +24,7 @@ export const styles = StyleSheet.create({
     lineHeight: 26,
     overflow: 'hidden',
   },
-  active: { backgroundColor: colors.blue, borderColor: colors.blue },
+  active: { backgroundColor: colors.brand, borderColor: colors.brand },
   stepCopy: { flex: 1 },
   stepTitle: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
   stepDetail: { color: '#9eaab7', fontSize: 11, lineHeight: 16 },
@@ -45,4 +44,4 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pathNote: { color: '#b6c0cb', fontSize: 12 },
-});
+}));

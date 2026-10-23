@@ -1,5 +1,6 @@
 export function mimeFromName(name: string) {
   const lower = name.toLowerCase();
+  if (lower.endsWith('.txt')) return 'text/plain';
   if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
   if (lower.endsWith('.png')) return 'image/png';

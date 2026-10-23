@@ -1,10 +1,10 @@
-﻿import React from 'react';
+import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Button from '../Ui/Button';
 import GridBackground from '../Ui/GridBackground';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 import AuthSteps from './AuthSteps';
-import { introStyles } from './introStyles';
+import { useIntroStyles } from './introStyles';
 import { loginBenefits } from '../../utils/auth/authUtils';
 
 type Props = {
@@ -22,6 +22,26 @@ export default function AuthIntro({
   onBack,
   onSwitch,
 }: Props) {
+  const common = useCommonStyles();
+  const introStyles = useIntroStyles();
+
+  if (!wide) {
+    return (
+      <View style={introStyles.mobileHeader}>
+        <Button title="Back" onPress={onBack} variant="link" compact />
+        <Text style={introStyles.mobileBrand}>
+          Supply<Text style={introStyles.blue}>ED</Text>
+        </Text>
+        <Button
+          title={verify || register ? 'Log in' : 'Sign up'}
+          onPress={onSwitch}
+          variant="link"
+          compact
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[introStyles.panel, wide && introStyles.wide]}>
       <GridBackground />

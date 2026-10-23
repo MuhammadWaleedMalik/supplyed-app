@@ -1,29 +1,42 @@
-﻿import React from 'react';
+import React from 'react';
 import { Text, View } from 'react-native';
-import Button from '../Ui/Button';
-import DocumentCard from './DocumentCard';
-import { common } from '../Ui/theme';
-import { Document, Requirement } from '../../feature/documents/apis/documentApi';
+import {
+  Document,
+  Requirement,
+} from '../../feature/documents/apis/documentApi';
 import { requiredDocumentCount } from '../../utils/documents/documentUtils';
-import { styles } from './documentsUploadStyles';
+import Button from '../Ui/Button';
+import { useCommonStyles } from '../Ui/theme';
+import DocumentCard from './DocumentCard';
+import { useStyles } from './documentsUploadStyles';
 
 type Props = {
   requirements: Requirement[];
   documents: Document[];
   error: string;
   loading: boolean;
-  uploadingId: string;
+  submitting: boolean;
+  uploadingIds: string[];
+  uploadErrors: Record<string, string>;
+  onRetryUpload: (requirement: Requirement) => void;
   previewingId: string;
+  signatoryPanel?: React.ReactNode;
   onAdd: (requirement: Requirement) => void;
   onPreview: (document: Document) => void;
   onSubmit: () => void;
+  onRetry?: () => void;
 };
 
-export default function DocumentsUpload({
-  requirements, documents, error, loading, uploadingId,
-  previewingId, onAdd, onPreview, onSubmit,
-}: Props) {
-  const count = requiredDocumentCount(requirements, documents);
+export default function DocumentsUpload(props: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
+  const count = requiredDocumentCount(props.requirements, props.documents);
+  const progress = props.loading
+    ? 0
+    : count.total
+    ? Math.round((count.ready / count.total) * 100)
+    : 100;
   return (
     <View style={styles.main}>
       <Text style={styles.badge}>REQUIRED DOCUMENTS</Text>
@@ -36,43 +49,70 @@ export default function DocumentsUpload({
       </Text>
       <View style={styles.progressLabel}>
         <Text style={styles.small}>PROGRESS</Text>
-        <Text style={styles.small}>100%</Text>
+        <Text style={styles.small}>{progress}%</Text>
       </View>
-      <View style={styles.track}><View style={styles.fill} /></View>
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${progress}%` }]} />
+      </View>
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>Profile created</Text>
         <Text style={styles.noticeText}>
-          {loading ? 'Loading required documents...' :
-            count.ready + ' of ' + count.total + ' required documents ready. ' +
-            'Remaining uploads or replacements: ' + count.remaining + '.'}
+          {props.loading
+            ? 'Loading required documents...'
+            : count.ready +
+              ' of ' +
+              count.total +
+              ' required documents ready. ' +
+              'Remaining uploads or replacements: ' +
+              count.remaining +
+              '.'}
         </Text>
       </View>
-      {!loading && !error && requirements.length === 0 ? (
-        <Text style={common.body}>No documents are currently required for this profile.</Text>
+      {!props.loading && !props.error && !props.requirements.length ? (
+        <Text style={common.body}>
+          No documents are currently required for this profile.
+        </Text>
       ) : null}
-      {requirements.map(requirement => (
+      {props.requirements.map(requirement => (
         <DocumentCard
           key={requirement.id}
           requirement={requirement}
-          documents={documents}
-          uploading={uploadingId === requirement.id}
-          busy={uploadingId !== ''}
-          previewing={previewingId !== ''}
-          onAdd={onAdd}
-          onPreview={onPreview}
+          documents={props.documents}
+          uploading={props.uploadingIds.includes(requirement.id)}
+          error={props.uploadErrors[requirement.id]}
+          onRetry={() => props.onRetryUpload(requirement)}
+          busy={props.submitting || props.uploadingIds.includes(requirement.id)}
+          previewing={props.previewingId !== ''}
+          onAdd={props.onAdd}
+          onPreview={props.onPreview}
         />
       ))}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.footer}>
-        <Text style={styles.footerNote}>Uploaded files are sent for review immediately. Tap to continue.</Text>
+      {props.signatoryPanel}
+      {props.error ? <Text style={styles.error}>{props.error}</Text> : null}
+      {props.error && !props.loading && props.onRetry ? (
         <Button
-          title="Send for review"
-          onPress={onSubmit}
-          disabled={loading || uploadingId !== ''}
+          title="Retry loading documents"
+          onPress={props.onRetry}
+          compact
+        />
+      ) : null}
+      <View style={styles.footer}>
+        <Text style={styles.footerNote}>
+          You can check status after sending for review.
+        </Text>
+        <Button
+          title={props.submitting ? 'Sending...' : 'Send for review'}
+          onPress={props.onSubmit}
+          disabled={
+            props.loading ||
+            props.submitting ||
+            props.uploadingIds.length > 0 ||
+            count.remaining > 0 ||
+            Object.values(props.uploadErrors).some(Boolean)
+          }
           compact
         />
       </View>
     </View>
   );
 }
-

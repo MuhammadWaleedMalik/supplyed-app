@@ -1,10 +1,10 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
 import Button from '../Ui/Button';
 import MarketplaceCard from './MarketplaceCard';
 import HeroStats from './HeroStats';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { openRegistration } from '../../utils/landing/openRegistration';
 
 export default function Hero({
@@ -12,6 +12,9 @@ export default function Hero({
 }: {
   onShowBenefits: () => void;
 }) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 950;
 
@@ -57,12 +60,12 @@ export default function Hero({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   layout: { gap: 40 },
   wide: { flexDirection: 'row', alignItems: 'center' },
   title: { color: '#ffffff', fontSize: 39, lineHeight: 46 },
   large: { fontSize: 52, lineHeight: 59 },
-  accent: { color: colors.blue, fontStyle: 'italic' },
+  accent: { color: colors.brand, fontStyle: 'italic' },
   body: { color: '#bac5d1', fontSize: 17, lineHeight: 29 },
   buttons: { gap: 12 },
-});
+}));

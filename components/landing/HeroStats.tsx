@@ -1,6 +1,6 @@
-﻿import React from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 
 const stats = [
   ['20', 'FOUNDING PLACES'],
@@ -10,6 +10,8 @@ const stats = [
 ];
 
 export default function HeroStats() {
+  const common = useCommonStyles();
+
   return (
     <View style={styles.stats}>
       {stats.map(([value, label]) => (

@@ -1,0 +1,50 @@
+diff --git a/src/modules/jobs/job-dates.ts b/src/modules/jobs/job-dates.ts
+--- a/src/modules/jobs/job-dates.ts
++++ b/src/modules/jobs/job-dates.ts
+@@ -20,8 +20,8 @@ export function assertJobDates(input: {
+   const end = timestamp(input.endDate);
+   const live = timestamp(input.liveFrom);
+   const expiry = timestamp(input.expiresAt);
+-  if (start !== undefined && end !== undefined && start > end) {
+-    throw new BadRequestException('startDate must be before or equal to endDate');
++  if (start !== undefined && end !== undefined && start >= end) {
++    throw new BadRequestException('Job end date must be later than the job start date');
+   }
+   if (live !== undefined && expiry !== undefined && live >= expiry) {
+     throw new BadRequestException(
+@@ -32,7 +32,7 @@ export function assertJobDates(input: {
+     throw new BadRequestException('The live-from date must be before the work start');
+   }
+   // At the exclusive expiry instant the listing is already closed.
+-  if (start !== undefined && expiry !== undefined && expiry > start) {
++  if (start !== undefined && expiry !== undefined && expiry >= start) {
+     throw new BadRequestException('The listing must expire before work begins');
+   }
+ }
+diff --git a/src/modules/jobs/job-dates.spec.ts b/src/modules/jobs/job-dates.spec.ts
+--- a/src/modules/jobs/job-dates.spec.ts
++++ b/src/modules/jobs/job-dates.spec.ts
+@@ -19,10 +19,10 @@ describe('Job date ordering', () => {
+   ])('rejects invalid ordering: %j', (change) => {
+     expect(() => assertJobDates({ ...valid, ...change })).toThrow();
+   });
+-  it('allows identical work start and end for one-day jobs', () => {
+-    expect(() => assertJobDates({ ...valid, endDate: valid.startDate })).not.toThrow();
++  it('rejects identical work start and end', () => {
++    expect(() => assertJobDates({ ...valid, endDate: valid.startDate })).toThrow();
+   });
+-  it('allows an exclusive expiry at work start because the listing is already closed', () => {
+-    expect(() => assertJobDates({ ...valid, expiresAt: valid.startDate })).not.toThrow();
++  it('requires expiry strictly before work start', () => {
++    expect(() => assertJobDates({ ...valid, expiresAt: valid.startDate })).toThrow();
+   });
+   it.each(['2030-11-01', '2030-06-01'])('allows a whole-day listing on %s', (date) => {
+@@ -32,7 +32,7 @@ describe('Job date ordering', () => {
+         liveFrom: listingDate(date, 'open'),
+         expiresAt: listingDate(date, 'close'),
+         startDate: new Date('2030-11-03'),
+-        endDate: new Date('2030-11-03'),
++        endDate: new Date('2030-11-03T15:00:00Z'),
+       }),
+     ).not.toThrow();
+   });

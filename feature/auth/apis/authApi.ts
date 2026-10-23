@@ -1,12 +1,19 @@
-﻿import { endpoints } from '../../../constants/endpoints';
+import { endpoints } from '../../../constants/endpoints';
 import { apiRequest, protectedRequest } from '../../../utils/api/request';
-import { saveTokens } from '../../../utils/api/session';
+import { setCurrentSessionUser } from '../../../utils/api/session';
+import { AccountType } from '../../../utils/onboarding/onboardingData';
+import { backendRole } from '../../../utils/auth/authUtils';
 
 export type User = {
   id: string;
   email: string;
-  name?: string;
-  phone?: string;
+  name?: string | null;
+  phone?: string | null;
+  phoneVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  lastLogin?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   role?: string;
   emailVerified?: boolean;
   accountStatus?: string;
@@ -29,10 +36,15 @@ export type AuthReply = {
   twoFactorToken?: string;
 };
 
-export function registerAccount(email: string, password: string) {
+export function registerAccount(
+  email: string,
+  password: string,
+  type: AccountType,
+) {
   return apiRequest<AuthReply>(endpoints.register, 'POST', {
     email: email.trim().toLowerCase(),
     password,
+    role: backendRole(type),
   });
 }
 
@@ -44,7 +56,11 @@ export function loginAccount(email: string, password: string) {
 }
 
 export function resendEmailCode(email: string) {
-  return apiRequest<AuthReply>(endpoints.resendCode, 'POST', {
+  return apiRequest<{
+    emailVerified: boolean;
+    expiresInMinutes: number;
+    otpToken?: string;
+  }>(endpoints.resendCode, 'POST', {
     email: email.trim().toLowerCase(),
   });
 }
@@ -56,7 +72,6 @@ export async function verifyEmailCode(code: string, otpToken: string) {
     { otp: code },
     otpToken,
   );
-  saveTokens(reply);
   return reply;
 }
 
@@ -70,7 +85,6 @@ export async function verifyTwoFactorCode(
     { code },
     twoFactorToken,
   );
-  saveTokens(reply);
   return reply;
 }
 
@@ -93,16 +107,21 @@ export function resetPassword(
   );
 }
 
-export function getCurrentUser() {
-  return protectedRequest<User>(endpoints.currentUser);
+export async function getCurrentUser() {
+  const user = await protectedRequest<User>(endpoints.currentUser);
+  setCurrentSessionUser(user);
+  return user;
 }
 
-export async function exchangeGoogleToken(credential: string) {
-  const reply = await apiRequest<AuthReply>(endpoints.googleExchange, 'POST', {
-    credential,
-  });
-  saveTokens(reply);
+export async function exchangeGoogleToken(
+  credential: string,
+  type?: AccountType,
+) {
+  const body = type ? { credential, role: backendRole(type) } : { credential };
+  const reply = await apiRequest<AuthReply>(
+    endpoints.googleExchange,
+    'POST',
+    body,
+  );
   return reply;
 }
-
-

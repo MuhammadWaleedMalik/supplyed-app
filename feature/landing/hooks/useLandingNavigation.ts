@@ -2,6 +2,7 @@ import { useRef, ComponentRef } from 'react';
 import { LayoutChangeEvent, ScrollView } from 'react-native';
 
 export function useLandingNavigation() {
+  // ScrollView.scrollTo is a native imperative action, so this ref is required.
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const benefitsPosition = useRef(0);
 

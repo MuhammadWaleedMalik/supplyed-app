@@ -4,6 +4,7 @@ import AccountStep from '../../../components/onboarding/AccountStep';
 import ComplianceFields from '../../../components/onboarding/ComplianceFields';
 import OnboardingLayout from '../../../components/onboarding/OnboardingLayout';
 import ProfileConfirmation from '../../../components/onboarding/ProfileConfirmation';
+import ProfileCreated from '../../../components/onboarding/ProfileCreated';
 import ReviewContent from '../../../components/onboarding/ReviewContent';
 import SchoolFields from '../../../components/onboarding/SchoolFields';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
@@ -12,18 +13,37 @@ import { useOnboarding } from '../hooks/useOnboarding';
 
 type Props = {
   email: string;
+  type: AccountType;
   onExit: () => void;
   onProfileCreated: (type: AccountType) => void;
 };
 
 export default function OnboardingScreen({
   email,
+  type,
   onExit,
   onProfileCreated,
 }: Props) {
-  const form = useOnboarding(onExit, onProfileCreated);
+  const form = useOnboarding(type, onExit, onProfileCreated);
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 700;
+
+  if (form.profileCreated) {
+    return (
+      <ProfileCreated
+        user={form.accountUser}
+        creating={form.creating}
+        needsSignatory={form.needsSignatory}
+        signatorySent={form.signatorySent}
+        sendingSignatory={form.sendingSignatory}
+        signatoryError={form.signatoryError}
+        onVerified={form.updateVerifiedUser}
+        onRetrySignatory={form.sendSignatoryEmail}
+        onContinue={form.continueToDocuments}
+        onExit={onExit}
+      />
+    );
+  }
 
   return (
     <>
@@ -36,14 +56,15 @@ export default function OnboardingScreen({
         onExit={onExit}
         onBack={form.backStep}
         onContinue={form.continueStep}
+        error={form.validationErrors.join('\n')}
       >
         {form.step === 1 && (
           <AccountStep
             type={form.type}
             data={form.data}
             attempted={form.attempted}
+            phoneLocked={form.phoneLocked}
             wide={wide}
-            onSelect={form.setType}
             update={form.update}
           />
         )}
@@ -63,7 +84,7 @@ export default function OnboardingScreen({
             wide={wide}
           />
         )}
-        {form.type && form.step === form.steps.length && (
+        {form.step === form.steps.length && (
           <ReviewContent
             type={form.type}
             email={email}
@@ -77,6 +98,14 @@ export default function OnboardingScreen({
         loading={form.creating}
         error={form.createError}
         onReview={form.reviewAgain}
+        createTitle={
+          form.type === 'school' && form.data.institutionType === 'MAT_SCHOOL'
+            ? 'Create profile and send email'
+            : 'Create profile'
+        }
+        matSchool={
+          form.type === 'school' && form.data.institutionType === 'MAT_SCHOOL'
+        }
         onCreate={form.createProfile}
       />
     </>

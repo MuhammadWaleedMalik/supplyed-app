@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Button from '../Ui/Button';
-import { colors, common, serif } from '../Ui/theme';
+import { serif, createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 type Props = {
   title: string;
@@ -11,6 +11,9 @@ type Props = {
 };
 
 export default function ReviewCard({ title, subtitle, items, onEdit }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const twoColumns = width / fontScale >= 500;
 
@@ -35,10 +38,10 @@ export default function ReviewCard({ title, subtitle, items, onEdit }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 14,
     padding: 14,
     gap: 14,
@@ -72,4 +75,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   value: { color: colors.ink, fontSize: 13 },
-});
+}));

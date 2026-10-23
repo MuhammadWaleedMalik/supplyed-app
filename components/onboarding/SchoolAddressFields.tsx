@@ -1,13 +1,9 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import TeachingFields from './TeachingFields';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import {
-  cities,
-  countries,
-  OnboardingData,
-  staffingNeeds,
-} from '../../utils/onboarding/onboardingData';
+import DynamicSelect from '../Ui/DynamicSelect';
+import { OnboardingData } from '../../utils/onboarding/onboardingData';
 import { requiredError } from '../../utils/onboarding/onboardingUtils';
 
 type Props = {
@@ -35,11 +31,11 @@ export default function SchoolAddressFields({
           half={wide}
         />
         <View style={[styles.field, wide && styles.half]}>
-          <Select
+          <DynamicSelect
             label="COUNTRY"
             value={data.country}
             placeholder="Select country"
-            options={countries}
+            name="country"
             onChange={value => update('country', value)}
             required
           />
@@ -47,11 +43,11 @@ export default function SchoolAddressFields({
       </View>
       <View style={[styles.row, wide && styles.wide]}>
         <View style={[styles.field, wide && styles.half]}>
-          <Select
+          <DynamicSelect
             label="CITY"
             value={data.city}
             placeholder="Select city"
-            options={cities}
+            name="city"
             onChange={value => update('city', value)}
             required
             error={requiredError(data.city, attempted)}
@@ -67,12 +63,31 @@ export default function SchoolAddressFields({
           half={wide}
         />
       </View>
-      <Select
-        label="STAFFING NEEDS"
-        value={data.staffingNeeds}
-        placeholder="Select staffing needs"
-        options={staffingNeeds}
-        onChange={value => update('staffingNeeds', value)}
+      <Input
+        label="POSTCODE"
+        placeholder="M1 1AE"
+        value={data.postcode}
+        onChangeText={value => update('postcode', value)}
+        error={requiredError(data.postcode, attempted)}
+      />
+      <TeachingFields
+        label="Staffing needs"
+        subjects={data.staffingNeeds}
+        onSubjects={value => update('staffingNeeds', value)}
+      />
+      <DynamicSelect
+        name="coverType"
+        label="Cover types"
+        multiple
+        required
+        value={data.coverTypes}
+        onChange={value => update('coverTypes', value)}
+      />
+      <DynamicSelect
+        name="region"
+        label="Region"
+        value={data.county}
+        onChange={value => update('county', value)}
       />
     </View>
   );

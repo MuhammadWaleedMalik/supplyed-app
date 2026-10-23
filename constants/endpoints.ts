@@ -1,8 +1,13 @@
 export const endpoints = {
+  foundingInterest: '/contact/founding-interest',
+  waitlistDetails: (id: string) =>
+    '/contact/founding-interest/' + encodeURIComponent(id) + '/details',
   register: '/auth/register',
   login: '/auth/login',
   resendCode: '/auth/email/otp/resend',
   verifyEmail: '/auth/email/otp/verify',
+  phoneOtpSend: '/auth/phone/otp/send',
+  phoneOtpVerify: '/auth/phone/otp/verify',
   verifyTwoFactor: '/auth/2fa/verify',
   forgotPassword: '/auth/password/forgot',
   resetPassword: '/auth/password/reset',
@@ -10,25 +15,67 @@ export const endpoints = {
   googleExchange: '/auth/oauth/google',
   currentUser: '/auth/me',
   userBasics: '/users/me',
+  users: '/users',
+  adminUsers: '/users/admin',
   profileImage: '/users/me/profile-image',
   profileImageUploadUrl: '/users/me/profile-image/upload-url',
   profileImageComplete: '/users/me/profile-image/upload-complete',
   teacherProfile: '/instructors',
   schoolProfile: '/institutions',
-  individualProfile: '/recruiters',
   teacherMe: '/instructors/me',
   schoolMe: '/institutions/me',
-  individualMe: '/recruiters/me',
+  teacherStatus: '/instructors/me/status',
+  schoolStatus: '/institutions/me/status',
+  schoolSignatoryApproval: '/institutions/me/signatory-approval',
   requirements: '/document-requirements/profile',
   documents: '/documents',
   jobs: '/jobs',
   jobsMine: '/jobs/mine',
-  matchingRecommendedJobs: '/matching/jobs/recommended',
-  matchingJobs: '/matching/jobs',
+  applications: '/applications',
+  applicationsMine: '/applications/me',
+  applicationsByJob: '/applications/job',
+  bookings: '/bookings',
+  conversations: '/conversations',
+  notifications: '/notifications',
+  notificationUnread: '/notifications/unread-count',
+  notificationReadAll: '/notifications/read-all',
+  notificationPreferences: '/notifications/preferences',
+  conversationUnread: '/conversations/unread-count',
+  conversationForApplication: (id: string) =>
+    '/conversations/application/' + encodeURIComponent(id),
+  conversationForBooking: (id: string) =>
+    '/conversations/booking/' + encodeURIComponent(id),
+  conversation: (id: string) => '/conversations/' + encodeURIComponent(id),
+  conversationThreads: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/threads',
+  conversationMessages: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/messages',
+  conversationRead: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/read',
+  conversationAttachments: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/attachments',
+  conversationDownload: (id: string, attachmentId: string) =>
+    '/conversations/' +
+    encodeURIComponent(id) +
+    '/attachments/' +
+    encodeURIComponent(attachmentId) +
+    '/download-url',
+  invoicePaymentSession: (id: string) =>
+    '/invoices/' + encodeURIComponent(id) + '/payment-session',
+  invoiceSync: (id: string) => '/invoices/' + encodeURIComponent(id) + '/sync',
+  bookingsMine: '/bookings/me',
+  reviews: '/reviews',
+  payoutAccount: '/payments/payout-account',
+  payoutOnboardingLink: '/payments/payout-account/onboarding-link',
+  payoutDashboardLink: '/payments/payout-account/dashboard-link',
+  payoutBalance: '/payments/payout-account/balance',
+  instantPayout: '/payments/payout-account/instant-payout',
+  instructorPayoutAccounts: '/payments/payout-accounts/instructor',
+  invoices: '/invoices',
+  invoicesMine: '/invoices/me',
   twoFactorStatus: '/auth/2fa/status',
   twoFactorSetup: '/auth/2fa/setup',
   twoFactorEnable: '/auth/2fa/enable',
   twoFactorRecoveryCodes: '/auth/2fa/recovery-codes',
   twoFactorDisable: '/auth/2fa/disable',
 };
-

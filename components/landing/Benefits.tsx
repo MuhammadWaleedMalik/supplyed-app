@@ -1,9 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
 import SectionHeading from './SectionHeading';
 import IconBadge from './IconBadge';
-import { common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 const benefits = [
   [
@@ -24,6 +24,9 @@ const benefits = [
 ];
 
 export default function Benefits() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 850;
 
@@ -47,8 +50,8 @@ export default function Benefits() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   cards: { gap: 16 },
   row: { flexDirection: 'row' },
-  card: { flex: 1, borderColor: '#9dd5e8' },
-});
+  card: { flex: 1, borderColor: colors.brandBorder },
+}));

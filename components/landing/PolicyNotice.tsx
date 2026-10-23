@@ -1,8 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 
 export default function PolicyNotice() {
+  const common = useCommonStyles();
+
   return (
     <View style={styles.notice}>
       <Text accessible={false} style={styles.icon}>

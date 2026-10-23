@@ -1,0 +1,86 @@
+--- a/constants/endpoints.ts
++++ b/constants/endpoints.ts
+@@ -12,6 +12,7 @@
+   forgotPassword: '/auth/password/forgot',
+   resetPassword: '/auth/password/reset',
+   refresh: '/auth/refresh',
++  logout: '/auth/logout',
+   googleExchange: '/auth/oauth/google',
+   currentUser: '/auth/me',
+   userBasics: '/users/me',
+--- a/feature/auth/apis/authApi.ts
++++ b/feature/auth/apis/authApi.ts
+@@ -125,3 +125,10 @@
+   );
+   return reply;
+ }
++
++// Uses the captured refresh token, never the next signed-in account's token.
++export function revokeSession(refreshToken: string) {
++  return apiRequest<{ loggedOut: boolean }>(endpoints.logout, 'POST', {
++    refreshToken,
++  });
++}
+--- a/utils/navigation/appNavigation.ts
++++ b/utils/navigation/appNavigation.ts
+@@ -1,9 +1,14 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { BackHandler } from 'react-native';
+-import { getCurrentUser, User } from '../../feature/auth/apis/authApi';
++import {
++  getCurrentUser,
++  revokeSession,
++  User,
++} from '../../feature/auth/apis/authApi';
+ import {
+   clearTokens,
+   getAccessToken,
++  getRefreshToken,
+   getSessionVersion,
+   onSessionExpired,
+   restoreStoredTokens,
+@@ -81,6 +86,17 @@
+   return 'landing';
+ }
+ 
++function signOut() {
++  const refreshToken = getRefreshToken();
++  clearTokens();
++  if (refreshToken) {
++    // Local logout always completes. This response cannot expire or replace a later session.
++    void revokeSession(refreshToken).catch(() => {
++      // Offline logout cannot revoke server access; the token expires on the server.
++    });
++  }
++}
++
+ export function useAppNavigation() {
+   const firstScreen: AppScreen = 'restoring';
+ 
+@@ -201,7 +217,7 @@
+ 
+     const role = getAppRole(user.role);
+     if (!role) {
+-      clearTokens();
++      signOut();
+       setScreen('landing');
+       return;
+     }
+@@ -223,7 +239,7 @@
+ 
+   function showLanding() {
+     restoreAttempt.current += 1;
+-    clearTokens();
++    signOut();
+     setVerificationEmail('');
+     setOtpToken('');
+     setTwoFactorToken('');
+@@ -272,7 +288,7 @@
+ 
+       const role = getAppRole(user.role);
+       if (!role) {
+-        clearTokens();
++        signOut();
+         setScreen('landing');
+         return;
+       }

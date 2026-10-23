@@ -1,0 +1,187 @@
+--- /dev/null
++++ b/src/modules/auth/jwt-secrets.ts
+@@ -0,0 +1,19 @@
++function readTokenSecret(name: string, fallback: string): string {
++  const secret = process.env[name]?.trim() || fallback;
++  if (process.env.NODE_ENV === 'production' && (secret.length < 32 || secret.includes('change-me-in-env'))) {
++    throw new Error(`${name} must use a strong secret of at least 32 characters in production`);
++  }
++  return secret;
++}
++
++export function accessTokenSecret(): string {
++  return readTokenSecret('JWT_SECRET', 'change-me-in-env');
++}
++
++export function refreshTokenSecret(): string {
++  return readTokenSecret('JWT_REFRESH_SECRET', `${accessTokenSecret()}-refresh`);
++}
++
++export function otpTokenSecret(): string {
++  return readTokenSecret('JWT_OTP_SECRET', `${accessTokenSecret()}-otp`);
++}
+--- a/src/modules/auth/auth.module.ts
++++ b/src/modules/auth/auth.module.ts
+@@ -12,6 +12,7 @@
+ import { EmailModule } from '../email/email.module';
+ import { OtpStrategy } from './otp.strategy';
+ import { OtpAuthGuard } from './otp-auth.guard';
++import { accessTokenSecret } from './jwt-secrets';
+ 
+ @Module({
+   imports: [
+@@ -22,7 +23,7 @@
+     PassportModule,
+     JwtModule.register({
+       global: true,
+-      secret: process.env.JWT_SECRET ?? 'change-me-in-env',
++      secret: accessTokenSecret(),
+       signOptions: {
+         expiresIn: (process.env.JWT_EXPIRES_IN ?? '15m') as JwtSignOptions['expiresIn'],
+       },
+--- a/src/modules/auth/auth.strategy.ts
++++ b/src/modules/auth/auth.strategy.ts
+@@ -2,6 +2,7 @@
+ import { PassportStrategy } from '@nestjs/passport';
+ import { ExtractJwt, Strategy } from 'passport-jwt';
+ import { UsersService } from '../users/users.service';
++import { accessTokenSecret } from './jwt-secrets';
+ import { AUTH_TOKEN_TYPE, AuthTokenPayload } from './auth-token.constants';
+ 
+ @Injectable()
+@@ -10,7 +11,7 @@
+     super({
+       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+       ignoreExpiration: false,
+-      secretOrKey: process.env.JWT_SECRET ?? 'change-me-in-env',
++      secretOrKey: accessTokenSecret(),
+     });
+   }
+ 
+--- a/src/modules/auth/auth-token.constants.ts
++++ b/src/modules/auth/auth-token.constants.ts
+@@ -34,5 +34,4 @@
+   twoFactorVerified?: boolean;
+ }
+ 
+-export const otpTokenSecret = (): string =>
+-  process.env.JWT_OTP_SECRET || `${process.env.JWT_SECRET ?? 'change-me-in-env'}-otp`;
++export { otpTokenSecret } from './jwt-secrets';
+--- a/src/modules/auth/auth.service.ts
++++ b/src/modules/auth/auth.service.ts
+@@ -27,6 +27,7 @@
+ import { EmailService } from '../email/email.service';
+ import { GoogleOAuthService } from '../google-oauth/google-oauth.service';
+ import { TwoFactorService } from '../two-factor/two-factor.service';
++import { refreshTokenSecret } from './jwt-secrets';
+ 
+ type AuthenticatedResponse = {
+   user: UserResponseDto;
+@@ -50,8 +51,7 @@
+ 
+ @Injectable()
+ export class AuthService {
+-  private readonly refreshSecret =
+-    process.env.JWT_REFRESH_SECRET ?? `${process.env.JWT_SECRET ?? 'change-me-in-env'}-refresh`;
++  private readonly refreshSecret = refreshTokenSecret();
+ 
+   constructor(
+     private readonly usersService: UsersService,
+--- a/src/common/logging/redact-sensitive.ts
++++ b/src/common/logging/redact-sensitive.ts
+@@ -13,7 +13,20 @@
+   'accesstoken',
+   'refreshtoken',
+   'otptoken',
++  'twofactortoken',
+   'idtoken',
++  'passwordhash',
++  'secretencrypted',
++  'recoverycode',
++  'recoverycodes',
++  'recoverycodehashes',
++  'otpauthuri',
++  'qrcodedataurl',
++  'clientsecret',
++  'url',
++  'downloadurl',
++  'uploadurl',
++  'signedurl',
+   'ticket',
+   'authorization',
+   'cookie',
+--- /dev/null
++++ b/src/common/logging/redact-url.ts
+@@ -0,0 +1,7 @@
++/** Keep useful route names without query values or bearer-like signatory tokens. */
++export function redactUrl(url: string): string {
++  return url
++    .split(/[?#]/, 1)[0]
++    .replace(/(\/signatory-approvals\/token\/)[^/]+/gi, '$1[REDACTED]')
++    .replace(/[\r\n]/g, '');
++}
+--- a/src/common/middleware/request-logger.middleware.ts
++++ b/src/common/middleware/request-logger.middleware.ts
+@@ -2,6 +2,7 @@
+ import { NextFunction, Request, Response } from 'express';
+ import { getRequestId } from '../http/response-metadata';
+ import { redactSensitive } from '../logging/redact-sensitive';
++import { redactUrl } from '../logging/redact-url';
+ import type { AuthUser } from '../types/auth-user.type';
+ 
+ /** Bodies longer than this are cut so a single paginated list cannot flood the log. */
+@@ -54,7 +55,7 @@
+       const durationMs = (Number(process.hrtime.bigint() - startedAt) / 1e6).toFixed(1);
+       const user = (request as AuthenticatedRequest).user;
+       const status = aborted ? 'aborted' : String(response.statusCode);
+-      const path = request.originalUrl || request.url;
++      const path = redactUrl(request.originalUrl || request.url);
+       let line = `${request.method} ${path} ${status} ${durationMs}ms requestId=${requestId} user=${user?.id ?? '-'} ip=${request.ip ?? '-'}`;
+ 
+       if (this.logBodies) {
+--- a/src/common/filters/api-exception.filter.ts
++++ b/src/common/filters/api-exception.filter.ts
+@@ -15,6 +15,7 @@
+ import { Request, Response } from 'express';
+ import { PRISMA_ERROR_CODE } from '../constants/prisma-error.constants';
+ import { createResponseMetadata, ResponseMetadata } from '../http/response-metadata';
++import { redactUrl } from '../logging/redact-url';
+ 
+ type ExceptionFactory = () => HttpException;
+ type ErrorMessage = string | string[];
+@@ -69,7 +70,7 @@
+ 
+     if (statusCode >= 500 && !(exception instanceof Prisma.PrismaClientKnownRequestError)) {
+       const stack = exception instanceof Error ? exception.stack : undefined;
+-      this.logger.error(`${request.method} ${request.url}: unhandled exception`, stack);
++      this.logger.error(`${request.method} ${redactUrl(request.url)}: unhandled exception`, stack);
+     }
+ 
+     response.setHeader('X-Request-Id', meta.requestId);
+@@ -83,7 +84,7 @@
+ 
+     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+       const factory = this.prismaHandlers[exception.code];
+-      const context = `${request.method} ${request.url} — Prisma ${exception.code}`;
++      const context = `${request.method} ${redactUrl(request.url)} — Prisma ${exception.code}`;
+ 
+       if (factory) {
+         this.logger.warn(`${context}: ${exception.message.replace(/\s+/g, ' ').trim()}`);
+--- a/src/common/http/response-metadata.ts
++++ b/src/common/http/response-metadata.ts
+@@ -1,5 +1,6 @@
+ import { randomUUID } from 'node:crypto';
+ import { Request } from 'express';
++import { redactUrl } from '../logging/redact-url';
+ 
+ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+ 
+@@ -37,7 +38,7 @@
+   return {
+     requestId: getRequestId(request),
+     timestamp: new Date().toISOString(),
+-    path: request.originalUrl || request.url,
++    path: redactUrl(request.originalUrl || request.url),
+     method: request.method.toUpperCase(),
+   };
+ }

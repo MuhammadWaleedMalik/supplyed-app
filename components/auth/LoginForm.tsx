@@ -32,11 +32,14 @@ export default function LoginForm({ actions }: { actions: AuthActions }) {
       <AuthOptions
         register={false}
         onForgotPassword={actions.onForgotPassword}
+        checked={form.remember}
+        onChange={form.setRemember}
       />
       {form.error ? <Text style={styles.error}>{form.error}</Text> : null}
       <Button
         title={form.loading ? 'Please wait...' : 'Continue securely'}
         onPress={form.submit}
+        disabled={form.loading}
       />
     </View>
   );
@@ -46,5 +49,3 @@ const styles = StyleSheet.create({
   form: { gap: 17 },
   error: { color: '#c93251', fontSize: 12 },
 });
-
-

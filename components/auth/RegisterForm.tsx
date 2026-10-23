@@ -1,11 +1,15 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import ValidationChecklist from '../Ui/ValidationChecklist';
 import AuthOptions from './AuthOptions';
+import SocialProviders from './SocialProviders';
+import RoleSelection from '../onboarding/RoleSelection';
+import { createThemedStyles } from '../Ui/theme';
 import { useRegister } from '../../feature/auth/hooks/useRegister';
 import { AuthActions } from '../../feature/auth/apis/authApi';
+
 export default function RegisterForm({
   wide,
   actions,
@@ -13,10 +17,28 @@ export default function RegisterForm({
   wide: boolean;
   actions: AuthActions;
 }) {
+  const styles = useStyles();
+
   const form = useRegister(actions.onVerification);
 
   return (
     <View style={styles.form}>
+      <RoleSelection
+        type={form.type}
+        onSelect={form.setType}
+        attempted={form.submitted}
+        wide={wide}
+      />
+      <SocialProviders
+        role={form.type}
+        actions={actions}
+        disabled={!form.type || !form.agreed || form.loading}
+      />
+      <View style={styles.divider}>
+        <View style={styles.line} />
+        <Text style={styles.dividerText}>EMAIL</Text>
+        <View style={styles.line} />
+      </View>
       <View style={[styles.fields, wide && styles.wideFields]}>
         <Input
           label="EMAIL ADDRESS"
@@ -56,12 +78,13 @@ export default function RegisterForm({
       <Button
         title={form.loading ? 'Please wait...' : 'Create account'}
         onPress={form.submit}
+        disabled={form.loading}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   form: { gap: 17 },
   fields: { gap: 14 },
   wideFields: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -69,5 +92,13 @@ const styles = StyleSheet.create({
   half: { flex: 1, width: 'auto' },
   confirm: { width: '100%' },
   wideConfirm: { width: '49%' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  line: { height: 1, flex: 1, backgroundColor: colors.brandBorder },
+  dividerText: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
   error: { color: '#c93251', fontSize: 12 },
-});
+}));

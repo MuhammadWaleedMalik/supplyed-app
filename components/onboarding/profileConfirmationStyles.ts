@@ -1,7 +1,6 @@
-import { StyleSheet } from 'react-native';
-import { colors, serif } from '../Ui/theme';
+import { serif, createThemedStyles } from '../Ui/theme';
 
-export const styles = StyleSheet.create({
+export const useStyles = createThemedStyles(colors => ({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.42)',
@@ -22,11 +21,11 @@ export const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: colors.paleBlue,
+    backgroundColor: colors.brandTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  icon: { color: colors.blue, fontSize: 22 },
+  icon: { color: colors.brand, fontSize: 22 },
   copy: { flex: 1, gap: 7 },
   title: {
     color: colors.ink,
@@ -43,4 +42,4 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
   },
-});
+}));

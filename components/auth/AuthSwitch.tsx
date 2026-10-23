@@ -1,11 +1,13 @@
-﻿import React from 'react';
+import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Button from '../Ui/Button';
-import { common } from '../Ui/theme';
+import { useCommonStyles } from '../Ui/theme';
 
 type Props = { message: string; action: string; onPress: () => void };
 
 export default function AuthSwitch({ message, action, onPress }: Props) {
+  const common = useCommonStyles();
+
   return (
     <View style={styles.row}>
       <Text style={common.body}>{message}</Text>

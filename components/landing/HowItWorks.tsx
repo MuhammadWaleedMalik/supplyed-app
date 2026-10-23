@@ -1,8 +1,8 @@
-﻿import React from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { Text, View, useWindowDimensions } from 'react-native';
 import Section from './Section';
 import SectionHeading from './SectionHeading';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 
 const steps = [
   [
@@ -20,6 +20,9 @@ const steps = [
 ];
 
 export default function HowItWorks() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const { width, fontScale } = useWindowDimensions();
 
   return (
@@ -42,7 +45,7 @@ export default function HowItWorks() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   cards: { gap: 16 },
   row: { flexDirection: 'row' },
   card: { flex: 1 },
@@ -53,8 +56,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: colors.blue,
+    backgroundColor: colors.brand,
     color: '#ffffff',
     fontWeight: '700',
   },
-});
+}));

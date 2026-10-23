@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Section from './Section';
 import SectionHeading from './SectionHeading';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { questions } from '../../constants/landingData';
 
 export default function Faq() {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
@@ -41,16 +44,16 @@ export default function Faq() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors, common) => ({
   list: { width: '100%', maxWidth: 980, alignSelf: 'center', gap: 12 },
   item: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     overflow: 'hidden',
   },
-  active: { borderColor: colors.blue },
+  active: { borderColor: colors.brand },
   question: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -59,6 +62,10 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   label: { ...common.bold, fontSize: 15, lineHeight: 23, flex: 1 },
-  symbol: { color: colors.blue, fontSize: 22 },
-  answer: { padding: 20, borderTopWidth: 1, borderTopColor: colors.border },
-});
+  symbol: { color: colors.brand, fontSize: 22 },
+  answer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.brandBorder,
+  },
+}));

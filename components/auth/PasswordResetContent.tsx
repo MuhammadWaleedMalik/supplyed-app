@@ -1,13 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import CodeInputs from './CodeInputs';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
-import { colors, common } from '../Ui/theme';
+import { createThemedStyles, useCommonStyles } from '../Ui/theme';
 import { usePasswordReset } from '../../feature/auth/hooks/usePasswordReset';
 
 type Props = { onBack: () => void };
 
 export default function PasswordResetContent({ onBack }: Props) {
+  const common = useCommonStyles();
+  const styles = useStyles();
+
   const form = usePasswordReset();
   return (
     <View style={styles.content}>
@@ -20,17 +24,13 @@ export default function PasswordResetContent({ onBack }: Props) {
           <Text style={common.body}>
             Your password was reset. Log in with your new password.
           </Text>
-        ) : form.token ? (
+        ) : null}
+        {!form.done && form.token ? (
           <>
             <Text style={common.body}>
               Enter the code sent to {form.email}.
             </Text>
-            <Input
-              label="SIX-DIGIT CODE"
-              value={form.code}
-              onChangeText={form.setCode}
-              number
-            />
+            <CodeInputs digits={form.digits} onChange={form.changeCode} />
             <Input
               label="NEW PASSWORD"
               value={form.password}
@@ -52,10 +52,12 @@ export default function PasswordResetContent({ onBack }: Props) {
               title="Send new code"
               variant="link"
               onPress={form.requestCode}
+              disabled={form.loading}
               compact
             />
           </>
-        ) : (
+        ) : null}
+        {!form.done && !form.token ? (
           <>
             <Text style={common.body}>
               We will email you a six-digit reset code.
@@ -72,7 +74,7 @@ export default function PasswordResetContent({ onBack }: Props) {
               disabled={form.loading}
             />
           </>
-        )}
+        ) : null}
         {form.error ? <Text style={styles.error}>{form.error}</Text> : null}
         <Button
           title={form.done ? 'Log in' : 'Back'}
@@ -84,14 +86,14 @@ export default function PasswordResetContent({ onBack }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles(colors => ({
   content: { gap: 16 },
   card: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.brandBorder,
     borderRadius: 16,
     padding: 20,
     gap: 16,
   },
   error: { color: '#c93251', fontSize: 12 },
-});
+}));
