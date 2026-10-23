@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splash_background" />
-    <item>
+    <!-- A bounded, centred mark, never a full-screen stretched bitmap. -->
+    <item android:width="240dp" android:height="240dp" android:gravity="center">
         <bitmap
             android:gravity="fill"
-            android:src="@drawable/supplyed_splash" />
+            android:src="@drawable/supplyed_splash_icon" />
     </item>
 </layer-list>

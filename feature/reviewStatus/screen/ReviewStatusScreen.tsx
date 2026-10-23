@@ -1,5 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import {
+  assertSessionVersion,
+  getSessionVersion,
+} from '../../../utils/api/session';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
 import {
@@ -26,6 +30,7 @@ type Props = {
   email: string;
   onDashboard: () => void;
   onDocuments?: () => void;
+  onEditProfile?: () => void;
   onExit?: () => void;
 };
 
@@ -58,11 +63,14 @@ async function submitIfReady(
   profile: Profile,
   approval: SignatoryApproval | null,
 ) {
+  const version = getSessionVersion();
   const trustReady =
     !isMatSchool(type, profile) || approval?.status === 'APPROVED';
   if (profile.status !== 'INCOMPLETE' || !trustReady) return profile;
   const requirements = await getRequirements();
+  assertSessionVersion(version);
   const documents = await getDocuments();
+  assertSessionVersion(version);
   if (!requiredDocumentsReady(requirements, documents)) return profile;
   return submitProfileForReview(type);
 }
@@ -72,6 +80,7 @@ export default function ReviewStatusScreen({
   email,
   onDashboard,
   onDocuments,
+  onEditProfile,
   onExit,
 }: Props) {
   const { colors } = useTheme();
@@ -84,23 +93,29 @@ export default function ReviewStatusScreen({
   const [profileBusy, setProfileBusy] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [error, setError] = useState('');
+  const mounted = useRef(true);
 
   const matSchool = isMatSchool(type, profile);
   const profileReady = profile?.status === 'ACTIVE';
   const approvalReady = !matSchool || approval?.status === 'APPROVED';
 
   const loadAll = useCallback(async () => {
+    const version = getSessionVersion();
+    const active = () => mounted.current && version === getSessionVersion();
     setLoading(true);
     setError('');
     try {
       let nextProfile = await getProfile(type);
+      if (!active()) return;
       let nextApproval: SignatoryApproval | null = null;
 
       if (isMatSchool(type, nextProfile)) {
         nextApproval = await getSignatoryApproval();
+        if (!active()) return;
       }
 
       nextProfile = await submitIfReady(type, nextProfile, nextApproval);
+      if (!active()) return;
       setProfile(nextProfile);
       setApproval(nextApproval);
 
@@ -108,6 +123,7 @@ export default function ReviewStatusScreen({
         onDashboard();
       }
     } catch (problem) {
+      if (!active()) return;
       setError(
         problem instanceof Error ? problem.message : 'Unable to check status.',
       );
@@ -116,17 +132,22 @@ export default function ReviewStatusScreen({
   }, [type, onDashboard]);
 
   async function refreshProfileStatus() {
+    if (loading || profileBusy || approvalBusy) return;
+    const version = getSessionVersion();
     setProfileBusy(true);
     setError('');
     try {
       let nextProfile = await getProfile(type);
+      assertSessionVersion(version);
       nextProfile = await submitIfReady(type, nextProfile, approval);
+      if (!mounted.current || version !== getSessionVersion()) return;
       setProfile(nextProfile);
 
       if (canOpenDashboard(type, nextProfile, approval)) {
         onDashboard();
       }
     } catch (problem) {
+      if (!mounted.current || version !== getSessionVersion()) return;
       setError(
         problem instanceof Error
           ? problem.message
@@ -137,16 +158,19 @@ export default function ReviewStatusScreen({
   }
 
   async function refreshApprovalStatus() {
-    if (!matSchool) return;
+    if (!matSchool || loading || profileBusy || approvalBusy) return;
+    const version = getSessionVersion();
 
     setApprovalBusy(true);
     setError('');
     try {
       const nextApproval = await getSignatoryApproval();
+      assertSessionVersion(version);
       let nextProfile = profile;
 
       if (nextProfile) {
         nextProfile = await submitIfReady(type, nextProfile, nextApproval);
+        if (!mounted.current || version !== getSessionVersion()) return;
         setProfile(nextProfile);
       }
 
@@ -156,6 +180,7 @@ export default function ReviewStatusScreen({
         onDashboard();
       }
     } catch (problem) {
+      if (!mounted.current || version !== getSessionVersion()) return;
       setError(
         problem instanceof Error
           ? problem.message
@@ -166,7 +191,11 @@ export default function ReviewStatusScreen({
   }
 
   useEffect(() => {
+    mounted.current = true;
     loadAll();
+    return () => {
+      mounted.current = false;
+    };
   }, [loadAll]);
 
   return (
@@ -180,79 +209,83 @@ export default function ReviewStatusScreen({
         </Text>
       </View>
 
-      <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
-        <View style={styles.overlay}>
-          <View style={styles.dialog}>
-            <Text style={styles.badge}>PROFILE REVIEW</Text>
-            <Text style={common.cardTitle}>Your dashboard is locked</Text>
-            <Text style={common.body}>
-              You can access the dashboard after the profile is active
-              {matSchool ? ' and the MAT signatory has approved it.' : '.'}
-            </Text>
+      <ScrollView contentContainerStyle={styles.overlay}>
+        <View style={styles.dialog}>
+          <Text style={styles.badge}>PROFILE REVIEW</Text>
+          <Text style={common.cardTitle}>Your profile review</Text>
+          <Text style={common.body}>
+            You can access the dashboard after the profile is active
+            {matSchool ? ' and the MAT signatory has approved it.' : '.'}
+          </Text>
 
-            <View style={styles.statusBox}>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Profile status</Text>
-                <Text style={[styles.statusValue, profileReady && styles.good]}>
-                  {profile?.status || 'Checking'}
-                </Text>
-              </View>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Signatory approval</Text>
-                <Text
-                  style={[styles.statusValue, approvalReady && styles.good]}
-                >
-                  {matSchool ? approvalText(approval) : 'Not required'}
-                </Text>
-              </View>
+          <View style={styles.statusBox}>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Profile status</Text>
+              <Text style={[styles.statusValue, profileReady && styles.good]}>
+                {profile?.status || 'Checking'}
+              </Text>
             </View>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Signatory approval</Text>
+              <Text style={[styles.statusValue, approvalReady && styles.good]}>
+                {matSchool ? approvalText(approval) : 'Not required'}
+              </Text>
+            </View>
+          </View>
 
-            {loading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.brand} />
-                <Text style={styles.small}>Checking latest status...</Text>
-              </View>
-            ) : null}
+          {loading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={colors.brand} />
+              <Text style={styles.small}>Checking latest status...</Text>
+            </View>
+          ) : null}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <View style={styles.actions}>
-              {onDocuments ? (
-                <Button
-                  title="Update documents"
-                  variant="text"
-                  onPress={onDocuments}
-                  disabled={loading || profileBusy || approvalBusy}
-                  compact
-                />
-              ) : null}
-              {onExit ? (
-                <Button
-                  title="Sign out"
-                  variant="link"
-                  onPress={onExit}
-                  compact
-                />
-              ) : null}
+          <View style={styles.actions}>
+            {onEditProfile ? (
               <Button
-                title={profileBusy ? 'Refreshing...' : 'Refetch profile status'}
-                onPress={refreshProfileStatus}
+                title="Review profile details"
+                onPress={onEditProfile}
+                variant="outline"
+                disabled={loading || profileBusy || approvalBusy}
+              />
+            ) : null}
+            {onDocuments ? (
+              <Button
+                title="Update documents"
+                variant="text"
+                onPress={onDocuments}
                 disabled={loading || profileBusy || approvalBusy}
                 compact
               />
-              {matSchool ? (
-                <Button
-                  title={approvalBusy ? 'Refreshing...' : 'Refetch approval'}
-                  variant="text"
-                  onPress={refreshApprovalStatus}
-                  disabled={loading || profileBusy || approvalBusy}
-                  compact
-                />
-              ) : null}
-            </View>
+            ) : null}
+            {onExit ? (
+              <Button
+                title="Sign out"
+                variant="link"
+                onPress={onExit}
+                compact
+              />
+            ) : null}
+            <Button
+              title={profileBusy ? 'Refreshing...' : 'Check review status'}
+              onPress={refreshProfileStatus}
+              disabled={loading || profileBusy || approvalBusy}
+              compact
+            />
+            {matSchool ? (
+              <Button
+                title={approvalBusy ? 'Refreshing...' : 'Check trust approval'}
+                variant="text"
+                onPress={refreshApprovalStatus}
+                disabled={loading || profileBusy || approvalBusy}
+                compact
+              />
+            ) : null}
           </View>
         </View>
-      </Modal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -286,8 +319,7 @@ const useStyles = createThemedStyles(colors => ({
     fontSize: 12,
   },
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 18,
@@ -295,7 +327,7 @@ const useStyles = createThemedStyles(colors => ({
   dialog: {
     width: '100%',
     maxWidth: 520,
-    borderRadius: 8,
+    borderRadius: 20,
     backgroundColor: '#ffffff',
     padding: 22,
     gap: 14,
@@ -357,8 +389,7 @@ const useStyles = createThemedStyles(colors => ({
     lineHeight: 18,
   },
   actions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: 10,
   },
 }));

@@ -8,6 +8,8 @@
 			<key>CFBundleURLSchemes</key>
 			<array><string>supplyed</string></array>
 		</dict>
+		<!-- GOOGLE_URL_SCHEME_START -->
+		<!-- GOOGLE_URL_SCHEME_END -->
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

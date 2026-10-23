@@ -20,9 +20,13 @@ import { useLimitedProfile } from '../hooks/useLimitedProfile';
 import { useNotifications } from '../hooks/useNotifications';
 import {
   openMessages,
+  openConversation,
+  openInvitation,
   openNotificationApplications,
   openNotificationJob,
   showPage,
+  openNotificationBooking,
+  openNotificationPage,
 } from '../store/navigationSlice';
 
 type Props = { type: 'teacher' | 'school'; onSettings: () => void };
@@ -44,9 +48,11 @@ export default function NotificationsScreen({ type, onSettings }: Props) {
     const destination = getNotificationDestination(item);
 
     switch (destination.screen) {
+      case 'Invitations':
+        dispatch(openInvitation(destination.invitationId));
+        break;
       case 'Jobs':
-        if (type === 'teacher')
-          dispatch(openNotificationJob(destination.jobId));
+        dispatch(openNotificationJob(destination.jobId));
         break;
       case 'Applications':
         dispatch(
@@ -57,7 +63,16 @@ export default function NotificationsScreen({ type, onSettings }: Props) {
         );
         break;
       case 'Messages':
-        dispatch(openMessages(destination.applicationId));
+        dispatch(
+          destination.conversationId
+            ? openConversation(destination.conversationId)
+            : destination.applicationId
+            ? openMessages(destination.applicationId)
+            : openNotificationPage('Messages'),
+        );
+        break;
+      case 'Bookings':
+        dispatch(openNotificationBooking(destination.bookingId));
         break;
       case 'Settings':
         onSettings();
@@ -69,7 +84,11 @@ export default function NotificationsScreen({ type, onSettings }: Props) {
         profile.openSchool(destination.id);
         break;
       default:
-        dispatch(showPage(destination.screen));
+        dispatch(
+          destination.screen === 'Notifications'
+            ? showPage('Notifications')
+            : openNotificationPage(destination.screen),
+        );
     }
   }
 

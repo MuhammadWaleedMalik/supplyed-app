@@ -93,6 +93,11 @@ export function updateNotificationPreferences(
   key: keyof NotificationPreferences,
   value: boolean,
 ) {
+  if (
+    !['emailJobMatches', 'emailMessages', 'emailUpdates'].includes(key) ||
+    typeof value !== 'boolean'
+  )
+    throw new Error('Choose a valid notification preference.');
   return protectedRequest<NotificationPreferences>(
     endpoints.notificationPreferences,
     'PATCH',

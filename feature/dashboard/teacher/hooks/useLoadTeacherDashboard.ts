@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getSessionVersion } from '../../../../utils/api/session';
-import { useAppDispatch } from '../../../../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import { getTeacherDashboardData } from '../apis/teacherDashboardApi';
 import {
   setTeacherData,
@@ -14,10 +14,14 @@ function messageFromError(problem: unknown) {
     : 'Unable to load the teacher dashboard.';
 }
 
-export function useLoadTeacherDashboard() {
+export function useLoadTeacherDashboard(enabled = true) {
   const dispatch = useAppDispatch();
+  const revision = useAppSelector(
+    state => state.dashboardNavigation.dataRevision,
+  );
 
   useEffect(() => {
+    if (!enabled) return;
     let mounted = true;
     const version = getSessionVersion();
     const active = () => mounted && getSessionVersion() === version;
@@ -33,6 +37,8 @@ export function useLoadTeacherDashboard() {
     }
 
     loadDashboard();
-    return () => { mounted = false; };
-  }, [dispatch]);
+    return () => {
+      mounted = false;
+    };
+  }, [dispatch, revision, enabled]);
 }

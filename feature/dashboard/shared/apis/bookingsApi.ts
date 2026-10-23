@@ -1,14 +1,11 @@
+import type { PlannedWorkUnits } from '../../../../utils/jobs/workSchedule';
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
 import { getAllPages } from '../../../../utils/api/pagination';
 import type { Review } from './reviewsApi';
 import type { BookingInvoice } from './invoicesApi';
 
-export type BookingStatus =
-  | 'CONFIRMED'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'NO_SHOW';
+export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 export type BookingInvoiceFilter = 'none' | 'unpaid' | 'paid';
 
@@ -20,15 +17,17 @@ export type BookingPagination = {
   hasNextPage: boolean;
 };
 
-export type Booking = {
+export type Booking = PlannedWorkUnits & {
   id: string;
   applicationId: string;
+  source: 'APPLICATION' | 'DIRECT_HIRE';
   status: BookingStatus;
   job: {
     id: string;
     title: string;
     description?: string;
     subject?: string | null;
+    subjects?: string[];
     keyStages?: string[];
     address?: string | null;
     city?: string | null;
@@ -69,8 +68,10 @@ export type BookingsPage = {
 };
 
 function pathWithStatus(status: string) {
-  return endpoints.bookingsMine +
-    (status && status !== 'ALL' ? '?status=' + encodeURIComponent(status) : '');
+  return (
+    endpoints.bookingsMine +
+    (status && status !== 'ALL' ? '?status=' + encodeURIComponent(status) : '')
+  );
 }
 
 function bookingsPath(query: BookingQuery) {
@@ -103,16 +104,35 @@ export async function getMyBookings(status = 'ALL') {
   return getAllPages<Booking>(pathWithStatus(status), 'bookings');
 }
 
+export function getBooking(id: string) {
+  return protectedRequest<Booking>(
+    endpoints.bookings + '/' + encodeURIComponent(id),
+  );
+}
+
 export function completeBooking(id: string) {
-  return protectedRequest<Booking>(endpoints.bookings + '/' + id + '/complete', 'PATCH');
+  return protectedRequest<Booking>(
+    endpoints.bookings + '/' + encodeURIComponent(id) + '/complete',
+    'PATCH',
+  );
 }
 
 export function noShowBooking(id: string) {
-  return protectedRequest<Booking>(endpoints.bookings + '/' + id + '/no-show', 'PATCH');
+  return protectedRequest<Booking>(
+    endpoints.bookings + '/' + encodeURIComponent(id) + '/no-show',
+    'PATCH',
+  );
 }
 
 export function cancelBooking(id: string, reason: string) {
-  return protectedRequest<Booking>(endpoints.bookings + '/' + id + '/cancel', 'PATCH', {
-    reason: reason.trim(),
-  });
+  if (!reason.trim()) throw new Error('Enter a reason before cancelling.');
+  if (reason.trim().length > 1000)
+    throw new Error('Keep your cancellation reason within 1,000 characters.');
+  return protectedRequest<Booking>(
+    endpoints.bookings + '/' + encodeURIComponent(id) + '/cancel',
+    'PATCH',
+    {
+      reason: reason.trim(),
+    },
+  );
 }

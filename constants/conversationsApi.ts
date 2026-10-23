@@ -1,5 +1,12 @@
+import type { PlannedWorkUnits } from '../utils/jobs/workSchedule';
 import { endpoints } from './endpoints';
 import { protectedRequest } from '../utils/api/request';
+import { getAllPages } from '../utils/api/pagination';
+import {
+  normalizeConversation,
+  normalizeMessage,
+  normalizeMessagesPage,
+} from '../utils/messaging/normalizeConversation';
 import type { Application } from '../feature/dashboard/shared/apis/applicationsApi';
 
 export type ConversationSide = 'instructor' | 'poster';
@@ -17,18 +24,38 @@ export type ChatMessage = {
   attachments: MessageAttachment[];
   createdAt: string;
 };
+export type ConversationParticipant = {
+  id: string | null;
+  userId: string | null;
+  name: string;
+  imageUrl: string | null;
+  role: 'teacher' | 'school';
+};
+export type ConversationBooking = {
+  id: string;
+  status: string;
+  applicationId: string | null;
+};
 export type Conversation = {
   id: string;
-  applicationId: string;
-  applicationStatus: string;
+  instructorId?: string;
+  institutionId?: string;
+  applicationId: string | null;
+  booking: ConversationBooking | null;
+  /** Derived from booking for native navigation and topic grouping. */
+  bookingId: string | null;
+  applicationStatus: string | null;
   readOnly: boolean;
-  job: { id: string; title: string };
-  me: ConversationSide;
-  counterpart: {
-    id: string | null;
-    name: string;
-    imageUrl: string | null;
-    role: 'teacher' | 'school';
+  job: (PlannedWorkUnits & {
+    id: string;
+    title: string;
+    status?: string;
+  }) | null;
+  me: ConversationSide | null;
+  counterpart: ConversationParticipant;
+  participants: {
+    instructor: ConversationParticipant | null;
+    poster: ConversationParticipant | null;
   };
   lastMessage: {
     body: string;
@@ -47,16 +74,26 @@ export type ConversationsPage = {
   page: number;
   hasNextPage: boolean;
 };
+export type ConversationTopic = 'GENERAL' | 'JOBS';
+export type ConversationThreadsPage = {
+  conversations: Conversation[];
+  total: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+};
 export type AttachmentUpload = {
   attachment: MessageAttachment;
   upload: {
     url: string;
+    method?: string;
     expiresAt: string;
     requiredHeaders: Record<string, string>;
   };
 };
 
-export async function getConversationsPage(page = 1): Promise<ConversationsPage> {
+export async function getConversationsPage(
+  page = 1,
+): Promise<ConversationsPage> {
   const result = await protectedRequest<{
     conversations?: unknown;
     pagination?: { page?: unknown; hasNextPage?: unknown };
@@ -64,7 +101,7 @@ export async function getConversationsPage(page = 1): Promise<ConversationsPage>
   if (!Array.isArray(result.conversations))
     throw new Error('The server returned an invalid conversations page.');
   return {
-    conversations: result.conversations as Conversation[],
+    conversations: result.conversations.map(normalizeConversation),
     page:
       typeof result.pagination?.page === 'number'
         ? result.pagination.page
@@ -75,13 +112,62 @@ export async function getConversationsPage(page = 1): Promise<ConversationsPage>
 export function getUnreadCount() {
   return protectedRequest<{ total: number }>(endpoints.conversationUnread);
 }
-export function openApplicationConversation(applicationId: string) {
-  return protectedRequest<Conversation>(
+export async function openApplicationConversation(applicationId: string) {
+  return normalizeConversation(await protectedRequest<unknown>(
     endpoints.conversationForApplication(applicationId),
+  ));
+}
+export async function openBookingConversation(bookingId: string) {
+  return normalizeConversation(await protectedRequest<unknown>(
+    endpoints.conversationForBooking(bookingId),
+  ));
+}
+export async function getConversationThreads(
+  id: string,
+  topic: ConversationTopic,
+  before?: string,
+) {
+  const query = new URLSearchParams({ topic, limit: '20' });
+  if (before) query.set('before', before);
+  const result = await protectedRequest<Partial<ConversationThreadsPage>>(
+    endpoints.conversationThreads(id) + '?' + query.toString(),
+  );
+  if (
+    !Array.isArray(result.conversations) ||
+    typeof result.total !== 'number' ||
+    typeof result.hasMore !== 'boolean' ||
+    (result.nextCursor !== null &&
+      result.nextCursor !== undefined &&
+      typeof result.nextCursor !== 'string')
+  )
+    throw new Error('The server returned an invalid conversation picker.');
+  return {
+    conversations: result.conversations.map(normalizeConversation),
+    total: result.total,
+    hasMore: result.hasMore,
+    nextCursor: result.nextCursor || null,
+  };
+}
+export async function getConversation(id: string) {
+  return normalizeConversation(
+    await protectedRequest<unknown>(endpoints.conversation(id)),
   );
 }
-export function getConversation(id: string) {
-  return protectedRequest<Conversation>(endpoints.conversation(id));
+
+export async function startTeacherConversation(instructorId: string) {
+  return normalizeConversation(
+    await protectedRequest<unknown>(endpoints.conversations, 'POST', {
+      instructorId,
+    }),
+  );
+}
+
+export async function getAllConversations() {
+  const conversations = await getAllPages<unknown>(
+    endpoints.conversations,
+    'conversations',
+  );
+  return conversations.map(normalizeConversation);
 }
 
 export function getConversationApplication(applicationId: string) {
@@ -89,14 +175,20 @@ export function getConversationApplication(applicationId: string) {
     endpoints.applications + '/' + encodeURIComponent(applicationId),
   );
 }
-export function getMessages(id: string, before?: string) {
+export async function getMessages(id: string, before?: string, limit = 30) {
   const query =
-    '?limit=30' + (before ? '&before=' + encodeURIComponent(before) : '');
-  return protectedRequest<MessagesPage>(
-    endpoints.conversationMessages(id) + query,
+    '?limit=' +
+    Math.max(1, Math.min(100, Math.trunc(limit))) +
+    (before ? '&before=' + encodeURIComponent(before) : '');
+  return normalizeMessagesPage(
+    await protectedRequest<unknown>(endpoints.conversationMessages(id) + query),
   );
 }
-export function sendMessage(id: string, body: string, attachmentIds: string[]) {
+export async function sendMessage(
+  id: string,
+  body: string,
+  attachmentIds: string[],
+) {
   const text = body.trim();
   if (
     (!text && !attachmentIds.length) ||
@@ -105,10 +197,12 @@ export function sendMessage(id: string, body: string, attachmentIds: string[]) {
   ) {
     throw new Error('Write up to 2,000 characters or attach up to five files.');
   }
-  return protectedRequest<ChatMessage>(
-    endpoints.conversationMessages(id),
-    'POST',
-    { body: text, attachmentIds },
+  return normalizeMessage(
+    await protectedRequest<unknown>(
+      endpoints.conversationMessages(id),
+      'POST',
+      { body: text, attachmentIds },
+    ),
   );
 }
 export function markConversationRead(id: string) {
@@ -154,7 +248,9 @@ export async function getMissedMessages(
   ) {
     const cursor = page.messages[0].id;
     if (cursors.has(cursor) || cursors.size >= 100)
-      throw new Error('Unable to reconcile message history. Please refresh the conversation.');
+      throw new Error(
+        'Unable to reconcile message history. Please refresh the conversation.',
+      );
     cursors.add(cursor);
     page = await getMessages(id, cursor);
     messages = [...page.messages, ...messages];

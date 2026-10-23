@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DashboardNav from '../../../../components/dashboard/DashboardNav';
+import NavigationContext from '../../../../components/dashboard/NavigationContext';
 import DashboardTopBar from '../../../../components/dashboard/DashboardTopBar';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import type { DashboardPage } from '../store/navigationSlice';
+import { goBackToSource } from '../store/navigationSlice';
+import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 
 type Props = {
+  role: 'teacher' | 'school';
   email: string;
   page: DashboardPage;
   onPage: (page: DashboardPage) => void;
@@ -26,15 +30,29 @@ type Props = {
 export default function DashboardLayout(props: Props) {
   const styles = useStyles();
 
-  const { width, fontScale } = useWindowDimensions();
-  const showEmail = width / fontScale > 390;
+  const dispatch = useAppDispatch();
+  const returnPage = useAppSelector(
+    state => state.dashboardNavigation.returnPage,
+  );
+  const { page, onPage } = props;
+  useEffect(() => {
+    const listener = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (returnPage) dispatch(goBackToSource());
+      else if (page !== 'Dashboard') onPage('Dashboard');
+      else return false;
+      return true;
+    });
+    return () => listener.remove();
+  }, [dispatch, returnPage, page, onPage]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {props.page !== 'Messages' ? (
         <DashboardTopBar
           email={props.email}
-          showEmail={showEmail}
+          role={props.role}
+          onApplications={() => props.onPage('Applications')}
+          onInvitations={() => props.onPage('Invitations')}
           onProfile={props.onProfile}
           onBilling={() => props.onPage('Billing')}
           onNotifications={() => props.onPage('Notifications')}
@@ -45,7 +63,13 @@ export default function DashboardLayout(props: Props) {
         />
       ) : null}
 
+      <NavigationContext />
       {props.page === 'Messages' ||
+      props.page === 'Dashboard' ||
+      props.page === 'Teachers' ||
+      props.page === 'Invitations' ||
+      props.page === 'Applications' ||
+      props.page === 'Billing' ||
       props.page === 'Notifications' ||
       props.page === 'Jobs' ||
       props.page === 'Bookings' ||
@@ -66,7 +90,11 @@ export default function DashboardLayout(props: Props) {
         </KeyboardAvoidingView>
       )}
 
-      <DashboardNav selected={props.page} onSelect={props.onPage} />
+      <DashboardNav
+        role={props.role}
+        selected={props.page}
+        onSelect={props.onPage}
+      />
     </SafeAreaView>
   );
 }

@@ -12,6 +12,7 @@ import Button from '../../../components/Ui/Button';
 import DocumentsIntro from '../../../components/documents/DocumentsIntro';
 import DocumentsUpload from '../../../components/documents/DocumentsUpload';
 import SignatoryApprovalPanel from '../../../components/documents/SignatoryApprovalPanel';
+import OptionalPhoneVerification from '../../../components/documents/OptionalPhoneVerification';
 import { useStyles } from './documentStyles';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
 import { useDocuments } from '../hooks/useDocuments';
@@ -59,15 +60,21 @@ export default function DocumentsScreen({
               loading={form.loading}
               onRetry={!form.loaded ? form.retryLoad : undefined}
               submitting={form.submitting}
-              uploadingId={form.uploadingId}
+              uploadingIds={form.uploadingIds}
+              uploadErrors={form.uploadErrors}
+              onRetryUpload={form.retryDocument}
               previewingId={form.previewingId}
               signatoryPanel={
-                <SignatoryApprovalPanel
-                  visible={form.needsTrustApproval}
-                  approval={form.approval}
-                  refreshing={form.refreshingApproval}
-                  onRefresh={form.refreshApprovalStatus}
-                />
+                <>
+                  <OptionalPhoneVerification />
+                  <SignatoryApprovalPanel
+                    visible={form.needsTrustApproval}
+                    approval={form.approval}
+                    refreshing={form.refreshingApproval}
+                    onRefresh={form.refreshApprovalStatus}
+                    onUpdated={form.updateApproval}
+                  />
+                </>
               }
               onAdd={form.addDocument}
               onPreview={form.previewDocument}

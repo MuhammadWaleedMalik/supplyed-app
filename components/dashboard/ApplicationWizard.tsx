@@ -32,6 +32,7 @@ export default function ApplicationWizard(props: Props) {
     <View style={jobStyles.wizard}>
       <FlowProgress
         step={props.step}
+        total={2}
         title={titles[props.step - 1]}
         onClose={props.onClose}
       />

@@ -1,9 +1,10 @@
 import React from 'react';
 import { View } from 'react-native';
 import type { ProfileFields } from '../../feature/dashboard/shared/apis/settingsApi';
-import { institutionTypes } from '../../utils/onboarding/onboardingData';
+
+import TeachingFields from '../onboarding/TeachingFields';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
+import DynamicSelect from '../Ui/DynamicSelect';
 import ChoiceField from './ChoiceField';
 import { useSettingsStyles } from './settingsStyles';
 
@@ -20,7 +21,7 @@ export default function SchoolSettingsFields({
 }: Props) {
   const settingsStyles = useSettingsStyles();
 
-  const isMat = fields.institutionType === 'MAT school';
+  const isMat = fields.institutionType === 'MAT_SCHOOL';
 
   return (
     <View style={settingsStyles.section}>
@@ -41,11 +42,11 @@ export default function SchoolSettingsFields({
           />
         </View>
       </View>
-      <Select
+      <DynamicSelect
         label="SCHOOL TYPE"
         value={fields.institutionType}
         placeholder="School type"
-        options={institutionTypes}
+        name="institutionType"
         onChange={value => onChange('institutionType', value)}
       />
       {isMat ? (
@@ -86,19 +87,17 @@ export default function SchoolSettingsFields({
           />
         </View>
       </View>
-      <Input
-        label="STAFFING NEEDS"
-        required={false}
-        multiline
-        value={fields.staffingNeeds}
-        onChangeText={value => onChange('staffingNeeds', value)}
+      <TeachingFields
+        label="Staffing needs"
+        subjects={fields.staffingNeeds}
+        onSubjects={value => onChange('staffingNeeds', value)}
       />
-      <Input
-        label="COVER TYPES"
-        required={false}
+      <DynamicSelect
+        name="coverType"
+        label="Cover types"
+        multiple
         value={fields.coverTypes}
-        placeholder="Same-day cover, Long-term roles"
-        onChangeText={value => onChange('coverTypes', value)}
+        onChange={value => onChange('coverTypes', value)}
       />
       <View style={[settingsStyles.row, wide && settingsStyles.wideRow]}>
         <View style={settingsStyles.field}>

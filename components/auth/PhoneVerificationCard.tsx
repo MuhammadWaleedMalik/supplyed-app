@@ -35,7 +35,7 @@ export default function PhoneVerificationCard({
           phone
           required={false}
           value={form.phone}
-          disabled={!user || busy}
+          disabled={!user || busy || form.savedVerified}
           onChangeText={form.changePhone}
         />
       ) : (
@@ -49,7 +49,7 @@ export default function PhoneVerificationCard({
         <>
           <Text style={styles.note}>
             {editable
-              ? 'Your phone number changes only after you verify the SMS code. Save settings does not change your phone.'
+              ? 'Verification is optional. Save your number in Settings before verifying it.'
               : 'Verify your saved phone number to help complete your account verification.'}
           </Text>
           {editable && form.savedVerified && form.phone !== form.savedPhone ? (
@@ -85,7 +85,6 @@ export default function PhoneVerificationCard({
                 label="SIX-DIGIT SMS CODE"
                 placeholder="123456"
                 number
-                maxLength={6}
                 value={form.code}
                 onChangeText={form.changeCode}
                 disabled={busy || form.expirySeconds === 0}

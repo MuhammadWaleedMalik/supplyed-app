@@ -1,12 +1,19 @@
 import { endpoints } from '../../../constants/endpoints';
 import { protectedRequest } from '../../../utils/api/request';
-import { setCurrentSessionUser } from '../../../utils/api/session';
+import {
+  setCurrentSessionUser,
+  getSessionVersion,
+  assertSessionVersion,
+  getCurrentSessionUser,
+} from '../../../utils/api/session';
 import {
   AccountType,
   OnboardingData,
 } from '../../../utils/onboarding/onboardingData';
 import { profilePayload } from '../../../utils/onboarding/profilePayload';
 import { getCurrentUser } from '../../auth/apis/authApi';
+import { normalizeUkPhone } from '../../../utils/auth/ukPhone';
+import { isValidEmail } from '../../../utils/auth/authValidation';
 
 export type Profile = {
   id: string;
@@ -49,21 +56,23 @@ function profileStatusPath(type: AccountType) {
 }
 
 export async function createProfile(type: AccountType, data: OnboardingData) {
-  return protectedRequest<Profile>(
-    profilePath(type),
-    'POST',
-    profilePayload(type, data),
-  );
+  const version = getSessionVersion();
+  const payload = await profilePayload(type, data);
+  assertSessionVersion(version);
+  return protectedRequest<Profile>(profilePath(type), 'POST', payload);
 }
 
 export async function saveOnboardingAccount(data: OnboardingData) {
+  const version = getSessionVersion();
   const user = await getCurrentUser();
-  // An existing verified number can only be changed through SMS verification.
+  assertSessionVersion(version);
+  // Preserve an existing verified number.
   const account = user.phoneVerified
     ? { name: data.fullName.trim() }
-    : { name: data.fullName.trim(), phone: data.phone.trim() };
+    : { name: data.fullName.trim(), phone: normalizeUkPhone(data.phone) };
 
   await protectedRequest(endpoints.userBasics, 'PATCH', account);
+  assertSessionVersion(version);
   const savedUser = await getCurrentUser();
   setCurrentSessionUser(savedUser);
   return savedUser;
@@ -74,8 +83,14 @@ export function getProfile(type: AccountType) {
 }
 
 export async function submitProfileForReview(type: AccountType) {
+  const version = getSessionVersion();
   const profile = await getProfile(type);
-  if (profile.status !== 'INCOMPLETE') return profile;
+  assertSessionVersion(version);
+  if (['PENDING', 'ACTIVE'].includes(profile.status || '')) return profile;
+  if (!['INCOMPLETE', 'REJECTED', 'DEACTIVATED'].includes(profile.status || ''))
+    throw new Error(
+      'This profile cannot be submitted for review. Contact support.',
+    );
   return protectedRequest<Profile>(profileStatusPath(type), 'PATCH');
 }
 
@@ -86,6 +101,20 @@ export function getSignatoryApproval() {
 }
 
 export function requestSignatoryApproval(fields: SignatoryFields) {
+  if (!fields.signatoryName.trim() || fields.signatoryName.trim().length > 200)
+    throw new Error('Enter a signatory name with up to 200 characters.');
+  if (!isValidEmail(fields.signatoryEmail))
+    throw new Error('Enter a valid signatory email address.');
+  if (
+    fields.signatoryEmail.trim().toLowerCase() ===
+    getCurrentSessionUser()?.email.toLowerCase()
+  )
+    throw new Error('The trust signatory must be someone other than you.');
+  if (
+    !fields.signatoryJobTitle.trim() ||
+    fields.signatoryJobTitle.trim().length > 150
+  )
+    throw new Error('Enter a signatory job title with up to 150 characters.');
   return protectedRequest<SignatoryApproval>(
     endpoints.schoolSignatoryApproval,
     'POST',

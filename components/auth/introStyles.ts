@@ -1,6 +1,17 @@
 import { serif, createThemedStyles } from '../Ui/theme';
 
 export const useIntroStyles = createThemedStyles(colors => ({
+  mobileHeader: {
+    minHeight: 64,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  mobileBrand: { color: colors.ink, fontSize: 21, fontWeight: '700' },
   panel: { backgroundColor: colors.dark, paddingBottom: 34 },
   wide: { flex: 1, minHeight: 650 },
   header: {

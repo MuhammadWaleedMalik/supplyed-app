@@ -1,15 +1,11 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import InvitationsScreen from '../../shared/screens/InvitationsScreen';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import DashboardLayout from '../../shared/components/DashboardLayout';
 import BookingsScreen from '../../shared/screens/BookingsScreen';
 import TeacherBillingScreen from './TeacherBillingScreen';
 import MessagesScreen from '../../shared/screens/MessagesScreen';
-import {
-  DashboardPage,
-  resetDashboardNavigation,
-  showPage,
-} from '../../shared/store/navigationSlice';
-import { useLoadTeacherDashboard } from '../hooks/useLoadTeacherDashboard';
+import { DashboardPage, showPage } from '../../shared/store/navigationSlice';
 import TeacherApplicationsScreen from './TeacherApplicationsScreen';
 import TeacherJobsScreen from './TeacherJobsScreen';
 import TeacherDashboardScreen from './TeacherDashboardScreen';
@@ -27,19 +23,17 @@ export default function TeacherDashboard(props: Props) {
   const dispatch = useAppDispatch();
   const page = useAppSelector(state => state.dashboardNavigation.page);
 
-  useLoadTeacherDashboard();
-
-  useEffect(() => {
-    dispatch(resetDashboardNavigation());
-  }, [dispatch]);
 
   function changePage(nextPage: DashboardPage) {
     dispatch(showPage(nextPage));
   }
 
   function pageContent() {
+    if (page === 'Invitations') return <InvitationsScreen role="teacher" />;
     if (page === 'Notifications') {
-      return <NotificationsScreen type="teacher" onSettings={props.onSettings} />;
+      return (
+        <NotificationsScreen type="teacher" onSettings={props.onSettings} />
+      );
     }
     if (page === 'Jobs') {
       return <TeacherJobsScreen />;
@@ -61,6 +55,7 @@ export default function TeacherDashboard(props: Props) {
 
   return (
     <DashboardLayout
+      role="teacher"
       email={props.email}
       page={page}
       onPage={changePage}

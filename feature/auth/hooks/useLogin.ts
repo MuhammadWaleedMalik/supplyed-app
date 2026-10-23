@@ -2,7 +2,10 @@
 import { loginAccount, resendEmailCode, User } from '../apis/authApi';
 import { saveTokens, setSessionPersistence } from '../../../utils/api/session';
 import { ApiError } from '../../../utils/api/request';
-import { isValidEmail } from '../../../utils/auth/authValidation';
+import {
+  isValidEmail,
+  isValidLoginPassword,
+} from '../../../utils/auth/authValidation';
 import { useAuthAttempt } from '../../../utils/auth/useAuthAttempt';
 
 export function useLogin(
@@ -18,7 +21,7 @@ export function useLogin(
   const attempt = useAuthAttempt();
 
   async function submit() {
-    if (!isValidEmail(email) || !password) {
+    if (!isValidEmail(email) || !isValidLoginPassword(password)) {
       setError('Enter your email and password.');
       return;
     }
@@ -42,7 +45,7 @@ export function useLogin(
         if (challenge.otpToken) onVerification(email, challenge.otpToken);
         else setError('A verification code was not returned.');
       } else if (reply.user) {
-        saveTokens(reply);
+        await saveTokens(reply);
         await onAuthenticated(reply.user);
       } else {
         setError('The server did not return your account.');
@@ -79,6 +82,15 @@ export function useLogin(
     }
   }
 
-  return { email, setEmail, password, setPassword, remember, setRemember, error, loading, submit };
+  return {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    remember,
+    setRemember,
+    error,
+    loading,
+    submit,
+  };
 }
-

@@ -29,7 +29,11 @@ export default function RegisterForm({
         attempted={form.submitted}
         wide={wide}
       />
-      <SocialProviders role={form.type} />
+      <SocialProviders
+        role={form.type}
+        actions={actions}
+        disabled={!form.type || !form.agreed || form.loading}
+      />
       <View style={styles.divider}>
         <View style={styles.line} />
         <Text style={styles.dividerText}>EMAIL</Text>

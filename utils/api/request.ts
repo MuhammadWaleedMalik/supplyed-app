@@ -1,5 +1,15 @@
 import { API_URL } from '../../constants/api';
+import { userFacingError } from './userFacingError';
+import { normalizeMarketplaceResponse } from './marketplaceResponse';
+import {
+  apiErrorMessage,
+  FieldErrors,
+  joinApiPath,
+  parseApiReply,
+  ParsedApiReply,
+} from './response';
 import { endpoints } from '../../constants/endpoints';
+import { refreshDropdowns } from './dropdownEvents';
 import {
   expireSession,
   getAccessToken,
@@ -8,71 +18,61 @@ import {
   saveTokens,
 } from './session';
 
-type Reply = {
-  data?: unknown;
-  message?: string | string[];
-  code?: string;
-  success?: boolean;
-  meta?: { requestId?: string };
-};
-
 export class ApiError extends Error {
   status: number;
   code: string;
   requestId: string;
+  fieldErrors?: FieldErrors;
 
-  constructor(message: string, status: number, code = '', requestId = '') {
-    super(requestId ? message + '\nSupport reference: ' + requestId : message);
+  constructor(
+    message: string,
+    status: number,
+    code = '',
+    requestId = '',
+    fieldErrors?: FieldErrors,
+  ) {
+    super(userFacingError(message, status, code));
+    this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.fieldErrors = fieldErrors;
   }
 }
 
-function errorMessage(reply: Reply) {
-  if (Array.isArray(reply.message)) return reply.message.join(', ');
-  return reply.message || 'Something went wrong. Please try again.';
-}
-
-function parseReply(value: unknown): Reply {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const record = value as Record<string, unknown>;
-  const meta = record.meta;
-  return {
-    ...('data' in record ? { data: record.data } : {}),
-    success: typeof record.success === 'boolean' ? record.success : undefined,
-    message: typeof record.message === 'string'
-      ? record.message
-      : Array.isArray(record.message)
-        ? record.message.filter((item): item is string => typeof item === 'string')
-        : undefined,
-    code: typeof record.code === 'string' ? record.code : undefined,
-    meta: meta && typeof meta === 'object' && 'requestId' in meta && typeof meta.requestId === 'string'
-      ? { requestId: meta.requestId }
-      : undefined,
-  };
-}
+type RequestOptions = { signal?: AbortSignal; timeoutMs?: number };
 
 export async function apiRequest<T>(
   path: string,
   method = 'GET',
   body?: object,
   token = '',
+  options: RequestOptions = {},
 ): Promise<T> {
   if (!__DEV__ && !API_URL.startsWith('https://')) {
-    throw new ApiError('A secure production API address is required.', 0, 'API_CONFIGURATION');
+    throw new ApiError(
+      'A secure production API address is required.',
+      0,
+      'API_CONFIGURATION',
+    );
   }
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, options.timeoutMs ?? 30000);
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener('abort', cancel, { once: true });
   let response: Response;
-  let reply: Reply;
+  let reply: ParsedApiReply;
   let headerRequestId = '';
   try {
-    response = await fetch(API_URL + path, {
+    response = await fetch(joinApiPath(API_URL, path), {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -81,12 +81,14 @@ export async function apiRequest<T>(
     headerRequestId = response.headers?.get('X-Request-Id') || '';
     if (response.status === 204) return undefined as T;
     try {
-      reply = parseReply(await response.json());
+      reply = parseApiReply(await response.json());
     } catch {
       if (controller.signal.aborted) throw new Error('Request aborted');
       // Preserve the HTTP status when proxies return HTML or empty error bodies.
       throw new ApiError(
-        response.ok ? 'SupplyED returned an invalid response. Refresh before retrying.' : 'SupplyED could not complete the request. Please try again.',
+        response.ok
+          ? 'SupplyED returned an invalid response. Refresh before retrying.'
+          : 'SupplyED could not complete the request. Please try again.',
         response.ok ? 0 : response.status,
         'INVALID_RESPONSE',
         headerRequestId,
@@ -95,41 +97,51 @@ export async function apiRequest<T>(
   } catch (problem) {
     if (problem instanceof ApiError) throw problem;
     throw new ApiError(
-      controller.signal.aborted
+      timedOut
         ? 'The request timed out. Refresh to check the latest status before trying again.'
-        : 'Cannot reach SupplyED. Check your connection and API address.',
+        : controller.signal.aborted
+        ? 'The request was cancelled.'
+        : 'Cannot reach SupplyEd. Check your connection and try again.',
       0,
-      controller.signal.aborted ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR',
+      timedOut
+        ? 'REQUEST_TIMEOUT'
+        : controller.signal.aborted
+        ? 'REQUEST_CANCELLED'
+        : 'NETWORK_ERROR',
     );
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', cancel);
   }
 
   if (!response.ok || reply.success === false) {
-    if (reply.meta?.requestId) {
+    // A failed choices read must not trigger another choices read forever.
+    if (method !== 'GET') refreshDropdowns(reply.code || '');
+    if (reply.requestId) {
       console.warn('SupplyED API request failed', {
         path,
         status: response.status,
         code: reply.code,
-        requestId: reply.meta.requestId,
+        requestId: reply.requestId,
       });
     }
     throw new ApiError(
-      errorMessage(reply),
+      apiErrorMessage(reply),
       response.status,
       reply.code,
-      reply.meta?.requestId || headerRequestId,
+      reply.requestId || headerRequestId,
+      reply.fieldErrors,
     );
   }
-  if (reply.success !== true || !('data' in reply)) {
+  if (reply.envelope && !reply.hasData) {
     throw new ApiError(
       'SupplyED returned an incomplete response. Refresh the latest status before retrying.',
       0,
       'INVALID_RESPONSE',
-      reply.meta?.requestId || headerRequestId,
+      reply.requestId || headerRequestId,
     );
   }
-  return reply.data as T;
+  return normalizeMarketplaceResponse(reply.data, path) as T;
 }
 
 // Several screens can load together. They share one token refresh request.
@@ -143,11 +155,15 @@ async function refreshAccessToken() {
     const refreshed = await apiRequest<{
       accessToken: string;
       refreshToken?: string;
+      tokens?: { accessToken?: string; refreshToken?: string };
     }>(endpoints.refresh, 'POST', { refreshToken: previousRefreshToken });
-    if (!refreshed.accessToken || getSessionVersion() !== version) {
+    if (
+      !(refreshed.accessToken || refreshed.tokens?.accessToken) ||
+      getSessionVersion() !== version
+    ) {
       throw new ApiError('Please sign in again.', 401);
     }
-    saveTokens(refreshed);
+    await saveTokens(refreshed);
   } catch (error) {
     if (
       getSessionVersion() === version &&
@@ -195,13 +211,17 @@ export async function protectedRequest<T>(
     // Never replay an old account's request after logout or a new login.
     if (getSessionVersion() !== version) throw error;
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    // Invalid passwords and 2FA codes also use 401. Refresh only explicit
+    // access-token failures; an access-token rejection alone must not discard a
+    // still-valid refresh session.
     if (
-      error.code === 'AUTH_TOKEN_MISSING' ||
-      error.code === 'INVALID_ACCESS_TOKEN'
-    ) {
-      expireSession();
+      ![
+        'ACCESS_TOKEN_EXPIRED',
+        'AUTH_TOKEN_MISSING',
+        'INVALID_ACCESS_TOKEN',
+      ].includes(error.code)
+    )
       throw error;
-    }
     if (!getRefreshToken()) {
       expireSession();
       throw error;
@@ -225,7 +245,12 @@ export async function protectedRequest<T>(
       if (
         getSessionVersion() === version &&
         retryError instanceof ApiError &&
-        retryError.status === 401
+        retryError.status === 401 &&
+        [
+          'ACCESS_TOKEN_EXPIRED',
+          'AUTH_TOKEN_MISSING',
+          'INVALID_ACCESS_TOKEN',
+        ].includes(retryError.code)
       )
         expireSession();
       throw retryError;

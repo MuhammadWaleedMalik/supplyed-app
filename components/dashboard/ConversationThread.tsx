@@ -1,3 +1,8 @@
+import { useDraft, updateDraft, getDraft } from '../../utils/messaging/drafts';
+import { getSessionVersion } from '../../utils/api/session';
+import type { Invitation } from '../../feature/dashboard/shared/apis/invitationsApi';
+import { invitationMessageParts } from '../../utils/navigation/invitationLinks';
+import { openInvitation } from '../../feature/dashboard/shared/store/navigationSlice';
 import { useTheme } from '../Ui/theme';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +27,8 @@ import {
   CheckCheck,
   FileText,
   Info,
+  MessageCircle,
+  ListFilter,
   Paperclip,
   SendHorizontal,
   X,
@@ -36,7 +43,7 @@ import {
   MessageAttachment,
 } from '../../constants/conversationsApi';
 import { useConversation } from '../../feature/dashboard/shared/hooks/useConversation';
-import { useAppSelector } from '../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { pickChatAttachment } from '../../utils/documents/pickChatAttachment';
 import { pickWasCancelled } from '../../utils/documents/pickDocument';
 import Button from '../Ui/Button';
@@ -47,17 +54,48 @@ import { useChatStyles } from './chatStyles';
 export default function ConversationThread({
   id,
   onBack,
+  backLabel = 'Back to chats',
+  contextHeader,
+  topicsOpen = false,
+  onToggleTopics,
+  invitation,
 }: {
   id: string;
   onBack: () => void;
+  backLabel?: string;
+  contextHeader?: React.ReactNode;
+  topicsOpen?: boolean;
+  onToggleTopics?: () => void;
+  invitation?: Invitation;
 }) {
   const { colors } = useTheme();
   const chatStyles = useChatStyles();
+  const dispatch = useAppDispatch();
 
-  const [body, setBody] = useState('');
-  const [files, setFiles] = useState<MessageAttachment[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [fileError, setFileError] = useState('');
+  const draft = useDraft(id);
+  const { body, files, uploading, error: fileError } = draft;
+  const session = useRef(getSessionVersion()).current;
+  const setBody = (value: React.SetStateAction<string>) =>
+    updateDraft(
+      id,
+      current => ({
+        body: typeof value === 'function' ? value(current.body) : value,
+      }),
+      session,
+    );
+  const setFiles = (value: React.SetStateAction<MessageAttachment[]>) =>
+    updateDraft(
+      id,
+      current => ({
+        files: typeof value === 'function' ? value(current.files) : value,
+      }),
+      session,
+    );
+  const setUploading = (value: boolean) =>
+    updateDraft(id, { uploading: value }, session);
+  const setFileError = (value: string) =>
+    updateDraft(id, { error: value }, session);
+  const composer = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [details, setDetails] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [preview, setPreview] = useState<{
@@ -84,6 +122,9 @@ export default function ConversationThread({
     !conversation ||
     conversation.readOnly ||
     conversation.applicationStatus === 'REJECTED';
+  // Sending/uploading must not toggle TextInput.editable: Android dismisses
+  // the IME when the focused native input becomes disabled.
+  const canCompose = !chat.loading && !!conversation && !conversation.readOnly && conversation.applicationStatus !== 'REJECTED';
   const sendDisabled =
     disabled || chat.uncertain || (!body.trim() && !files.length);
   const composerBottom = keyboardVisible ? 8 : Math.max(insets.bottom, 8);
@@ -123,21 +164,27 @@ export default function ConversationThread({
   }, [remoteTyping?.until]);
 
   async function attachFile() {
-    if (disabled || uploadingRef.current || files.length >= 5) return;
+    if (
+      disabled ||
+      getDraft(id).uploading ||
+      uploadingRef.current ||
+      files.length >= 5
+    )
+      return;
     uploadingRef.current = true;
     setUploading(true);
     setFileError('');
     try {
       const file = await pickChatAttachment(id);
-      if (alive.current) setFiles(current => [...current, file]);
+      setFiles(current => [...current, file]);
     } catch (problem) {
-      if (alive.current && !pickWasCancelled(problem))
+      if (!pickWasCancelled(problem))
         setFileError(
           problem instanceof Error ? problem.message : 'Unable to attach file.',
         );
     } finally {
       uploadingRef.current = false;
-      if (alive.current) setUploading(false);
+      setUploading(false);
     }
   }
 
@@ -145,7 +192,7 @@ export default function ConversationThread({
     setFileError('');
     try {
       const result = await getAttachmentDownload(id, file.id);
-      if (!alive.current) return;
+      if (!alive.current || session !== getSessionVersion()) return;
       if (!/^https:\/\//i.test(result.url))
         throw new Error('A secure download link is unavailable.');
       if (!external && file.contentType.startsWith('image/')) {
@@ -157,11 +204,11 @@ export default function ConversationThread({
             'Unable to preview this file. Please try opening it again.',
           );
         const text = await response.text();
-        if (alive.current)
+        if (alive.current && session === getSessionVersion())
           setPreview({ url: result.url, file, text: text.slice(0, 20000) });
       } else await Linking.openURL(result.url);
     } catch (problem) {
-      if (alive.current)
+      if (alive.current && session === getSessionVersion())
         setFileError(
           problem instanceof Error ? problem.message : 'Unable to open file.',
         );
@@ -170,9 +217,19 @@ export default function ConversationThread({
 
   async function send() {
     if (sendDisabled) return;
+    const keepKeyboard = composer.current?.isFocused();
+    if (keepKeyboard) composer.current?.focus();
     if (await chat.send(body, files)) {
-      setBody('');
-      setFiles([]);
+      updateDraft(
+        id,
+        current => ({
+          body: current.body === body ? '' : current.body,
+          files: current.files.filter(
+            file => !files.some(sent => sent.id === file.id),
+          ),
+        }),
+        session,
+      );
       setFileError('');
       list.current?.scrollToOffset({ offset: 0, animated: true });
     }
@@ -224,7 +281,21 @@ export default function ConversationThread({
               selectable
               style={[chatStyles.body, mine && chatStyles.ownMessageText]}
             >
-              {item.body}
+              {invitationMessageParts(item.body).map((part, partIndex) =>
+                part.invitationId ? (
+                  <Text
+                    key={partIndex}
+                    accessibilityRole="link"
+                    accessibilityLabel="View invitation"
+                    style={chatStyles.invitationLink}
+                    onPress={() => dispatch(openInvitation(part.invitationId!))}
+                  >
+                    {part.text}
+                  </Text>
+                ) : (
+                  part.text
+                ),
+              )}
             </Text>
           ) : null}
           {item.attachments.map(file => (
@@ -281,7 +352,7 @@ export default function ConversationThread({
         <View style={chatStyles.threadHeader}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Back to chats"
+            accessibilityLabel={backLabel}
             style={chatStyles.iconButton}
             onPress={onBack}
           >
@@ -309,10 +380,11 @@ export default function ConversationThread({
                   <Text numberOfLines={1} style={chatStyles.muted}>
                     {remoteTyping?.side !== conversation.me && typingVisible
                       ? 'typing…'
-                      : conversation.job.title}
+                      : conversation.job?.title || 'General'}
                   </Text>
                 </View>
               </Pressable>
+              {onToggleTopics ? <Pressable accessibilityRole="button" accessibilityLabel={topicsOpen ? 'Hide conversation picker' : 'Switch conversation'} accessibilityState={{ expanded: topicsOpen }} style={[chatStyles.iconButton, topicsOpen && chatStyles.filterActive]} onPress={() => { Keyboard.dismiss(); onToggleTopics(); }}><ListFilter size={22} color={colors.brandDark} /></Pressable> : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Conversation information"
@@ -327,6 +399,7 @@ export default function ConversationThread({
             </>
           ) : null}
         </View>
+        {!keyboardVisible && topicsOpen ? contextHeader : null}
         {!connected && socketError ? (
           <Text style={[chatStyles.muted, chatStyles.connection]}>
             {socketError}
@@ -345,7 +418,7 @@ export default function ConversationThread({
             minIndexForVisible: 0,
             autoscrollToTopThreshold: 40,
           }}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
           }
@@ -363,16 +436,12 @@ export default function ConversationThread({
           }}
           onEndReachedThreshold={0.2}
           ListEmptyComponent={
-            !chat.loading ? (
-              <Text
-                style={[
-                  chatStyles.muted,
-                  chatStyles.center,
-                  chatStyles.emptyThread,
-                ]}
-              >
-                Start the conversation about this application.
-              </Text>
+            !chat.loading && !chat.error && conversation ? (
+              <View style={chatStyles.emptyThread}>
+                <MessageCircle size={30} color={colors.brandDark} />
+                <Text style={chatStyles.name}>No messages yet</Text>
+                <Text style={[chatStyles.muted, chatStyles.center]}>Start the conversation by sending your first message.</Text>
+              </View>
             ) : undefined
           }
           ListFooterComponent={
@@ -392,11 +461,11 @@ export default function ConversationThread({
             <Text style={chatStyles.error} accessibilityLiveRegion="polite">
               {fileError || chat.error}
             </Text>
-            <Button
+            {!keyboardVisible ? <Button
               title="Refresh conversation"
               variant="link"
               onPress={chat.refresh}
-            />
+            /> : null}
           </View>
         ) : null}
         {chat.uncertain ? (
@@ -416,7 +485,7 @@ export default function ConversationThread({
         conversation?.applicationStatus === 'REJECTED' ? (
           <View style={chatStyles.notice}>
             <Text style={chatStyles.body}>
-              This application was rejected. You can still read messages and
+              This conversation is read-only. You can still read messages and
               open files.
             </Text>
           </View>
@@ -457,13 +526,15 @@ export default function ConversationThread({
               <View style={chatStyles.inputPill}>
                 <TextInput
                   selectionColor={colors.brand}
+                  ref={composer}
                   accessibilityLabel="Message"
                   placeholder="Message"
                   placeholderTextColor="#667781"
                   multiline
                   maxLength={2000}
                   value={body}
-                  editable={!disabled}
+                  editable={canCompose}
+                  submitBehavior="newline"
                   style={chatStyles.input}
                   onChangeText={value => {
                     setBody(value);
@@ -524,6 +595,7 @@ export default function ConversationThread({
         {details && conversation ? (
           <ConversationDetails
             conversation={conversation}
+            invitation={invitation}
             onClose={() => setDetails(false)}
           />
         ) : null}

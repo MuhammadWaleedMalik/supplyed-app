@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSessionVersion } from '../../../../utils/api/session';
+import { useSessionState } from '../../../../utils/ui/useSessionState';
+import {
+  isInAgenda,
+  type AgendaView,
+} from '../../../../utils/jobs/bookingAgenda';
 import {
   type Booking,
   type BookingInvoiceFilter,
   type BookingQuery,
   type BookingStatus,
   getMyBookingsPage,
+  type BookingsPage,
 } from '../apis/bookingsApi';
 
 export type BookingFilters = {
+  agenda: AgendaView;
   status: 'ALL' | BookingStatus;
   search: string;
   from: string;
@@ -17,7 +24,8 @@ export type BookingFilters = {
 };
 
 const initialFilters: BookingFilters = {
-  status: 'ALL',
+  agenda: 'All',
+  status: 'CONFIRMED',
   search: '',
   from: '',
   to: '',
@@ -44,6 +52,33 @@ function rangeError(filters: BookingFilters) {
   return from > to ? 'The from date must be before the to date.' : '';
 }
 
+async function loadAgendaBatch(
+  filters: BookingFilters,
+  firstPage: number,
+  isCurrent: () => boolean,
+): Promise<BookingsPage> {
+  const rows: Booking[] = [];
+  let result: BookingsPage;
+  let nextPage = firstPage;
+  // Scan bounded pages so today's ongoing work is not hidden behind future work.
+  // The contract does not define whether date filters mean start dates or overlaps.
+  // Classify the returned date ranges locally instead of assuming server semantics.
+  do {
+    result = await getMyBookingsPage(queryFromFilters(filters, nextPage));
+    if (result.pagination.page !== nextPage)
+      throw new Error('Unable to read the next bookings page. Please refresh.');
+    rows.push(...result.bookings);
+    nextPage += 1;
+  } while (
+    isCurrent() &&
+    filters.agenda !== 'All' &&
+    result.pagination.hasNextPage &&
+    !rows.some(booking => isInAgenda(booking, filters.agenda)) &&
+    nextPage < firstPage + 5
+  );
+  return { ...result, bookings: rows };
+}
+
 function errorMessage(problem: unknown) {
   return problem instanceof Error
     ? problem.message
@@ -51,7 +86,10 @@ function errorMessage(problem: unknown) {
 }
 
 export function useBookings() {
-  const [filters, setFilters] = useState<BookingFilters>(initialFilters);
+  const [filters, setFilters] = useSessionState<BookingFilters>(
+    'bookings.filters.v2',
+    initialFilters,
+  );
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -82,7 +120,13 @@ export function useBookings() {
     setLoadingMore(false);
     setError('');
     try {
-      const result = await getMyBookingsPage(queryFromFilters(nextFilters, 1));
+      const result = await loadAgendaBatch(
+        nextFilters,
+        1,
+        () =>
+          request === requestId.current &&
+          sessionVersion === getSessionVersion(),
+      );
       if (
         request !== requestId.current ||
         sessionVersion !== getSessionVersion()
@@ -129,8 +173,12 @@ export function useBookings() {
     const request = requestId.current;
     const sessionVersion = getSessionVersion();
     try {
-      const result = await getMyBookingsPage(
-        queryFromFilters(filtersRef.current, page.current + 1),
+      const result = await loadAgendaBatch(
+        filtersRef.current,
+        page.current + 1,
+        () =>
+          request === requestId.current &&
+          sessionVersion === getSessionVersion(),
       );
       if (
         request !== requestId.current ||
@@ -152,8 +200,10 @@ export function useBookings() {
       )
         setError(errorMessage(problem));
     } finally {
-      requestInFlight.current = false;
-      if (request === requestId.current) setLoadingMore(false);
+      if (request === requestId.current) {
+        requestInFlight.current = false;
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -161,11 +211,14 @@ export function useBookings() {
     key: Key,
     value: BookingFilters[Key],
   ) {
+    setBookings([]);
+    setHasMore(false);
     setFilters(current => ({ ...current, [key]: value }));
   }
 
   return {
-    bookings,
+    bookings: bookings.filter(booking => isInAgenda(booking, filters.agenda)),
+    loadedCount: bookings.length,
     filters,
     loading,
     loadingMore,
@@ -173,7 +226,11 @@ export function useBookings() {
     error,
     setError,
     setFilter,
-    clearFilters: () => setFilters(initialFilters),
+    clearFilters: () => {
+      setBookings([]);
+      setHasMore(false);
+      setFilters(initialFilters);
+    },
     loadMore,
     reload: () => loadFirst(),
   };

@@ -1,0 +1,51 @@
+--- a/src/modules/applications/applications.service.ts
++++ b/src/modules/applications/applications.service.ts
+@@ -193,6 +193,7 @@
+       toStatus,
+       changedBy: user.id,
+       institutionId,
++      allowInactiveInstitution: user.role === Role.ADMIN,
+     });
+ 
+     if (!updated) {
+--- a/src/modules/applications/applications.repository.ts
++++ b/src/modules/applications/applications.repository.ts
+@@ -1,5 +1,5 @@
+-import { Injectable, NotFoundException } from '@nestjs/common';
+-import { ApplicationStatus, Prisma } from '@prisma/client';
++import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
++import { ApplicationStatus, JobStatus, Prisma, ProfileStatus } from '@prisma/client';
+ import { PrismaService } from '../../prisma/prisma.service';
+ import { POSITION_FILLING_BOOKING_STATUSES } from '../bookings/booking-status';
+ import { assertAcceptingApplications } from '../jobs/job-listing-window';
+@@ -152,6 +152,8 @@
+     changedBy: string;
+     /** Required for a hire: the institution profile the booking is made with. */
+     institutionId?: string;
++    /** Admins retain the service's existing permission to hire on a school's behalf. */
++    allowInactiveInstitution?: boolean;
+   }) {
+     const { id, jobId, instructorId, fromStatus, toStatus, changedBy, institutionId } = params;
+     const isHire = toStatus === ApplicationStatus.HIRED;
+@@ -165,6 +167,21 @@
+       // return a clearer error, and cannot bind two concurrent hires.
+       if (isHire) {
+         await lockHiringRows(tx, jobId, instructorId);
++        await tx.$queryRaw`SELECT id FROM "InstitutionProfile" WHERE id = ${institutionId!} FOR UPDATE`;
++        // Read profile and moderation state after the locks, so suspension
++        // cannot slip between the service's pre-check and the booking write.
++        const instructor = await tx.instructorProfile.findUnique({ where: { id: instructorId } });
++        const institution = await tx.institutionProfile.findUnique({ where: { id: institutionId! } });
++        const currentJob = await tx.job.findUniqueOrThrow({ where: { id: jobId } });
++        if (!instructor || instructor.status !== ProfileStatus.ACTIVE) {
++          throw new BadRequestException('The instructor must have an active profile before hiring');
++        }
++        if (!institution || (!params.allowInactiveInstitution && institution.status !== ProfileStatus.ACTIVE)) {
++          throw new ForbiddenException('An active school profile is required before hiring');
++        }
++        if (!params.allowInactiveInstitution && currentJob.status === JobStatus.SUSPENDED) {
++          throw new ForbiddenException('This job has been suspended by an admin');
++        }
+ 
+         if (await positionIsFilled(tx, jobId)) {
+           return null;

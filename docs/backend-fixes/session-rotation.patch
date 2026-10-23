@@ -1,0 +1,552 @@
+--- /dev/null
++++ b/src/modules/auth/refresh-tokens.repository.ts
+@@ -0,0 +1,50 @@
++import { Injectable } from '@nestjs/common';
++import { PrismaService } from '../../prisma/prisma.service';
++
++@Injectable()
++export class RefreshTokensRepository {
++  constructor(private readonly prisma: PrismaService) {}
++
++  findActive(id: string, userId: string, tokenHash: string) {
++    return this.prisma.refreshToken.findFirst({
++      where: { id, userId, tokenHash, revokedAt: null, expiresAt: { gt: new Date() } },
++    });
++  }
++
++  async save(
++    id: string,
++    userId: string,
++    tokenHash: string,
++    expiresAt: Date,
++    previousHash?: string,
++    expectedPassword?: string | null,
++  ): Promise<boolean> {
++    return this.prisma.$transaction(async (transaction) => {
++      // Password reset uses this same user lock before revoking refresh sessions.
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({
++        where: { id: userId },
++        select: { emailVerified: true, password: true },
++      });
++      if (!user?.emailVerified) return false;
++      if (expectedPassword !== undefined && user.password !== expectedPassword) return false;
++      if (previousHash) {
++        const rotated = await transaction.refreshToken.updateMany({
++          where: { id, userId, tokenHash: previousHash, revokedAt: null, expiresAt: { gt: new Date() } },
++          data: { tokenHash, expiresAt },
++        });
++        return rotated.count === 1;
++      }
++      await transaction.refreshToken.create({ data: { id, userId, tokenHash, expiresAt } });
++      return true;
++    });
++  }
++
++  revoke(id: string, userId: string) {
++    // A signed session ID also revokes a just-rotated token if logout races refresh.
++    return this.prisma.refreshToken.updateMany({
++      where: { id, userId, revokedAt: null },
++      data: { revokedAt: new Date() },
++    });
++  }
++}
+--- a/src/modules/auth/auth-token.constants.ts
++++ b/src/modules/auth/auth-token.constants.ts
+@@ -32,6 +32,8 @@
+   otpPurpose?: OtpTokenPurpose;
+   challengeId?: string;
+   twoFactorVerified?: boolean;
++  jti?: string;
++  sessionId?: string;
+ }
+ 
+ export { otpTokenSecret } from './jwt-secrets';
+--- a/src/modules/auth/auth.module.ts
++++ b/src/modules/auth/auth.module.ts
+@@ -6,6 +6,7 @@
+ import { GoogleOAuthModule } from '../google-oauth/google-oauth.module';
+ import { AuthController } from './auth.controller';
+ import { AuthService } from './auth.service';
++import { RefreshTokensRepository } from './refresh-tokens.repository';
+ import { JwtStrategy } from './auth.strategy';
+ import { EmailVerificationOtpRepository } from './email-verification-otp.repository';
+ import { PasswordResetOtpRepository } from './password-reset-otp.repository';
+@@ -32,6 +33,7 @@
+   controllers: [AuthController],
+   providers: [
+     AuthService,
++    RefreshTokensRepository,
+     JwtStrategy,
+     OtpStrategy,
+     OtpAuthGuard,
+--- a/src/modules/auth/auth.service.ts
++++ b/src/modules/auth/auth.service.ts
+@@ -2,13 +2,13 @@
+   BadRequestException,
+   ConflictException,
+   HttpException,
+-  HttpStatus,
+   Injectable,
+   UnauthorizedException,
+ } from '@nestjs/common';
+ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
+ import * as bcrypt from 'bcrypt';
+-import { randomUUID } from 'node:crypto';
++import { createHash, randomUUID } from 'node:crypto';
++import { RefreshTokensRepository } from './refresh-tokens.repository';
+ import { Role, type SignupRole } from '../../common/enums/role.enum';
+ import { generateOtp, otpMaxAttempts, otpTtlMinutes } from '../../common/otp/otp-policy';
+ import { UsersService } from '../users/users.service';
+@@ -61,6 +61,7 @@
+     private readonly mailService: EmailService,
+     private readonly googleOAuthService: GoogleOAuthService,
+     private readonly twoFactorService: TwoFactorService,
++    private readonly refreshTokens: RefreshTokensRepository,
+   ) {}
+ 
+   async register(registerDto: RegisterDto) {
+@@ -127,7 +128,11 @@
+       });
+       const user = await this.usersService.findById(payload.sub);
+ 
+-      if (payload.tokenType !== AUTH_TOKEN_TYPE.REFRESH || !user?.emailVerified) {
++      if (payload.tokenType !== AUTH_TOKEN_TYPE.REFRESH || !payload.sessionId || !payload.jti || !user?.emailVerified) {
++        throw new UnauthorizedException('Invalid refresh token');
++      }
++      const tokenHash = this.hashRefreshToken(refreshToken);
++      if (!(await this.refreshTokens.findActive(payload.sessionId, user.id, tokenHash))) {
+         throw new UnauthorizedException('Invalid refresh token');
+       }
+ 
+@@ -139,11 +144,41 @@
+ 
+       return {
+         user: UserResponseDto.fromUser({ ...user, twoFactorEnabled }),
+-        ...(await this.signTokens(user, payload.twoFactorVerified === true)),
++        ...(await this.signTokens(user, payload.twoFactorVerified === true, {
++          sessionId: payload.sessionId,
++          tokenHash,
++        })),
+       };
+-    } catch {
+-      throw new UnauthorizedException('Invalid refresh token');
+-    }
++    } catch (error) {
++      if (
++        error instanceof UnauthorizedException ||
++        (error instanceof Error && ['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError'].includes(error.name))
++      )
++        throw new UnauthorizedException('Invalid refresh token');
++      throw error;
++    }
++  }
++
++  async logout(refreshToken: string) {
++    try {
++      const payload = await this.jwtService.verifyAsync<AuthTokenPayload>(refreshToken, { secret: this.refreshSecret });
++      if (payload.tokenType !== AUTH_TOKEN_TYPE.REFRESH || !payload.sessionId || !payload.jti) {
++        throw new UnauthorizedException('Invalid refresh token');
++      }
++      await this.refreshTokens.revoke(payload.sessionId, payload.sub);
++      return { loggedOut: true };
++    } catch (error) {
++      if (
++        error instanceof UnauthorizedException ||
++        (error instanceof Error && ['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError'].includes(error.name))
++      )
++        throw new UnauthorizedException('Invalid refresh token');
++      throw error;
++    }
++  }
++
++  private hashRefreshToken(token: string) {
++    return createHash('sha256').update(token).digest('hex');
+   }
+ 
+   async me(userId: string) {
+@@ -156,8 +191,9 @@
+   }
+ 
+   async verifyTwoFactorLogin(userId: string, challengeId: string | undefined, code: string) {
++    const user = await this.usersService.findByIdWithPassword(userId);
++    if (!user?.emailVerified) throw new UnauthorizedException('Invalid account');
+     await this.twoFactorService.verifyLoginChallenge(userId, challengeId, code);
+-    const user = await this.usersService.getById(userId);
+ 
+     return this.createLoginResponse(user, true);
+   }
+@@ -223,8 +259,7 @@
+         await this.issuePasswordResetOtp(user);
+       } catch (error) {
+         // A resend limit must not reveal whether this email belongs to an account.
+-        if (!(error instanceof HttpException) || error.getStatus() !== HttpStatus.TOO_MANY_REQUESTS)
+-          throw error;
++        if (!(error instanceof HttpException) || error.getStatus() !== 429) throw error;
+       }
+     }
+ 
+@@ -313,7 +348,12 @@
+     await this.mailService.sendPasswordResetOtp(user.email, otp);
+   }
+ 
+-  private async signTokens(user: { id: string; email: string; role: Role }, twoFactorVerified = false) {
++  private async signTokens(
++    user: { id: string; email: string; role: Role; password?: string | null },
++    twoFactorVerified = false,
++    previous?: { sessionId: string; tokenHash: string },
++  ) {
++    const sessionId = previous?.sessionId ?? randomUUID();
+     const payload = {
+       sub: user.id,
+       email: user.email,
+@@ -330,6 +370,8 @@
+         {
+           ...payload,
+           tokenType: AUTH_TOKEN_TYPE.REFRESH,
++          sessionId,
++          jti: randomUUID(),
+         } satisfies AuthTokenPayload,
+         {
+           secret: this.refreshSecret,
+@@ -340,6 +382,15 @@
+ 
+     const accessTokenExpiry = this.getTokenExpiry(accessToken);
+     const refreshTokenExpiry = this.getTokenExpiry(refreshToken);
++    const saved = await this.refreshTokens.save(
++      sessionId,
++      user.id,
++      this.hashRefreshToken(refreshToken),
++      new Date(refreshTokenExpiry.expiresAt),
++      previous?.tokenHash,
++      user.password,
++    );
++    if (!saved) throw new UnauthorizedException('Invalid refresh token');
+ 
+     return {
+       accessToken,
+@@ -368,9 +419,10 @@
+     id: string;
+     email: string;
+     role: Role;
++    password?: string | null;
+   }): Promise<AuthenticatedResponse | TwoFactorChallengeResponse> {
+     if (await this.twoFactorService.isEnabled(user.id)) {
+-      const challenge = await this.twoFactorService.createLoginChallenge(user.id);
++      const challenge = await this.twoFactorService.createLoginChallenge(user.id, user.password);
+ 
+       return {
+         twoFactorRequired: true,
+@@ -388,7 +440,7 @@
+   }
+ 
+   private async createLoginResponse(
+-    user: { id: string; email: string; role: Role },
++    user: { id: string; email: string; role: Role; password?: string | null },
+     twoFactorVerified = false,
+   ) {
+     const tokens = await this.signTokens(user, twoFactorVerified);
+--- a/src/modules/auth/auth.controller.ts
++++ b/src/modules/auth/auth.controller.ts
+@@ -55,6 +55,14 @@
+   @HttpCode(HttpStatus.OK)
+   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+     return this.authService.refresh(refreshTokenDto.refreshToken);
++  }
++
++  @Post('logout')
++  @Public()
++  @ResponseMessage('Session refresh access revoked successfully')
++  @HttpCode(HttpStatus.OK)
++  logout(@Body() dto: RefreshTokenDto) {
++    return this.authService.logout(dto.refreshToken);
+   }
+ 
+   @Post('email/otp/resend')
+--- a/src/modules/users/users.repository.ts
++++ b/src/modules/users/users.repository.ts
+@@ -83,6 +83,10 @@
+       omit: { password: true },
+       include: { twoFactorAuth: { select: { enabledAt: true } } },
+     });
++  }
++
++  findByIdWithPassword(id: string) {
++    return this.users.findUnique({ where: { id } }) as Promise<UserWithPasswordRecord | null>;
+   }
+ 
+   findByEmail(email: string) {
+@@ -155,9 +159,7 @@
+         skip,
+         take,
+         orderBy: [
+-          sortBy === 'lastLogin'
+-            ? { lastLogin: { sort: sortOrder, nulls: 'last' } }
+-            : { createdAt: sortOrder },
++          sortBy === 'lastLogin' ? { lastLogin: { sort: sortOrder, nulls: 'last' } } : { createdAt: sortOrder },
+           { id: 'desc' },
+         ],
+         omit: { password: true },
+@@ -197,9 +199,7 @@
+         },
+         data,
+       });
+-      return result.count === 1
+-        ? transaction.user.findUnique({ where: { id }, omit: { password: true } })
+-        : null;
++      return result.count === 1 ? transaction.user.findUnique({ where: { id }, omit: { password: true } }) : null;
+     });
+   }
+ 
+@@ -209,9 +209,7 @@
+         where: { id, phoneVerified: false },
+         data: { phone, phoneVerified: true },
+       });
+-      return result.count === 1
+-        ? transaction.user.findUnique({ where: { id }, omit: { password: true } })
+-        : null;
++      return result.count === 1 ? transaction.user.findUnique({ where: { id }, omit: { password: true } }) : null;
+     });
+   }
+ 
+--- a/src/modules/users/users.service.ts
++++ b/src/modules/users/users.service.ts
+@@ -35,10 +35,7 @@
+         phoneVerified: dto.phoneVerified ?? false,
+       });
+     } catch (error) {
+-      if (
+-        error instanceof Prisma.PrismaClientKnownRequestError &&
+-        error.code === PRISMA_ERROR_CODE.UNIQUE_CONSTRAINT
+-      ) {
++      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === PRISMA_ERROR_CODE.UNIQUE_CONSTRAINT) {
+         throw new ConflictException('Email is already registered');
+       }
+       throw error;
+@@ -55,6 +52,10 @@
+ 
+   findManyByIds(ids: string[]) {
+     return this.usersRepository.findManyByIds(ids);
++  }
++
++  findByIdWithPassword(id: string) {
++    return this.usersRepository.findByIdWithPassword(id);
+   }
+ 
+   findByEmail(email: string) {
+@@ -153,11 +154,7 @@
+     }
+ 
+     // A profile belongs to the role it was created under; changing the role would orphan it.
+-    if (
+-      updateUserInput.role &&
+-      updateUserInput.role !== current.role &&
+-      (await this.usersRepository.hasProfile(id))
+-    ) {
++    if (updateUserInput.role && updateUserInput.role !== current.role && (await this.usersRepository.hasProfile(id))) {
+       throw new ConflictException('The user has a profile; delete it before changing their role');
+     }
+ 
+--- a/src/modules/auth/password-reset-otp.repository.ts
++++ b/src/modules/auth/password-reset-otp.repository.ts
+@@ -66,6 +66,7 @@
+         where: { userId, revokedAt: null },
+         data: { revokedAt: now },
+       });
++      await transaction.twoFactorChallenge.deleteMany({ where: { userId } });
+       return true;
+     });
+   }
+--- a/src/modules/two-factor/two-factor.repository.ts
++++ b/src/modules/two-factor/two-factor.repository.ts
+@@ -1,4 +1,4 @@
+-import { Injectable } from '@nestjs/common';
++import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+ import { Prisma, type TwoFactorAuthentication, type TwoFactorChallenge } from '@prisma/client';
+ import { PrismaService } from '../../prisma/prisma.service';
+ 
+@@ -12,10 +12,7 @@
+     return this.prisma.twoFactorAuthentication.findUnique({ where: { userId } });
+   }
+ 
+-  async replacePendingSecret(
+-    userId: string,
+-    secretEncrypted: string,
+-  ): Promise<TwoFactorAuthentication | null> {
++  async replacePendingSecret(userId: string, secretEncrypted: string): Promise<TwoFactorAuthentication | null> {
+     const updated = await this.prisma.twoFactorAuthentication.updateMany({
+       where: { userId, enabledAt: null },
+       data: {
+@@ -51,12 +48,7 @@
+     }
+   }
+ 
+-  async enable(
+-    userId: string,
+-    step: number,
+-    recoveryCodeHashes: string[],
+-    secretEncrypted: string,
+-  ): Promise<boolean> {
++  async enable(userId: string, step: number, recoveryCodeHashes: string[], secretEncrypted: string): Promise<boolean> {
+     const result = await this.prisma.twoFactorAuthentication.updateMany({
+       where: { userId, enabledAt: null, secretEncrypted },
+       data: {
+@@ -69,13 +61,35 @@
+     return result.count === 1;
+   }
+ 
+-  async createChallenge(userId: string, expiresAt: Date): Promise<TwoFactorChallenge> {
++  async createChallenge(
++    userId: string,
++    expiresAt: Date,
++    maxAttempts = 5,
++    expectedPassword?: string | null,
++  ): Promise<TwoFactorChallenge> {
+     return this.prisma.$transaction(async (transaction) => {
++      // A reset takes this lock and deletes challenges. Old-password login must not create or reuse one afterward.
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({
++        where: { id: userId },
++        select: { emailVerified: true, password: true },
++      });
++      if (!user?.emailVerified || (expectedPassword !== undefined && user.password !== expectedPassword)) {
++        throw new UnauthorizedException('Invalid account');
++      }
++      const existing = await transaction.twoFactorChallenge.findFirst({
++        where: { userId, expiresAt: { gt: new Date() } },
++        orderBy: { createdAt: 'desc' },
++      });
++      if (existing && existing.attempts >= maxAttempts) {
++        throw new HttpException(
++          'Too many invalid two-factor authentication attempts; try again later',
++          HttpStatus.TOO_MANY_REQUESTS,
++        );
++      }
++      if (existing && !existing.consumedAt) return existing;
+       await transaction.twoFactorChallenge.deleteMany({ where: { userId } });
+-
+-      return transaction.twoFactorChallenge.create({
+-        data: { userId, expiresAt },
+-      });
++      return transaction.twoFactorChallenge.create({ data: { userId, expiresAt } });
+     });
+   }
+ 
+@@ -111,12 +125,7 @@
+     });
+   }
+ 
+-  completeChallengeWithTotp(
+-    challengeId: string,
+-    userId: string,
+-    step: number,
+-    maxAttempts: number,
+-  ): Promise<boolean> {
++  completeChallengeWithTotp(challengeId: string, userId: string, step: number, maxAttempts: number): Promise<boolean> {
+     return this.completeTransaction(async (transaction) => {
+       await this.consumeChallenge(transaction, challengeId, userId, maxAttempts);
+       const authentication = await transaction.twoFactorAuthentication.updateMany({
+--- a/src/modules/two-factor/two-factor.service.ts
++++ b/src/modules/two-factor/two-factor.service.ts
+@@ -1,11 +1,4 @@
+-import {
+-  BadRequestException,
+-  ConflictException,
+-  HttpException,
+-  HttpStatus,
+-  Injectable,
+-  UnauthorizedException,
+-} from '@nestjs/common';
++import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+ import { UsersService } from '../users/users.service';
+ import { TwoFactorCryptoService } from './two-factor-crypto.service';
+ import { TwoFactorRepository } from './two-factor.repository';
+@@ -27,10 +20,7 @@
+     }
+ 
+     const secret = this.crypto.generateSecret();
+-    const authentication = await this.repository.replacePendingSecret(
+-      userId,
+-      this.crypto.encryptSecret(secret),
+-    );
++    const authentication = await this.repository.replacePendingSecret(userId, this.crypto.encryptSecret(secret));
+ 
+     if (!authentication) {
+       throw new ConflictException('Two-factor authentication is already enabled');
+@@ -97,32 +87,16 @@
+     return Boolean(authentication?.enabledAt);
+   }
+ 
+-  async createLoginChallenge(userId: string) {
+-    const expiresInMinutes = this.challengeTtlMinutes;
+-    const existing = await this.repository.findLatestUnexpiredChallenge(userId);
+-
+-    if (existing && existing.attempts >= this.maxAttempts) {
+-      throw new HttpException(
+-        'Too many invalid two-factor authentication attempts; try again later',
+-        HttpStatus.TOO_MANY_REQUESTS,
+-      );
+-    }
+-
+-    if (existing && !existing.consumedAt) {
+-      return {
+-        challengeId: existing.id,
+-        expiresInMinutes: Math.max(1, Math.ceil((existing.expiresAt.getTime() - Date.now()) / 60_000)),
+-      };
+-    }
+-
++  async createLoginChallenge(userId: string, expectedPassword?: string | null) {
+     const challenge = await this.repository.createChallenge(
+       userId,
+-      new Date(Date.now() + expiresInMinutes * 60 * 1000),
++      new Date(Date.now() + this.challengeTtlMinutes * 60 * 1000),
++      this.maxAttempts,
++      expectedPassword,
+     );
+-
+     return {
+       challengeId: challenge.id,
+-      expiresInMinutes,
++      expiresInMinutes: Math.max(1, Math.ceil((challenge.expiresAt.getTime() - Date.now()) / 60_000)),
+     };
+   }
+ 
+@@ -140,13 +114,7 @@
+       throw this.invalidCode();
+     }
+ 
+-    const completed = await this.completeChallenge(
+-      authentication,
+-      challengeId,
+-      userId,
+-      code,
+-      this.maxAttempts,
+-    );
++    const completed = await this.completeChallenge(authentication, challengeId, userId, code, this.maxAttempts);
+ 
+     if (!completed) {
+       const consume = challenge.attempts + 1 >= this.maxAttempts;
+@@ -188,11 +156,7 @@
+     const recoveryCodes = this.crypto.generateRecoveryCodes();
+     const hashes = recoveryCodes.map((recoveryCode) => this.crypto.hashRecoveryCode(recoveryCode));
+     const replaced = this.crypto.isRecoveryCode(code)
+-      ? await this.repository.replaceRecoveryCodesWithRecoveryCode(
+-          userId,
+-          this.crypto.hashRecoveryCode(code),
+-          hashes,
+-        )
++      ? await this.repository.replaceRecoveryCodesWithRecoveryCode(userId, this.crypto.hashRecoveryCode(code), hashes)
+       : await this.replaceRecoveryCodesWithTotp(userId, authentication.secretEncrypted, code, hashes);
+ 
+     if (!replaced) {
+@@ -232,9 +196,7 @@
+     const secret = this.crypto.decryptSecret(authentication.secretEncrypted);
+     const step = this.crypto.findMatchingTotpStep(secret, code);
+ 
+-    return step === null
+-      ? false
+-      : this.repository.completeChallengeWithTotp(challengeId, userId, step, maxAttempts);
++    return step === null ? false : this.repository.completeChallengeWithTotp(challengeId, userId, step, maxAttempts);
+   }
+ 
+   private async getEnabledAuthentication(userId: string) {

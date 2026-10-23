@@ -1,8 +1,10 @@
 import { useTheme } from '../../../../components/Ui/theme';
-import React, { useRef } from 'react';
-import { ActivityIndicator, Modal, ScrollView, Text, View } from 'react-native';
+import JobRecordDetails from '../../../../components/dashboard/JobRecordDetails';
+import DetailHeader from '../../../../components/Ui/DetailHeader';
+import JobActions from '../../../../components/dashboard/JobActions';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Modal, ScrollView, Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
 import Button from '../../../../components/Ui/Button';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import JobPostingFlow from '../../../../components/dashboard/JobPostingFlow';
@@ -16,17 +18,44 @@ export default function SchoolJobsScreen() {
 
   const jobs = useSchoolJobs();
   const scrollStarted = useRef(false);
+  const formScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => {
+    formScroll.current?.scrollTo({ y: 0, animated: false });
+  }, [jobs.postingStep]);
 
   if (jobs.postingStep) {
     return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.page}>
+      <ScrollView
+        ref={formScroll}
+        style={styles.scroll}
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
+        <Text style={styles.title}>
+          {jobs.editingJob
+            ? 'Edit job'
+            : jobs.duplicating
+            ? 'Duplicate as draft'
+            : 'Post a job'}
+        </Text>
+        {jobs.duplicating ? (
+          <Text style={styles.cardBody}>
+            Dates have been cleared. Review the pay and role details before
+            saving this new draft. Publish it later from Edit draft.
+          </Text>
+        ) : null}
         <JobPostingFlow
+          draftOnly={jobs.duplicating}
+          published={jobs.editingJob?.status === 'ACTIVE'}
           step={jobs.postingStep}
           form={jobs.form}
           error={jobs.error}
           loading={jobs.saving}
           onMode={jobs.chooseMode}
           onChange={jobs.change}
+          onAddressMode={jobs.changeAddressMode}
+          schoolAddress={jobs.schoolAddress}
           onNext={jobs.continueToRequirements}
           onBack={jobs.previousStep}
           onClose={jobs.cancelPosting}
@@ -87,80 +116,13 @@ export default function SchoolJobsScreen() {
         >
           <SafeAreaProvider>
             <SafeAreaView style={styles.safeArea}>
-              <View style={styles.detailHeader}>
-                <Button
-                  title="Back to jobs"
-                  variant="link"
-                  icon={<ArrowLeft size={20} color={colors.brandDark} />}
-                  onPress={jobs.closeJob}
-                />
-              </View>
-              <ScrollView
-                contentContainerStyle={styles.page}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View style={styles.card}>
-                  <Text style={styles.title}>{jobs.selectedJob.title}</Text>
-                  <Text style={styles.cardBody}>
-                    {jobs.selectedJob.status || 'DRAFT'} ·{' '}
-                    {jobs.selectedJob.subject || 'Teaching role'}
-                  </Text>
-                  <Text style={styles.cardBody}>
-                    {jobs.selectedJob.description || 'No description provided.'}
-                  </Text>
-                  <Text style={styles.cardTitle}>Location</Text>
-                  <Text style={styles.cardBody}>
-                    {[
-                      jobs.selectedJob.address,
-                      jobs.selectedJob.city,
-                      jobs.selectedJob.county,
-                      jobs.selectedJob.postalCode,
-                    ]
-                      .filter(Boolean)
-                      .join(', ') || 'Location pending'}
-                  </Text>
-                  <Text style={styles.cardTitle}>Dates and pay</Text>
-                  <Text style={styles.cardBody}>
-                    {jobs.selectedJob.startDate?.slice(0, 10) ||
-                      'Flexible start'}
-                    {jobs.selectedJob.endDate
-                      ? ' to ' + jobs.selectedJob.endDate.slice(0, 10)
-                      : ''}
-                  </Text>
-                  <Text style={styles.cardBody}>
-                    {jobs.selectedJob.payAmount != null
-                      ? 'GBP ' +
-                        jobs.selectedJob.payAmount.toFixed(2) +
-                        ' / ' +
-                        (jobs.selectedJob.payType || 'booking')
-                      : 'Pay not specified'}
-                  </Text>
-                  {jobs.selectedJob.keyStages?.length ? (
-                    <Text style={styles.cardBody}>
-                      Key stages: {jobs.selectedJob.keyStages.join(', ')}
-                    </Text>
-                  ) : null}
-                  {jobs.selectedJob.requiredSkills?.length ? (
-                    <Text style={styles.cardBody}>
-                      Skills: {jobs.selectedJob.requiredSkills.join(', ')}
-                    </Text>
-                  ) : null}
-                  {jobs.selectedJob.minExperienceYears != null ? (
-                    <Text style={styles.cardBody}>
-                      Experience: {jobs.selectedJob.minExperienceYears} years
-                    </Text>
-                  ) : null}
-                  {jobs.selectedJob.parkingInfo ? (
-                    <Text style={styles.cardBody}>
-                      Parking: {jobs.selectedJob.parkingInfo}
-                    </Text>
-                  ) : null}
-                </View>
-                <SchoolApplicationsScreen
-                  key={jobs.selectedJob.id}
-                  jobId={jobs.selectedJob.id}
-                />
-              </ScrollView>
+              <DetailHeader title="Job details" subtitle="Placement and candidates" onBack={jobs.closeJob} backLabel="Return to jobs" />
+              <SchoolApplicationsScreen key={jobs.selectedJob.id} jobId={jobs.selectedJob.id} header={<JobRecordDetails job={jobs.selectedJob} actions={<>
+                {['DRAFT', 'ACTIVE'].includes(jobs.selectedJob.status || '') ? <Button title={jobs.selectedJob.status === 'ACTIVE' ? 'Edit job' : 'Edit draft'} variant="outline" disabled={jobs.openingEditor} onPress={() => jobs.selectedJob && jobs.openEditor(jobs.selectedJob)} /> : null}
+                <Button title="Duplicate as draft" variant="outline" disabled={jobs.openingEditor} onPress={() => jobs.selectedJob && jobs.openEditor(jobs.selectedJob, true)} />
+                <JobActions job={jobs.selectedJob} onChanged={jobs.refreshJobs} />
+                {jobs.error ? <Text accessibilityRole="alert" style={styles.cardBody}>{jobs.error}</Text> : null}
+              </>} />} />
             </SafeAreaView>
           </SafeAreaProvider>
         </Modal>

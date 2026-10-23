@@ -35,14 +35,16 @@ export default function TwoFactorSetupCard(props: Props) {
       />
       <View style={securityStyles.notice}>
         <Text style={securityStyles.noticeText}>
-          {enabled
+          {!props.status
+            ? 'Your security settings have not loaded yet.'
+            : enabled
             ? 'Two-factor authentication is enabled on this account.'
             : props.setup
             ? 'Scan the QR code, then enter the current code from your app.'
             : 'Two-factor authentication is not enabled yet. Start setup when ready.'}
         </Text>
       </View>
-      {!enabled && !props.setup ? (
+      {props.status && !enabled && !props.setup ? (
         <Button
           title={props.busy ? 'Starting...' : 'Start 2FA setup'}
           disabled={props.busy}

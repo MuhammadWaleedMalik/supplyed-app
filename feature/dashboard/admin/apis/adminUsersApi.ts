@@ -64,8 +64,15 @@ export function createAdminUser(fields: AdminUserFields) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())) {
     throw new Error('Enter a valid email address.');
   }
-  if (fields.password.length < 8) {
-    throw new Error('Use a password with at least eight characters.');
+  if (
+    fields.password.length < 8 ||
+    !/[A-Z]/.test(fields.password) ||
+    !/\d/.test(fields.password) ||
+    !/[^A-Za-z0-9]/.test(fields.password)
+  ) {
+    throw new Error(
+      'Use at least eight characters, an uppercase letter, a number and a special character.',
+    );
   }
   if (fields.name.trim().length > 200) {
     throw new Error('Names can contain up to 200 characters.');
@@ -88,6 +95,8 @@ export function updateAdminUser(current: AdminUser, fields: AdminUserUpdate) {
     fields.phoneVerified ??
     (phone === (current.phone || '') && current.phoneVerified === true);
   validatePhone(phone, phoneVerified);
+  if ((fields.name?.trim().length || 0) > 200)
+    throw new Error('Names can contain up to 200 characters.');
   return protectedRequest<AdminUser>(
     endpoints.adminUsers + '/' + encodeURIComponent(current.id),
     'PATCH',

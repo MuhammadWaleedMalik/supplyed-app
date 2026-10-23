@@ -1,11 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import {
-  findJobTypes,
-  jobKeyStages,
-  jobSubjects,
-} from '../../constants/jobOptions';
-import Select from '../Ui/Select';
+import FilterSheet from '../Ui/FilterSheet';
+import FilterButton from '../Ui/FilterButton';
+import DynamicSelect from '../Ui/DynamicSelect';
 import { useStyles } from './dashboardStyles';
 
 type Props = {
@@ -26,31 +23,63 @@ export default function FindJobFilters({
   onSubject,
 }: Props) {
   const styles = useStyles();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ roleType, keyStage, subject });
+  const count = [
+    roleType !== 'All jobs' && roleType,
+    keyStage !== 'All stages' && keyStage,
+    subject !== 'All subjects' && subject,
+  ].filter(Boolean).length;
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.eyebrow}>FILTERS</Text>
-      <Select
-        label="ROLE TYPE"
-        value={roleType}
-        placeholder="Role type"
-        options={findJobTypes}
-        onChange={onRoleType}
-      />
-      <Select
-        label="KEY STAGE"
-        value={keyStage}
-        placeholder="Key stage"
-        options={['All stages', ...jobKeyStages]}
-        onChange={onKeyStage}
-      />
-      <Select
-        label="SUBJECT"
-        value={subject}
-        placeholder="Subject"
-        options={['All subjects', ...jobSubjects]}
-        onChange={onSubject}
-      />
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.cardBody}>
+          {count ? `${count} filters applied` : 'All teaching opportunities'}
+        </Text>
+        <FilterButton
+          count={count}
+          onPress={() => {
+            setDraft({ roleType, keyStage, subject });
+            setOpen(true);
+          }}
+        />
+      </View>
+      <FilterSheet
+        visible={open}
+        title="Filter jobs"
+        onClose={() => setOpen(false)}
+        onReset={() => setDraft({ roleType: '', keyStage: '', subject: '' })}
+        onApply={() => {
+          onRoleType(draft.roleType || 'All jobs');
+          onKeyStage(draft.keyStage || 'All stages');
+          onSubject(draft.subject || 'All subjects');
+          setOpen(false);
+        }}
+      >
+        <DynamicSelect
+          label="Urgency"
+          value={draft.roleType === 'All jobs' ? '' : draft.roleType}
+          placeholder="All jobs"
+          name="discoveryUrgency"
+          onChange={value => setDraft({ ...draft, roleType: value })}
+        />
+        <DynamicSelect
+          label="Key stage"
+          value={draft.keyStage === 'All stages' ? '' : draft.keyStage}
+          placeholder="All key stages"
+          name="keyStage"
+          onChange={value => setDraft({ ...draft, keyStage: value })}
+        />
+        <DynamicSelect
+          label="Subject"
+          value={draft.subject === 'All subjects' ? '' : draft.subject}
+          placeholder="All subjects"
+          name="subject"
+          exclude={['Other']}
+          onChange={value => setDraft({ ...draft, subject: value })}
+        />
+      </FilterSheet>
     </View>
   );
 }

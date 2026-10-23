@@ -29,11 +29,17 @@ export function usePayoutAccount() {
   // The ref also blocks two taps before React has rendered the disabled button.
   const actionRunning = useRef(false);
   const requestId = useRef(0);
+  const mounted = useRef(true);
+  const session = useRef(getSessionVersion()).current;
+  const isActive = useCallback(
+    () => mounted.current && getSessionVersion() === session,
+    [session],
+  );
 
   const refresh = useCallback(async () => {
+    if (!isActive()) return false;
     const request = ++requestId.current;
-    const version = getSessionVersion();
-    const active = () => request === requestId.current && getSessionVersion() === version;
+    const active = () => request === requestId.current && isActive();
     setLoading(true);
     setNeedsRefresh(true);
     setError('');
@@ -57,19 +63,24 @@ export function usePayoutAccount() {
     } finally {
       if (active()) setLoading(false);
     }
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
+    mounted.current = true;
     refresh();
     const subscription = AppState.addEventListener('change', state => {
       // Stripe updates arrive through the backend, so read them again on return.
       if (state === 'active') refresh();
     });
-    return () => { requestId.current += 1; subscription.remove(); };
+    return () => {
+      mounted.current = false;
+      requestId.current += 1;
+      subscription.remove();
+    };
   }, [refresh]);
 
   async function openPayouts() {
-    if (actionRunning.current || loading) return;
+    if (!isActive() || actionRunning.current || loading) return;
     actionRunning.current = true;
     setBusy(true);
     setError('');
@@ -81,6 +92,7 @@ export function usePayoutAccount() {
         try {
           link = await createPayoutDashboardLink();
         } catch (problem) {
+          if (!isActive()) return;
           if (!(problem instanceof ApiError) || problem.status !== 400)
             throw problem;
           setNotice(
@@ -89,17 +101,18 @@ export function usePayoutAccount() {
           return;
         }
       } else link = await createPayoutOnboardingLink();
+      if (!isActive()) return;
       await openStripeConnect(link.url);
     } catch (problem) {
-      setError(errorMessage(problem));
+      if (isActive()) setError(errorMessage(problem));
     } finally {
       actionRunning.current = false;
-      setBusy(false);
+      if (isActive()) setBusy(false);
     }
   }
 
   async function withdraw(amountPence?: number) {
-    if (actionRunning.current || loading || needsRefresh) return;
+    if (!isActive() || actionRunning.current || loading || needsRefresh) return;
     const requested = amountPence ?? balance?.instantAvailablePence ?? 0;
     if (!account?.ready || !balance?.instantDestination) {
       setError(
@@ -122,6 +135,7 @@ export function usePayoutAccount() {
     setNotice('');
     try {
       const payout = await createInstantPayout(amountPence);
+      if (!isActive()) return;
       setNotice(
         'Withdrawal requested. Status: ' +
           payout.status.replace(/_/g, ' ') +
@@ -131,6 +145,7 @@ export function usePayoutAccount() {
       setNeedsRefresh(true);
       await refresh();
     } catch (problem) {
+      if (!isActive()) return;
       if (payoutResultIsUncertain(problem)) {
         setNeedsRefresh(true);
         setNotice(
@@ -147,7 +162,7 @@ export function usePayoutAccount() {
       }
     } finally {
       actionRunning.current = false;
-      setBusy(false);
+      if (isActive()) setBusy(false);
     }
   }
 

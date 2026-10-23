@@ -1,4 +1,5 @@
-import * as options from '../../constants/waitlistOptions';
+import { normalizeUkPhone } from '../auth/ukPhone';
+
 import {
   FoundingInterest,
   WaitlistType,
@@ -34,9 +35,8 @@ export function validateWaitlist(
     if (value.length < min || value.length > max)
       errors[field] = `Enter between ${min} and ${max} characters.`;
   }
-  function choice(field: keyof WaitlistFormData, values: string[]) {
-    if (!values.includes(String(data[field])))
-      errors[field] = 'Choose an option.';
+  function choice(field: keyof WaitlistFormData) {
+    if (!String(data[field]).trim()) errors[field] = 'Choose an option.';
   }
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()) ||
@@ -46,26 +46,27 @@ export function validateWaitlist(
   if (type === 'SCHOOL') {
     text('name', 2, 120);
     text('organizationName', 2, 160);
-    choice('role', options.schoolRoles);
-    choice('area', options.schoolAreas);
-    choice('schoolType', options.schoolTypes);
-    choice('supplyDaysPerTerm', options.supplyDays);
-    choice('coverBookingMethod', options.bookingMethods);
+    choice('role');
+    choice('area');
+    choice('schoolType');
+    choice('supplyDaysPerTerm');
+    choice('coverBookingMethod');
   } else {
     text('firstName', 1, 60);
     text('lastName', 1, 60);
     if ((data.firstName.trim() + ' ' + data.lastName.trim()).length > 120)
       errors.lastName = 'Your full name must be 120 characters or fewer.';
-    choice('role', options.teacherRoles);
-    choice('area', options.teacherAreas);
-    choice('currentSupply', options.currentSupplyOptions);
-    choice('daysPerWeek', options.daysPerWeekOptions);
-    if (
-      data.phone.trim() &&
-      (!/^(?=(?:\D*\d){10})[+()\d\s-]+$/.test(data.phone.trim()) ||
-        data.phone.trim().length > 32)
-    )
-      errors.phone = 'Enter a valid mobile number with at least 10 digits.';
+    choice('role');
+    choice('area');
+    choice('currentSupply');
+    choice('daysPerWeek');
+    if (data.phone.trim()) {
+      try {
+        normalizeUkPhone(data.phone);
+      } catch {
+        errors.phone = 'Enter a valid UK phone number.';
+      }
+    }
     if (!data.emailConsent)
       errors.emailConsent =
         'Please agree to receive first-cohort and launch emails.';

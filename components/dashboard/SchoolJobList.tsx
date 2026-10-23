@@ -1,4 +1,7 @@
+import { plannedLabel } from '../../utils/jobs/workSchedule';
+import { useInvitationTags } from '../../feature/dashboard/shared/hooks/useInvitationTags';
 import { CalendarDays, FileText, MapPin } from 'lucide-react-native';
+import { listingStatus } from '../../utils/jobs/londonTime';
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
@@ -15,6 +18,7 @@ type Props = {
 export default function SchoolJobList({ jobs, onSelect }: Props) {
   const { colors } = useTheme();
   const styles = useStyles();
+  const invitations = useInvitationTags();
   const jobStyles = useJobStyles();
 
   if (!jobs.length)
@@ -29,24 +33,34 @@ export default function SchoolJobList({ jobs, onSelect }: Props) {
 
   return (
     <View style={styles.section}>
+      {invitations.error ? (
+        <Text style={styles.cardBody}>{invitations.error}</Text>
+      ) : null}
       {jobs.map(job => {
-        const count = job.applicationCount || 0;
+        const count = job.applicationCount;
         const applicationLabel =
-          count === 1 ? '1 application' : count + ' applications';
+          count == null
+            ? 'Applicant count unavailable'
+            : count === 1
+            ? '1 application'
+            : count + ' applications';
 
         return (
           <View key={job.id} style={styles.card}>
             <View style={jobStyles.listHeader}>
               <Text style={styles.cardTitle}>{job.title}</Text>
               <View style={jobStyles.statusBadge}>
-                <Text style={jobStyles.statusText}>
-                  {job.status || 'DRAFT'}
-                </Text>
+                <Text style={jobStyles.statusText}>{listingStatus(job)}</Text>
               </View>
             </View>
             <Text style={styles.cardBody}>
-              {job.subject || 'General teaching role'}
+              {job.subjects?.join(', ') ||
+                job.subject ||
+                'General teaching role'}
             </Text>
+            {job.payType !== 'fixed' ? (
+              <Text style={styles.cardBody}>{plannedLabel(job)}</Text>
+            ) : null}
             <View style={styles.badges}>
               <Text style={styles.teacherMeta}>
                 <MapPin color={colors.muted} size={13} />{' '}
@@ -60,10 +74,19 @@ export default function SchoolJobList({ jobs, onSelect }: Props) {
                 <FileText color={colors.muted} size={13} /> {applicationLabel}
               </Text>
             </View>
+            {invitations.items ? (
+              <Text style={styles.teacherMeta}>
+                {
+                  invitations.items.filter(item => item.job.id === job.id)
+                    .length
+                }{' '}
+                invitations
+              </Text>
+            ) : null}
             <Button
               compact
               variant="social"
-              title="Review applications"
+              title="View job & applicants"
               onPress={() => onSelect(job.id)}
             />
           </View>

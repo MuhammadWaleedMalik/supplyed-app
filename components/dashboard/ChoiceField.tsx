@@ -7,6 +7,7 @@ type Props = {
   value: string;
   options: string[];
   onChange: (value: string) => void;
+  hideLabel?: boolean;
 };
 
 export default function ChoiceField({
@@ -14,18 +15,22 @@ export default function ChoiceField({
   value,
   options,
   onChange,
+  hideLabel,
 }: Props) {
   const jobStyles = useJobStyles();
 
   return (
     <View style={jobStyles.formSection}>
-      <Text style={jobStyles.sectionTitle}>{label}</Text>
+      {!hideLabel ? <Text style={jobStyles.sectionTitle}>{label}</Text> : null}
       <View style={jobStyles.choiceRow}>
         {options.map(option => {
           const active = value === option;
           return (
             <Pressable
               key={option}
+              accessibilityRole="button"
+              accessibilityLabel={`${label}: ${option}`}
+              accessibilityState={{ selected: active }}
               onPress={() => onChange(option)}
               style={[jobStyles.choice, active && jobStyles.choiceActive]}
             >

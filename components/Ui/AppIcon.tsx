@@ -2,7 +2,8 @@ import React from 'react';
 import {
   Briefcase,
   ClipboardList,
-  LayoutDashboard,
+  House,
+  Mail,
   MessageCircle,
   Users,
   UserCircle,
@@ -38,12 +39,13 @@ export type AppIconName =
   | 'check'
   | 'circle'
   | 'notifications'
-  | 'reviews';
+  | 'reviews'
+  | 'invitations';
 
 const icons = {
   jobs: Briefcase,
   applications: ClipboardList,
-  dashboard: LayoutDashboard,
+  dashboard: House,
   bookings: CalendarCheck,
   billing: Wallet,
   messages: MessageCircle,
@@ -59,6 +61,7 @@ const icons = {
   circle: Circle,
   notifications: Bell,
   reviews: Star,
+  invitations: Mail,
 };
 
 type Props = {

@@ -1,66 +1,123 @@
-import { useEffect, useState } from 'react';
-import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
-import { getTeacherApplications } from '../apis/teacherDashboardApi';
-import { setTeacherApplications, setTeacherError } from '../store/teacherSlice';
+import { useEffect, useMemo, useState } from 'react';
+import { useSessionState } from '../../../../utils/ui/useSessionState';
+import { useAppSelector } from '../../../../store/hooks';
+import {
+  getApplication,
+  getApplicationsPage,
+  Application,
+} from '../../shared/apis/applicationsApi';
+import { usePagedResource } from '../../shared/hooks/usePagedResource';
+import {
+  createMergedPager,
+  newestFirst,
+} from '../../../../utils/api/mergedPager';
 import { getSessionVersion } from '../../../../utils/api/session';
+import { richTextToPlainText } from '../../../../utils/ui/richText';
+import type { TeacherApplication } from '../store/teacherSlice';
+import type { Job } from '../../shared/apis/jobsApi';
 
+export function applicationWithJob(
+  application: Application,
+): TeacherApplication {
+  return {
+    ...application,
+    job: application.jobDetails
+      ? ({
+          ...application.jobDetails,
+          id: application.jobId,
+          title:
+            application.jobName ||
+            application.jobDetails.title ||
+            'Teaching role',
+          postedByUserId: '',
+        } as Job)
+      : undefined,
+  };
+}
 export function useTeacherApplications() {
-  const dispatch = useAppDispatch();
-  const applications = useAppSelector(
-    state => state.teacherDashboard.applications,
+  const applicationId = useAppSelector(
+    state => state.dashboardNavigation.notificationApplicationId,
   );
-  const loading = useAppSelector(state => state.teacherDashboard.loading);
-  const error = useAppSelector(state => state.teacherDashboard.error);
-  const applicationId = useAppSelector(state => state.dashboardNavigation.notificationApplicationId);
-  const jobId = useAppSelector(state => state.dashboardNavigation.notificationApplicationJobId);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [status, setStatus] = useState('ALL');
-  const [search, setSearch] = useState('');
-
+  const jobId = useAppSelector(
+    state => state.dashboardNavigation.notificationApplicationJobId,
+  );
+  const revision = useAppSelector(
+    state => state.dashboardNavigation.dataRevision,
+  );
+  const [status, setStatus] = useSessionState(
+    'teacher.applications.status.v2',
+    'APPLIED',
+  );
+  const [search, setSearch] = useSessionState(
+    'teacher.applications.search',
+    '',
+  );
+  const [linked, setLinked] = useState<TeacherApplication>();
+  const [linkError, setLinkError] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [query, setQuery] = useState(search);
   useEffect(() => {
-    setRefreshing(false);
-    if (!applicationId && !jobId) return;
+    const timer = setTimeout(() => setQuery(search.trim().toLowerCase()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const loader = useMemo(
+    () =>
+      createMergedPager(
+        [
+          async (page: number) => {
+            const result = await getApplicationsPage(page, jobId ? '' : status);
+            return { ...result, items: result.items.map(applicationWithJob) };
+          },
+        ],
+        newestFirst,
+        item =>
+          (!jobId || item.jobId === jobId) &&
+          (!query ||
+            [
+              item.jobName,
+              item.job?.title,
+              item.status,
+              richTextToPlainText(item.coverLetter),
+            ]
+              .join(' ')
+              .toLowerCase()
+              .includes(query)),
+      ),
+    [status, query, jobId],
+  );
+  const pages = usePagedResource(loader, !applicationId, String(revision));
+  useEffect(() => {
     let active = true;
     const version = getSessionVersion();
-    setRefreshing(true);
-    getTeacherApplications()
-      .then(items => {
-        if (!active || version !== getSessionVersion()) return;
-        dispatch(setTeacherApplications(items));
-        if (applicationId && !items.some(item => item.id === applicationId))
-          dispatch(setTeacherError('This application is unavailable.'));
-      })
-      .catch(problem => {
-        if (active && version === getSessionVersion())
-          dispatch(setTeacherError(problem instanceof Error ? problem.message : 'Unable to load applications.'));
-      })
-      .finally(() => { if (active) setRefreshing(false); });
-    return () => { active = false; };
-  }, [applicationId, dispatch, jobId]);
-
-  const visibleApplications = applications.filter(application => {
-    const matchesStatus = status === 'ALL' || application.status === status;
-    const searchText = [
-      application.job?.title || application.jobName || '',
-      application.job?.subject || '',
-      application.status,
-    ]
-      .join(' ')
-      .toLowerCase();
-
-    return (!applicationId || application.id === applicationId) &&
-      (!jobId || application.jobId === jobId) &&
-      matchesStatus && searchText.includes(search.trim().toLowerCase());
-  });
-
+    setLinked(undefined);
+    setLinkError('');
+    setLinkLoading(!!applicationId);
+    if (applicationId)
+      getApplication(applicationId)
+        .then(item => {
+          if (active && version === getSessionVersion())
+            setLinked(applicationWithJob(item));
+        })
+        .catch(problem => {
+          if (active)
+            setLinkError(problem.message || 'Unable to load application.');
+        })
+        .finally(() => {
+          if (active) setLinkLoading(false);
+        });
+    return () => {
+      active = false;
+    };
+  }, [applicationId, revision]);
   return {
-    applications: visibleApplications,
-    loading: loading || refreshing,
-    error,
+    ...pages,
+    applications: applicationId ? (linked ? [linked] : []) : pages.items,
+    loading: pages.loading || linkLoading,
+    error: linkError || pages.error,
     status,
     search,
     setStatus,
     setSearch,
+    hasMore: !applicationId && pages.hasMore,
   };
 }

@@ -16,7 +16,9 @@ type Props = {
   error: string;
   loading: boolean;
   submitting: boolean;
-  uploadingId: string;
+  uploadingIds: string[];
+  uploadErrors: Record<string, string>;
+  onRetryUpload: (requirement: Requirement) => void;
   previewingId: string;
   signatoryPanel?: React.ReactNode;
   onAdd: (requirement: Requirement) => void;
@@ -76,8 +78,10 @@ export default function DocumentsUpload(props: Props) {
           key={requirement.id}
           requirement={requirement}
           documents={props.documents}
-          uploading={props.uploadingId === requirement.id}
-          busy={props.uploadingId !== ''}
+          uploading={props.uploadingIds.includes(requirement.id)}
+          error={props.uploadErrors[requirement.id]}
+          onRetry={() => props.onRetryUpload(requirement)}
+          busy={props.submitting || props.uploadingIds.includes(requirement.id)}
           previewing={props.previewingId !== ''}
           onAdd={props.onAdd}
           onPreview={props.onPreview}
@@ -100,7 +104,11 @@ export default function DocumentsUpload(props: Props) {
           title={props.submitting ? 'Sending...' : 'Send for review'}
           onPress={props.onSubmit}
           disabled={
-            props.loading || props.submitting || props.uploadingId !== ''
+            props.loading ||
+            props.submitting ||
+            props.uploadingIds.length > 0 ||
+            count.remaining > 0 ||
+            Object.values(props.uploadErrors).some(Boolean)
           }
           compact
         />

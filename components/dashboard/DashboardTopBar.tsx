@@ -10,7 +10,9 @@ import { useAppSelector } from '../../store/hooks';
 
 type Props = {
   email: string;
-  showEmail: boolean;
+  role: 'teacher' | 'school';
+  onApplications: () => void;
+  onInvitations: () => void;
   onProfile: () => void;
   onBilling: () => void;
   onHistory?: () => void;
@@ -36,11 +38,6 @@ export default function DashboardTopBar(props: Props) {
         Supply<Text style={styles.brandBlue}>ED</Text>
       </Text>
       <View style={styles.userArea}>
-        {props.showEmail ? (
-          <Text numberOfLines={1} style={styles.userEmail}>
-            {props.email}
-          </Text>
-        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={'Notifications, ' + unread + ' unread'}
@@ -70,7 +67,6 @@ export default function DashboardTopBar(props: Props) {
               <Text style={styles.avatarText}>{firstLetter}</Text>
             )}
           </View>
-          <AppIcon name="profile" color={colors.brand} size={18} />
         </Pressable>
         <Modal
           visible={open}
@@ -86,7 +82,11 @@ export default function DashboardTopBar(props: Props) {
               onPress={() => setOpen(false)}
             />
             <ProfileMenu
-              top={insets.top + 60}
+              bottom={insets.bottom}
+              email={props.email}
+              role={props.role}
+              onApplications={props.onApplications}
+              onInvitations={props.onInvitations}
               onClose={() => setOpen(false)}
               onProfile={props.onProfile}
               onBilling={props.onBilling}

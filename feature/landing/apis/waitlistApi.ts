@@ -1,3 +1,5 @@
+import { normalizeUkPhone } from '../../../utils/auth/ukPhone';
+import { checkDropdown } from '../../dropdowns/apis/dropdownsApi';
 import { endpoints } from '../../../constants/endpoints';
 import { apiRequest } from '../../../utils/api/request';
 
@@ -38,10 +40,27 @@ export type WaitlistReply = {
 };
 
 export async function joinWaitlist(payload: FoundingInterest) {
+  const school = payload.type === 'SCHOOL';
+  await checkDropdown(school ? 'waitlistSchoolRole' : 'waitlistTeacherRole', [
+    payload.role,
+  ]);
+  await checkDropdown(school ? 'waitlistSchoolArea' : 'waitlistTeacherArea', [
+    payload.area,
+  ]);
+  if (payload.type === 'SCHOOL') {
+    await checkDropdown('waitlistSchoolType', [payload.schoolType]);
+    await checkDropdown('supplyDaysPerTerm', [payload.supplyDaysPerTerm]);
+    await checkDropdown('coverBookingMethod', [payload.coverBookingMethod]);
+  } else {
+    await checkDropdown('currentSupply', [payload.currentSupply]);
+    await checkDropdown('daysPerWeek', [payload.daysPerWeek]);
+  }
   const reply = await apiRequest<WaitlistReply>(
     endpoints.foundingInterest,
     'POST',
-    payload,
+    payload.type === 'TEACHER' && payload.phone
+      ? { ...payload, phone: normalizeUkPhone(payload.phone) }
+      : payload,
   );
   if (!reply?.submitted || !reply.id)
     throw new Error(
@@ -59,6 +78,7 @@ export async function saveWaitlistDetails(
     postcode: string;
   },
 ) {
+  await checkDropdown('waitlistPhase', details.phases);
   const reply = await apiRequest<{ saved: boolean }>(
     endpoints.waitlistDetails(id),
     'PATCH',

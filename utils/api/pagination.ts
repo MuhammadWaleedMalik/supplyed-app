@@ -1,10 +1,16 @@
 import { protectedRequest } from './request';
 import { getSessionVersion } from './session';
+import { validatePaginationPage } from './paginationGuard';
 
 export async function getAllPages<T>(path: string, key: string): Promise<T[]> {
   const items: T[] = [];
+  const ids = new Set<string>();
+  let expectedTotal: number | undefined;
+  const started = Date.now();
   const version = getSessionVersion();
   for (let page = 1; page <= 100; page++) {
+    if (Date.now() - started > 120000)
+      throw new Error('Loading the full list timed out. Please retry.');
     if (getSessionVersion() !== version)
       throw new Error('Your session changed. Please reload.');
     const result = await protectedRequest<T[] | { [key: string]: unknown }>(
@@ -17,14 +23,32 @@ export async function getAllPages<T>(path: string, key: string): Promise<T[]> {
     const batch = Array.isArray(result) ? result : result[key];
     if (!Array.isArray(batch))
       throw new Error('The server returned an invalid list.');
-    items.push(...batch);
     const pagination = !Array.isArray(result) ? result.pagination : undefined;
-    const hasNext =
-      pagination &&
-      typeof pagination === 'object' &&
-      'hasNextPage' in pagination &&
-      pagination.hasNextPage === true;
-    if (!hasNext) return items;
+    if (Array.isArray(result)) {
+      validatePaginationPage(
+        batch,
+        { page, total: batch.length, hasNextPage: false },
+        page,
+        ids,
+        items.length,
+      );
+      items.push(...batch);
+      return items;
+    }
+    const checked = validatePaginationPage(
+      batch,
+      pagination,
+      page,
+      ids,
+      items.length,
+      expectedTotal,
+    );
+    items.push(...batch);
+    expectedTotal = checked.total;
+    const hasNext = checked.hasNextPage;
+    if (!hasNext) {
+      return items;
+    }
     if (!batch.length)
       throw new Error(
         'The server returned incomplete pagination. Please reload.',

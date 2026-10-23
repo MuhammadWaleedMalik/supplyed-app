@@ -17,7 +17,7 @@ export const useStyles = createThemedStyles(colors => ({
   scroll: {
     flexGrow: 1,
     padding: 12,
-    paddingBottom: 170,
+    paddingBottom: 32,
     backgroundColor: '#fbfcfd',
   },
   panels: {
@@ -36,4 +36,5 @@ export const useStyles = createThemedStyles(colors => ({
   },
   main: { flex: 1, padding: 20, gap: 24 },
   fields: { flexGrow: 1 },
+  error: { color: '#b4233f', fontSize: 14, lineHeight: 22 },
 }));

@@ -1,12 +1,18 @@
+import { useSessionState } from '../../../../utils/ui/useSessionState';
 import { useEffect, useRef, useState } from 'react';
 import { getSessionVersion } from '../../../../utils/api/session';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
-import { getJob, getJobsPage, type Job } from '../../shared/apis/jobsApi';
 import {
-  getTeacherApplications,
+  getAccessibleJob,
+  getJobsPage,
+  type Job,
+} from '../../shared/apis/jobsApi';
+import {
   sendTeacherApplication,
 } from '../apis/teacherDashboardApi';
-import { setTeacherApplications, setTeacherError } from '../store/teacherSlice';
+import { setTeacherApplications } from '../store/teacherSlice';
+import { getMyApplicationForJob } from '../../shared/apis/applicationsApi';
+import { refreshMarketplace } from '../../shared/store/navigationSlice';
 
 function messageFromError(problem: unknown) {
   return problem instanceof Error
@@ -30,9 +36,20 @@ export function useTeacherJobs() {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [applyStep, setApplyStep] = useState(0);
   const [coverLetter, setCoverLetter] = useState('');
-  const [roleType, setRoleType] = useState('All jobs');
-  const [keyStage, setKeyStage] = useState('All stages');
-  const [subject, setSubject] = useState('All subjects');
+  const [search, setSearch] = useSessionState('teacher.jobs.search', '');
+  const [attempt, setAttempt] = useState(0);
+  const [roleType, setRoleType] = useSessionState(
+    'teacher.jobs.roleType',
+    'All jobs',
+  );
+  const [keyStage, setKeyStage] = useSessionState(
+    'teacher.jobs.keyStage',
+    'All stages',
+  );
+  const [subject, setSubject] = useSessionState(
+    'teacher.jobs.subject',
+    'All subjects',
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [jobs, setJobs] = useState<Job[]>(dashboardJobs.slice(0, 20));
@@ -52,17 +69,25 @@ export function useTeacherJobs() {
     setFormError('');
     if (!notificationJobId) return;
 
-    getJob(notificationJobId)
+    getAccessibleJob(notificationJobId)
       .then(job => {
         if (active && version === getSessionVersion()) setNotificationJob(job);
       })
       .catch(problem => {
         if (active && version === getSessionVersion())
-          setFormError(problem instanceof Error ? problem.message : 'Unable to load this job.');
+          setFormError(
+            problem instanceof Error
+              ? problem.message
+              : 'Unable to load this job.',
+          );
       })
-      .finally(() => { if (active) setNotificationLoading(false); });
-    return () => { active = false; };
-  }, [notificationJobId]);
+      .finally(() => {
+        if (active) setNotificationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [notificationJobId, attempt]);
 
   useEffect(() => {
     if (notificationJobId) return;
@@ -72,41 +97,50 @@ export function useTeacherJobs() {
     setJobsLoading(true);
     setJobsLoadingMore(false);
     setFormError('');
-    getJobsPage(1, {
-      urgent: roleType === 'Urgent only' ? true : undefined,
-      keyStage,
-      subject,
-    })
-      .then(result => {
-        if (
-          request !== jobsRequest.current ||
-          version !== getSessionVersion()
-        )
-          return;
-        setJobs(result.jobs);
-        jobsPage.current = result.page;
-        setJobsHasMore(result.hasNextPage);
-      })
-      .catch(problem => {
-        if (
-          request === jobsRequest.current &&
-          version === getSessionVersion()
-        )
-          setFormError(
-            problem instanceof Error ? problem.message : 'Unable to load jobs.',
-          );
-      })
-      .finally(() => {
-        if (request === jobsRequest.current) {
-          loadingJobs.current = false;
-          setJobsLoading(false);
-        }
-      });
+    const timer = setTimeout(
+      () => {
+        getJobsPage(1, {
+          search,
+          urgent: roleType === 'true' ? true : undefined,
+          keyStage,
+          subject,
+        })
+          .then(result => {
+            if (
+              request !== jobsRequest.current ||
+              version !== getSessionVersion()
+            )
+              return;
+            setJobs(result.jobs);
+            jobsPage.current = result.page;
+            setJobsHasMore(result.hasNextPage);
+          })
+          .catch(problem => {
+            if (
+              request === jobsRequest.current &&
+              version === getSessionVersion()
+            )
+              setFormError(
+                problem instanceof Error
+                  ? problem.message
+                  : 'Unable to load jobs.',
+              );
+          })
+          .finally(() => {
+            if (request === jobsRequest.current) {
+              loadingJobs.current = false;
+              setJobsLoading(false);
+            }
+          });
+      },
+      search ? 300 : 0,
+    );
     return () => {
+      clearTimeout(timer);
       jobsRequest.current += 1;
       loadingJobs.current = false;
     };
-  }, [roleType, keyStage, subject, notificationJobId]);
+  }, [roleType, keyStage, subject, search, attempt, notificationJobId]);
 
   async function loadMoreJobs() {
     if (notificationJobId || loadingJobs.current || !jobsHasMore) return;
@@ -116,7 +150,8 @@ export function useTeacherJobs() {
     const version = getSessionVersion();
     try {
       const result = await getJobsPage(jobsPage.current + 1, {
-        urgent: roleType === 'Urgent only' ? true : undefined,
+        search,
+        urgent: roleType === 'true' ? true : undefined,
         keyStage,
         subject,
       });
@@ -138,16 +173,30 @@ export function useTeacherJobs() {
             : 'Unable to load more jobs.',
         );
     } finally {
-      loadingJobs.current = false;
-      if (request === jobsRequest.current) setJobsLoadingMore(false);
+      if (request === jobsRequest.current) {
+        loadingJobs.current = false;
+        setJobsLoadingMore(false);
+      }
     }
   }
 
-  function startApplication(job: Job) {
-    setSelectedJob(job);
-    setApplyStep(1);
-    setCoverLetter('');
+  async function startApplication(job: Job) {
+    if (sending.current) return;
+    sending.current = true;
+    const version = getSessionVersion();
     setFormError('');
+    try {
+      const existing = await getMyApplicationForJob(job.id);
+      if (version !== getSessionVersion()) return;
+      if (existing) {
+        dispatch(setTeacherApplications([...applications.filter(item => item.id !== existing.id), { ...existing, job }]));
+        setFormError('You have already applied for this role. Open My applications to review it.');
+        return;
+      }
+      setSelectedJob(job); setApplyStep(1); setCoverLetter('');
+    } catch (problem) {
+      if (version === getSessionVersion()) setFormError(messageFromError(problem));
+    } finally { sending.current = false; }
   }
 
   function closeApplication() {
@@ -175,17 +224,19 @@ export function useTeacherJobs() {
     try {
       const created = await sendTeacherApplication(selectedJob.id, coverLetter);
       if (getSessionVersion() !== version) return;
-      dispatch(setTeacherApplications([...applications.filter(item => item.id !== created.id), { ...created, job: selectedJob }]));
+      dispatch(refreshMarketplace());
+      dispatch(
+        setTeacherApplications([
+          ...applications.filter(item => item.id !== created.id),
+          { ...created, job: selectedJob },
+        ]),
+      );
       setSelectedJob(undefined);
       setApplyStep(0);
-      try {
-        const latest = await getTeacherApplications();
-        if (getSessionVersion() === version) dispatch(setTeacherApplications(latest));
-      } catch (problem) {
-        if (getSessionVersion() === version) dispatch(setTeacherError('Application submitted. Refresh failed: ' + messageFromError(problem)));
-      }
+
     } catch (problem) {
-      if (getSessionVersion() === version) setFormError(messageFromError(problem));
+      if (getSessionVersion() === version)
+        setFormError(messageFromError(problem));
     } finally {
       sending.current = false;
       setSubmitting(false);
@@ -196,6 +247,9 @@ export function useTeacherJobs() {
     jobs: notificationJobId ? (notificationJob ? [notificationJob] : []) : jobs,
     jobsLoading: notificationJobId ? notificationLoading : jobsLoading,
     notificationJobId,
+    search,
+    setSearch,
+    retryJobs: () => setAttempt(value => value + 1),
     jobsLoadingMore,
     jobsHasMore,
     loadMoreJobs,

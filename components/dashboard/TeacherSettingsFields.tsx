@@ -1,9 +1,10 @@
 import React from 'react';
 import { View } from 'react-native';
 import type { ProfileFields } from '../../feature/dashboard/shared/apis/settingsApi';
+import TeachingFields from '../onboarding/TeachingFields';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import { currencies } from '../../utils/onboarding/onboardingData';
+import DynamicSelect from '../Ui/DynamicSelect';
+
 import { useSettingsStyles } from './settingsStyles';
 
 type Props = {
@@ -21,26 +22,18 @@ export default function TeacherSettingsFields({
 
   return (
     <View style={settingsStyles.section}>
-      <Input
-        label="SUBJECTS"
-        required={false}
-        value={fields.subjects}
-        placeholder="Maths, Science"
-        onChangeText={value => onChange('subjects', value)}
+      <TeachingFields
+        subjects={fields.subjects}
+        skills={fields.skills}
+        onSubjects={value => onChange('subjects', value)}
+        onSkills={value => onChange('skills', value)}
       />
-      <Input
-        label="KEY STAGES"
-        required={false}
+      <DynamicSelect
+        name="keyStage"
+        label="Key stages"
+        multiple
         value={fields.keyStages}
-        placeholder="KS2, KS3"
-        onChangeText={value => onChange('keyStages', value)}
-      />
-      <Input
-        label="SKILLS"
-        required={false}
-        value={fields.skills}
-        placeholder="SEN, Classroom management"
-        onChangeText={value => onChange('skills', value)}
+        onChange={value => onChange('keyStages', value)}
       />
       <View style={[settingsStyles.row, wide && settingsStyles.wideRow]}>
         <View style={settingsStyles.field}>
@@ -82,11 +75,11 @@ export default function TeacherSettingsFields({
           />
         </View>
       </View>
-      <Select
+      <DynamicSelect
         label="CURRENCY"
         value={fields.currency}
         placeholder="Currency"
-        options={currencies}
+        name="currency"
         onChange={value => onChange('currency', value)}
       />
     </View>

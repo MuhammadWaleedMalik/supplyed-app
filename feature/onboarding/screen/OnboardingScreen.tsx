@@ -56,6 +56,7 @@ export default function OnboardingScreen({
         onExit={onExit}
         onBack={form.backStep}
         onContinue={form.continueStep}
+        error={form.validationErrors.join('\n')}
       >
         {form.step === 1 && (
           <AccountStep
@@ -98,11 +99,13 @@ export default function OnboardingScreen({
         error={form.createError}
         onReview={form.reviewAgain}
         createTitle={
-          form.type === 'school' && form.data.institutionType === 'MAT school'
+          form.type === 'school' && form.data.institutionType === 'MAT_SCHOOL'
             ? 'Create profile and send email'
             : 'Create profile'
         }
-        matSchool={form.type === 'school' && form.data.institutionType === 'MAT school'}
+        matSchool={
+          form.type === 'school' && form.data.institutionType === 'MAT_SCHOOL'
+        }
         onCreate={form.createProfile}
       />
     </>

@@ -47,7 +47,13 @@ export function usePasswordReset() {
   }
 
   function changeCode(index: number, value: string) {
-    const numbers = value.replace(/\D/g, '').slice(0, 6);
+    if (!/^\d*$/.test(value) || value.length > 6 - index) {
+      setCode('');
+      setError('Enter exactly six digits. The pasted code was not accepted.');
+      return;
+    }
+    setError('');
+    const numbers = value;
     setCode(current => {
       const digits = current.padEnd(6, ' ').split('');
       for (let offset = 0; offset < numbers.length; offset++) {
@@ -60,7 +66,8 @@ export function usePasswordReset() {
 
   async function submit() {
     if (
-      !token || !/^\d{6}$/.test(code) ||
+      !token ||
+      !/^\d{6}$/.test(code) ||
       !getPasswordChecks(password).every(check => check.valid) ||
       !passwordsMatch(password, confirmation)
     ) {
@@ -95,7 +102,10 @@ export function usePasswordReset() {
     setEmail,
     token,
     code,
-    digits: code.padEnd(6, ' ').split('').map(item => item === ' ' ? '' : item),
+    digits: code
+      .padEnd(6, ' ')
+      .split('')
+      .map(item => (item === ' ' ? '' : item)),
     changeCode,
     setCode,
     password,

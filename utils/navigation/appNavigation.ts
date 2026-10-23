@@ -92,10 +92,14 @@ export function useAppNavigation() {
   const [otpToken, setOtpToken] = useState('');
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accountReturnScreen, setAccountReturnScreen] =
+    useState<AppScreen>('dashboard');
   const [restoreError, setRestoreError] = useState('');
   const restoreAttempt = useRef(0);
 
-  const defaultBackTarget = getBackTarget(screen, registerBackScreen);
+  const defaultBackTarget = ['workspaceProfile', 'settings'].includes(screen)
+    ? accountReturnScreen
+    : getBackTarget(screen, registerBackScreen);
   const backTarget =
     isAdmin && defaultBackTarget === 'dashboard'
       ? 'adminPayments'
@@ -139,6 +143,9 @@ export function useAppNavigation() {
   }, [isAdmin]);
 
   function showWorkspaceProfile() {
+    setAccountReturnScreen(
+      screen === 'reviewStatus' ? 'reviewStatus' : 'dashboard',
+    );
     setScreen('workspaceProfile');
   }
 
@@ -147,6 +154,9 @@ export function useAppNavigation() {
   }
 
   function showSettings() {
+    setAccountReturnScreen(
+      screen === 'reviewStatus' ? 'reviewStatus' : 'dashboard',
+    );
     setScreen('settings');
   }
 
@@ -203,7 +213,11 @@ export function useAppNavigation() {
       if (getSessionVersion() === version) setScreen(nextScreen);
     } catch (problem) {
       if (getSessionVersion() !== version) return;
-      setRestoreError(problem instanceof Error ? problem.message : 'Unable to load your account. Please try again.');
+      setRestoreError(
+        problem instanceof Error
+          ? problem.message
+          : 'Unable to load your account. Please try again.',
+      );
     }
   }
 
@@ -246,7 +260,8 @@ export function useAppNavigation() {
 
     try {
       const user = await getCurrentUser();
-      if (getSessionVersion() !== version || attempt !== restoreAttempt.current) return;
+      if (getSessionVersion() !== version || attempt !== restoreAttempt.current)
+        return;
       setCurrentSessionUser(user);
       setVerificationEmail(user.email);
       setIsAdmin(user.role === 'ADMIN');
@@ -264,9 +279,11 @@ export function useAppNavigation() {
 
       setProfileType(role);
       const nextScreen = await nextAccountScreen(role);
-      if (getSessionVersion() === version && attempt === restoreAttempt.current) setScreen(nextScreen);
+      if (getSessionVersion() === version && attempt === restoreAttempt.current)
+        setScreen(nextScreen);
     } catch (problem) {
-      if (getSessionVersion() !== version || attempt !== restoreAttempt.current) return;
+      if (getSessionVersion() !== version || attempt !== restoreAttempt.current)
+        return;
       setRestoreError(
         problem instanceof Error
           ? problem.message
@@ -278,7 +295,9 @@ export function useAppNavigation() {
 
   useEffect(() => {
     restoreSession();
-    return () => { restoreAttempt.current += 1; };
+    return () => {
+      restoreAttempt.current += 1;
+    };
   }, [restoreSession]);
 
   useEffect(
@@ -297,12 +316,11 @@ export function useAppNavigation() {
 
   useEffect(() => {
     function handleBackButton() {
-      if (screen === 'landing') {
+      if (screen === 'landing' || screen === 'dashboard') {
         return false;
       }
 
       if (
-        screen === 'dashboard' ||
         screen === 'adminPayments' ||
         screen === 'reviewStatus' ||
         screen === 'restoring'

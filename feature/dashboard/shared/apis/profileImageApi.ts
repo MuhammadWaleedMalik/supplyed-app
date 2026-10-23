@@ -18,6 +18,7 @@ export async function uploadProfileImage(file: Blob, contentType: string) {
   const signed = await protectedRequest<{
     url: string;
     fileKey: string;
+    method?: string;
     requiredHeaders?: Record<string, string>;
   }>(endpoints.profileImageUploadUrl, 'POST', {
     contentType,
@@ -25,8 +26,18 @@ export async function uploadProfileImage(file: Blob, contentType: string) {
   });
   if (!signed.url || !signed.fileKey)
     throw new Error('The backend did not return a profile image upload URL.');
-  await uploadFile(signed.url, file, { 'Content-Type': contentType, ...signed.requiredHeaders }, version);
-  return protectedRequest<ProfileImage>(endpoints.profileImageComplete, 'POST', {
-    fileKey: signed.fileKey,
-  });
+  await uploadFile(
+    signed.url,
+    file,
+    { 'Content-Type': contentType, ...signed.requiredHeaders },
+    version,
+    signed.method,
+  );
+  return protectedRequest<ProfileImage>(
+    endpoints.profileImageComplete,
+    'POST',
+    {
+      fileKey: signed.fileKey,
+    },
+  );
 }

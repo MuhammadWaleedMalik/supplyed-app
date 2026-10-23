@@ -2,11 +2,12 @@ import React from 'react';
 import { View } from 'react-native';
 import type { ProfileFields } from '../../feature/dashboard/shared/apis/settingsApi';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
+import DynamicSelect from '../Ui/DynamicSelect';
 import { useSettingsStyles } from './settingsStyles';
 
 type Props = {
   fields: ProfileFields;
+  fieldErrors?: Partial<Record<keyof ProfileFields, string>>;
   wide: boolean;
   showBio?: boolean;
   onChange: (name: keyof ProfileFields, value: string | boolean) => void;
@@ -14,6 +15,7 @@ type Props = {
 
 export default function CommonProfileFields({
   fields,
+  fieldErrors,
   wide,
   showBio = true,
   onChange,
@@ -24,6 +26,7 @@ export default function CommonProfileFields({
     <View style={settingsStyles.section}>
       <Input
         label="PROFILE NAME"
+        error={fieldErrors?.profileName}
         value={fields.profileName}
         onChangeText={value => onChange('profileName', value)}
       />
@@ -44,18 +47,20 @@ export default function CommonProfileFields({
       />
       <View style={[settingsStyles.row, wide && settingsStyles.wideRow]}>
         <View style={settingsStyles.field}>
-          <Input
+          <DynamicSelect
+            name="city"
             label="CITY"
             value={fields.city}
-            onChangeText={value => onChange('city', value)}
+            onChange={value => onChange('city', value)}
           />
         </View>
         <View style={settingsStyles.field}>
-          <Input
+          <DynamicSelect
+            name="region"
             label="COUNTY"
             required={false}
             value={fields.county}
-            onChangeText={value => onChange('county', value)}
+            onChange={value => onChange('county', value)}
           />
         </View>
       </View>
@@ -69,11 +74,11 @@ export default function CommonProfileFields({
           />
         </View>
         <View style={settingsStyles.field}>
-          <Select
+          <DynamicSelect
             label="COUNTRY"
             value={fields.countryCode}
             placeholder="Country"
-            options={['GB', 'PK', 'EG']}
+            name="country"
             onChange={value => onChange('countryCode', value)}
           />
         </View>

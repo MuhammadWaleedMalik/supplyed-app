@@ -49,6 +49,12 @@ export async function pickChatAttachment(conversationId: string) {
   if (getSessionVersion() !== sessionVersion)
     throw new Error('Your session changed. Choose the file again.');
   // S3 needs raw bytes and the exact signed headers, never our API bearer token.
-  await uploadFile(prepared.upload.url, bytes, prepared.upload.requiredHeaders, sessionVersion);
+  await uploadFile(
+    prepared.upload.url,
+    bytes,
+    prepared.upload.requiredHeaders,
+    sessionVersion,
+    prepared.upload.method,
+  );
   return prepared.attachment;
 }

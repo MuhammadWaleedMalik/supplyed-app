@@ -1,15 +1,17 @@
-import React from 'react';
+import Checkbox from './Checkbox';
+import { applyUrgentBanner } from './brandTheme';
+import React, { useState } from 'react';
+import { useDropdown } from '../../feature/dropdowns/hooks/useDropdown';
+import Input from './Input';
+import Button from './Button';
 import { Pressable, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
-import {
-  applyBrandTheme,
-  brandThemes,
-  createThemedStyles,
-  useTheme,
-} from './theme';
+import { applyBrandTheme, createThemedStyles, useTheme } from './theme';
 
 export default function ThemePicker() {
   const theme = useTheme();
+  const dropdown = useDropdown('themeAccent');
+  const [custom, setCustom] = useState('');
   const styles = useStyles();
   return (
     <View
@@ -17,35 +19,64 @@ export default function ThemePicker() {
       accessibilityRole="radiogroup"
       accessibilityLabel="Theme color"
     >
-      {brandThemes.map(palette => {
-        const selected = theme.id === palette.id;
-        return (
-          <Pressable
-            key={palette.id}
-            accessibilityRole="radio"
-            accessibilityLabel={palette.name}
-            accessibilityState={{ checked: selected }}
-            onPress={() => applyBrandTheme(palette.id)}
-            style={({ pressed }) => [
-              styles.option,
-              selected && styles.selected,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={[styles.swatch, { backgroundColor: palette.brand }]}>
-              {selected ? <Check size={18} color="#ffffff" /> : null}
-            </View>
-            <Text style={[styles.label, selected && styles.selectedLabel]}>
-              {palette.name}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {dropdown.options
+        .filter(option => /^#[0-9a-f]{6}$/i.test(option.value))
+        .map(palette => {
+          const selected = theme.id === palette.value.toLowerCase();
+          return (
+            <Pressable
+              key={palette.value}
+              accessibilityRole="radio"
+              accessibilityLabel={palette.label}
+              accessibilityState={{ checked: selected }}
+              disabled={dropdown.loading || !!dropdown.error}
+              onPress={() => applyBrandTheme(palette.value, palette.label)}
+              style={({ pressed }) => [
+                styles.option,
+                selected && styles.selected,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={[styles.swatch, { backgroundColor: palette.value }]}>
+                {selected ? <Check size={18} color="#ffffff" /> : null}
+              </View>
+              <Text style={[styles.label, selected && styles.selectedLabel]}>
+                {palette.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      {dropdown.loading ? (
+        <Text style={styles.description}>Loading colors?</Text>
+      ) : null}
+      {dropdown.error ? (
+        <>
+          <Text style={styles.description}>{dropdown.error}</Text>
+          <Button
+            title="Retry colors"
+            onPress={dropdown.retry}
+            variant="link"
+          />
+        </>
+      ) : null}
+      <Input
+        label="Custom color"
+        value={custom}
+        onChangeText={setCustom}
+        placeholder="#008CC4"
+        required={false}
+      />
+      <Button
+        title="Apply custom color"
+        disabled={!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(custom.trim())}
+        onPress={() => applyBrandTheme(custom.trim())}
+      />
     </View>
   );
 }
 
 export function ThemeSettingsCard() {
+  const theme = useTheme();
   const styles = useStyles();
   return (
     <View style={styles.card}>
@@ -53,10 +84,14 @@ export function ThemeSettingsCard() {
         Theme
       </Text>
       <Text style={styles.description}>
-        Choose your SupplyED color. Changes apply immediately for this app
-        session. A full reload returns to Supply blue.
+        Choose your SupplyED color. Your preference is saved on this device.
       </Text>
       <ThemePicker />
+      <Checkbox
+        label="Show urgent job notices"
+        checked={theme.urgentBanner}
+        onChange={applyUrgentBanner}
+      />
     </View>
   );
 }

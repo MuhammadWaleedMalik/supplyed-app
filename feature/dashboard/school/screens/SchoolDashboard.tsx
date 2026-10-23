@@ -1,15 +1,12 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import InvitationsScreen from '../../shared/screens/InvitationsScreen';
+import TeachersScreen from './TeachersScreen';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import DashboardLayout from '../../shared/components/DashboardLayout';
 import BookingsScreen from '../../shared/screens/BookingsScreen';
 import BillingScreen from '../../shared/screens/BillingScreen';
 import MessagesScreen from '../../shared/screens/MessagesScreen';
-import {
-  DashboardPage,
-  resetDashboardNavigation,
-  showPage,
-} from '../../shared/store/navigationSlice';
-import { useLoadSchoolDashboard } from '../hooks/useLoadSchoolDashboard';
+import { DashboardPage, showPage } from '../../shared/store/navigationSlice';
 import SchoolApplicationsScreen from './SchoolApplicationsScreen';
 import { clearSchoolJobSelection } from '../store/schoolSlice';
 import SchoolJobsScreen from './SchoolJobsScreen';
@@ -32,11 +29,6 @@ export default function SchoolDashboard(props: Props) {
     state => state.dashboardNavigation.notificationApplicationJobId,
   );
 
-  useLoadSchoolDashboard();
-
-  useEffect(() => {
-    dispatch(resetDashboardNavigation());
-  }, [dispatch]);
 
   function changePage(nextPage: DashboardPage) {
     dispatch(clearSchoolJobSelection());
@@ -44,8 +36,12 @@ export default function SchoolDashboard(props: Props) {
   }
 
   function pageContent() {
+    if (page === 'Invitations') return <InvitationsScreen role="school" />;
+    if (page === 'Teachers') return <TeachersScreen />;
     if (page === 'Notifications') {
-      return <NotificationsScreen type="school" onSettings={props.onSettings} />;
+      return (
+        <NotificationsScreen type="school" onSettings={props.onSettings} />
+      );
     }
     if (page === 'Jobs') {
       return <SchoolJobsScreen />;
@@ -70,6 +66,7 @@ export default function SchoolDashboard(props: Props) {
 
   return (
     <DashboardLayout
+      role="school"
       email={props.email}
       page={page}
       onPage={changePage}

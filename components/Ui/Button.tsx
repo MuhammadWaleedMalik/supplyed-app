@@ -1,14 +1,15 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Text } from 'react-native';
 import { createThemedStyles } from './theme';
 
 type Props = {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'outline' | 'text' | 'link' | 'social';
+  variant?: 'primary' | 'outline' | 'text' | 'link' | 'social' | 'danger';
   icon?: React.ReactNode;
   compact?: boolean;
   disabled?: boolean;
+  loading?: boolean;
 };
 
 export default function Button({
@@ -18,15 +19,16 @@ export default function Button({
   icon,
   compact,
   disabled,
+  loading,
 }: Props) {
   const styles = useStyles();
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: !!loading }}
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
         styles[variant],
@@ -35,9 +37,8 @@ export default function Button({
         disabled && styles.disabled,
       ]}
     >
-      {icon}
+      {loading ? <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : '#5f707b'} /> : icon}
       <Text
-        numberOfLines={2}
         style={[
           styles.label,
           (variant === 'text' ||
@@ -67,6 +68,7 @@ const useStyles = createThemedStyles(colors => ({
   primary: {
     backgroundColor: colors.brandDark,
   },
+  danger: { backgroundColor: '#b42318' },
   outline: {
     borderWidth: 1,
     borderColor: colors.brandBorder,
@@ -77,7 +79,7 @@ const useStyles = createThemedStyles(colors => ({
     backgroundColor: 'transparent',
   },
   link: {
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 4,
     backgroundColor: 'transparent',
   },
@@ -89,7 +91,7 @@ const useStyles = createThemedStyles(colors => ({
     paddingHorizontal: 12,
   },
   compact: {
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },

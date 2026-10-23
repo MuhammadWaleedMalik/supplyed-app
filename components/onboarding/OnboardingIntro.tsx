@@ -23,6 +23,8 @@ export default function OnboardingIntro({ type, step, steps, wide }: Props) {
   const { heading, description } = getIntroCopy(type, step);
   const pathName = getPathName(type);
 
+  if (!wide) return null;
+
   return (
     <View style={[styles.panel, wide && styles.wide]}>
       <GridBackground />

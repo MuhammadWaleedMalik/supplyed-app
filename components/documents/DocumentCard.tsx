@@ -12,6 +12,8 @@ type Props = {
   requirement: Requirement;
   documents: Document[];
   uploading: boolean;
+  error?: string;
+  onRetry: () => void;
   busy: boolean;
   previewing: boolean;
   onAdd: (requirement: Requirement) => void;
@@ -22,6 +24,8 @@ export default function DocumentCard({
   requirement,
   documents,
   uploading,
+  error,
+  onRetry,
   busy,
   previewing,
   onAdd,
@@ -76,6 +80,14 @@ export default function DocumentCard({
             Review note: {document.rejectionComment}
           </Text>
         </View>
+      ) : null}
+      {error ? (
+        <>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {error}
+          </Text>
+          <Button title="Retry this upload" onPress={onRetry} disabled={busy} />
+        </>
       ) : null}
       <Button
         title={

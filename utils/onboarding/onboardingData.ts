@@ -1,5 +1,4 @@
 export type AccountType = 'school' | 'teacher';
-export type InstitutionChoice = 'Single school' | 'MAT school';
 
 export type OnboardingData = {
   fullName: string;
@@ -11,12 +10,14 @@ export type OnboardingData = {
   schoolRole: string;
   domain: string;
   registrationId: string;
-  institutionType: InstitutionChoice;
+  institutionType: string;
   trustName: string;
   trustCompanyNumber: string;
   address: string;
   pupilCount: string;
   staffingNeeds: string;
+  coverTypes: string;
+  county: string;
   complianceLead: string;
   complianceEmail: string;
   signatoryName: string;
@@ -31,26 +32,27 @@ export type OnboardingData = {
   hourlyRate: string;
   currency: string;
   travelDistance: string;
-  trn: string;
   bio: string;
 };
 
 export const initialData: OnboardingData = {
   fullName: '',
   phone: '',
-  country: 'United Kingdom',
+  country: 'GB',
   city: '',
   postcode: '',
   schoolName: '',
   schoolRole: '',
   domain: '',
   registrationId: '',
-  institutionType: 'Single school',
+  institutionType: '',
   trustName: '',
   trustCompanyNumber: '',
   address: '',
   pupilCount: '',
   staffingNeeds: '',
+  coverTypes: '',
+  county: '',
   complianceLead: '',
   complianceEmail: '',
   signatoryName: '',
@@ -65,7 +67,6 @@ export const initialData: OnboardingData = {
   hourlyRate: '',
   currency: 'GBP',
   travelDistance: '',
-  trn: '',
   bio: '',
 };
 
@@ -88,38 +89,6 @@ export const accountTypes: {
     description: 'Post roles, review ranked matches, and manage compliance.',
   },
 ];
-
-export const countries = ['United Kingdom', 'Pakistan', 'Egypt', 'Other'];
-export const cities = [
-  'Greater Manchester',
-  'Lancashire',
-  'London',
-  'Birmingham',
-  'Other',
-];
-export const institutionTypes: InstitutionChoice[] = ['Single school', 'MAT school'];
-export const staffingNeeds = [
-  'Urgent cover',
-  'Planned cover',
-  'Learner support',
-  'All of these',
-];
-export const subjects = [
-  'English',
-  'Maths',
-  'Science',
-  'Primary',
-  'SEN',
-  'Other',
-];
-export const keyStages = ['EYFS', 'KS1', 'KS2', 'KS3', 'KS4', 'KS5'];
-export const skills = [
-  'SEN support',
-  'Classroom management',
-  'Phonics',
-  'Exam preparation',
-];
-export const currencies = ['GBP', 'EUR', 'USD'];
 
 export const schoolSteps = [
   ['Profile owner', 'Your contact details for this school account'],

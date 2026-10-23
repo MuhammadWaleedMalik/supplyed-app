@@ -94,12 +94,13 @@ export default function Input({
           disabled && { backgroundColor: colors.soft },
         ]}
       >
+        {phone ? <Text style={styles.label}>+44</Text> : null}
         <TextInput
           accessibilityLabel={label}
           placeholder={placeholder}
           placeholderTextColor="#8d9baa"
           style={[styles.input, multiline && styles.multiline]}
-          value={value}
+          value={phone && value?.startsWith('+44') ? value.slice(3) : value}
           onChangeText={onChangeText}
           onFocus={handleFocus}
           onBlur={handleBlur}

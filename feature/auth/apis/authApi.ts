@@ -56,7 +56,11 @@ export function loginAccount(email: string, password: string) {
 }
 
 export function resendEmailCode(email: string) {
-  return apiRequest<{ emailVerified: boolean; expiresInMinutes: number; otpToken?: string }>(endpoints.resendCode, 'POST', {
+  return apiRequest<{
+    emailVerified: boolean;
+    expiresInMinutes: number;
+    otpToken?: string;
+  }>(endpoints.resendCode, 'POST', {
     email: email.trim().toLowerCase(),
   });
 }

@@ -1,14 +1,14 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import LandingHeader from '../../../components/landing/LandingHeader';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import WaitlistForm from '../../../components/landing/WaitlistForm';
 import { useWaitlistStyles as useStyles } from '../../../components/landing/waitlistStyles';
 import Button from '../../../components/Ui/Button';
@@ -47,24 +47,26 @@ export default function LandingPage({ onLogin, onRegister }: Props) {
   const [openQuestion, setOpenQuestion] = useState<number | null>(0);
   const school = useWaitlist('SCHOOL');
   const teacher = useWaitlist('TEACHER');
-  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const formPosition = useRef(0);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   const busy = school.busy || teacher.busy;
   function join(next: WaitlistType) {
     if (busy) return;
     setType(next);
-    scrollRef.current?.scrollTo({ y: formPosition.current, animated: true });
+    setWaitlistOpen(true);
   }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <LandingHeader onLogin={onLogin} onRegister={onRegister} light />
+      <View style={styles.welcomeHeader}>
+        <Text style={styles.logo}>
+          Supply<Text style={styles.logoAccent}>ED</Text>
+        </Text>
+      </View>
       <KeyboardAvoidingView
         style={styles.safe}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          ref={scrollRef}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           contentInsetAdjustmentBehavior="never"
@@ -76,55 +78,20 @@ export default function LandingPage({ onLogin, onRegister }: Props) {
               </Text>
             </View>
             <Text accessibilityRole="header" style={styles.heroTitle}>
-              Supply cover that's checked before it's booked.
+              Your next great teaching day.
             </Text>
             <Text style={styles.body}>
-              Schools book vetted supply teachers directly. We run the checks
-              centrally. Pilot from January 2027.
-            </Text>
-            <Text style={styles.body}>✓ Enhanced DBS on every teacher</Text>
-            <Text style={styles.body}>
-              ✓ ID, right to work and QTS verified
+              Find teaching work or connect your school with the right teacher.
+              Manage jobs, invitations and bookings in one place.
             </Text>
           </View>
-          <View
-            style={[styles.card, styles.formCard]}
-            onLayout={event => {
-              formPosition.current = event.nativeEvent.layout.y;
-            }}
-          >
-            <Text accessibilityRole="header" style={styles.title}>
-              Join the waitlist
-            </Text>
-            <Text style={styles.body}>
-              No checks, no commitment. We'll offer first-cohort places ahead of
-              the pilot.
-            </Text>
-            <View style={styles.tabs}>
-              {(['SCHOOL', 'TEACHER'] as const).map(role => (
-                <Pressable
-                  key={role}
-                  accessibilityRole="tab"
-                  accessibilityLabel={
-                    role === 'SCHOOL' ? 'School waitlist' : 'Teacher waitlist'
-                  }
-                  accessibilityState={{
-                    selected: type === role,
-                    disabled: busy,
-                  }}
-                  disabled={busy}
-                  style={[styles.tab, type === role && styles.activeTab]}
-                  onPress={() => setType(role)}
-                >
-                  <Text style={styles.tabText}>
-                    {role === 'SCHOOL' ? 'School' : 'Teacher'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <WaitlistForm
-              type={type}
-              form={type === 'SCHOOL' ? school : teacher}
+          <View style={styles.welcomeActions}>
+            <Button title="Create an account" onPress={onRegister} />
+            <Button title="Log in" variant="outline" onPress={onLogin} />
+            <Button
+              title="Join the waitlist"
+              variant="link"
+              onPress={() => join(type)}
             />
           </View>
           <View style={styles.section}>
@@ -261,6 +228,73 @@ export default function LandingPage({ onLogin, onRegister }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal
+        visible={waitlistOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          if (!busy) setWaitlistOpen(false);
+        }}
+      >
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.safe}>
+            <View style={styles.welcomeHeader}>
+              <Button
+                title="Back to welcome"
+                variant="link"
+                onPress={() => setWaitlistOpen(false)}
+                disabled={busy}
+              />
+            </View>
+            <KeyboardAvoidingView
+              style={styles.safe}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+              <ScrollView
+                contentContainerStyle={styles.content}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={[styles.card, styles.formCard]}>
+                  <Text accessibilityRole="header" style={styles.title}>
+                    Join the waitlist
+                  </Text>
+                  <Text style={styles.body}>
+                    No checks, no commitment. We'll offer first-cohort places
+                    ahead of the pilot.
+                  </Text>
+                  <View style={styles.tabs}>
+                    {(['SCHOOL', 'TEACHER'] as const).map(role => (
+                      <Pressable
+                        key={role}
+                        accessibilityRole="tab"
+                        accessibilityLabel={
+                          role === 'SCHOOL'
+                            ? 'School waitlist'
+                            : 'Teacher waitlist'
+                        }
+                        accessibilityState={{
+                          selected: type === role,
+                          disabled: busy,
+                        }}
+                        disabled={busy}
+                        style={[styles.tab, type === role && styles.activeTab]}
+                        onPress={() => setType(role)}
+                      >
+                        <Text style={styles.tabText}>
+                          {role === 'SCHOOL' ? 'School' : 'Teacher'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <WaitlistForm
+                    type={type}
+                    form={type === 'SCHOOL' ? school : teacher}
+                  />
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </Modal>
     </SafeAreaView>
   );
 }

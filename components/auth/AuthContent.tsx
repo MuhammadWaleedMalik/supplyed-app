@@ -42,7 +42,7 @@ export default function AuthContent({
             <RegisterForm wide={wide} actions={actions} />
           ) : (
             <>
-              <SocialProviders />
+              <SocialProviders actions={actions} />
               <View style={styles.divider}>
                 <View style={styles.line} />
                 <Text style={styles.dividerText}>EMAIL</Text>

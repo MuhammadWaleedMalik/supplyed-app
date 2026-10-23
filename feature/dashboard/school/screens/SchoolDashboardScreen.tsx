@@ -1,38 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
-import SchoolOverview from '../../../../components/dashboard/SchoolOverview';
-import { useStyles } from '../../../../components/dashboard/dashboardStyles';
-import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
-import { showPage } from '../../shared/store/navigationSlice';
-
+import DashboardSummary from '../../../../components/dashboard/DashboardSummary';
 export default function SchoolDashboardScreen() {
-  const styles = useStyles();
-
-  const dispatch = useAppDispatch();
-  const jobs = useAppSelector(state => state.schoolDashboard.jobs);
-  const loading = useAppSelector(state => state.schoolDashboard.loading);
-  const error = useAppSelector(state => state.schoolDashboard.error);
-
-  if (loading && !jobs.length) {
-    return <Text style={styles.cardBody}>Loading dashboard...</Text>;
-  }
-
-  function openJobs() {
-    dispatch(showPage('Jobs'));
-  }
-
-  function openApplications() {
-    dispatch(showPage('Applications'));
-  }
-
-  return (
-    <>
-      <SchoolOverview
-        jobs={jobs}
-        onJobs={openJobs}
-        onApplications={openApplications}
-      />
-      {error ? <Text style={styles.cardBody}>{error}</Text> : null}
-    </>
-  );
+  return <DashboardSummary role="school" />;
 }

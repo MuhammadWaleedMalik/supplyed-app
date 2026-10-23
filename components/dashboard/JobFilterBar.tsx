@@ -1,8 +1,12 @@
-import React from 'react';
-import { View } from 'react-native';
-import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import { useJobStyles } from './jobStyles';
+import React, { useState } from 'react';
+import { Text, View } from 'react-native';
+import SearchField from '../Ui/SearchField';
+import FilterButton from '../Ui/FilterButton';
+import FilterSheet from '../Ui/FilterSheet';
+import { statusLabel } from '../../utils/ui/marketplaceLabels';
+import { useStyles } from './dashboardStyles';
+
+import DynamicSelect from '../Ui/DynamicSelect';
 
 type Props = {
   search: string;
@@ -19,24 +23,48 @@ export default function JobFilterBar({
   onStatus,
   statuses = ['ALL', 'ACTIVE', 'DRAFT', 'CLOSED', 'EXPIRED', 'SUSPENDED'],
 }: Props) {
-  const jobStyles = useJobStyles();
+  const styles = useStyles();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(status);
 
   return (
-    <View style={jobStyles.wizard}>
-      <Input
-        label="SEARCH POSTED JOBS"
-        required={false}
+    <View style={styles.section}>
+      <SearchField
         value={search}
         placeholder="Title, subject, or city"
         onChangeText={onSearch}
       />
-      <Select
-        label="STATUS"
-        value={status}
-        placeholder="All jobs"
-        options={[...statuses]}
-        onChange={onStatus}
-      />
+      <View style={styles.sectionHead}>
+        <Text style={styles.cardBody}>
+          {status === 'ALL' ? 'All jobs' : statusLabel(status)}
+        </Text>
+        <FilterButton
+          count={status === 'ALL' ? 0 : 1}
+          onPress={() => {
+            setDraft(status);
+            setOpen(true);
+          }}
+        />
+      </View>
+      <FilterSheet
+        visible={open}
+        title="Filter jobs"
+        onClose={() => setOpen(false)}
+        onReset={() => setDraft('ALL')}
+        onApply={() => {
+          onStatus(draft);
+          setOpen(false);
+        }}
+      >
+        <DynamicSelect
+          name="jobStatus"
+          label="Status"
+          value={draft === 'ALL' ? '' : draft}
+          placeholder="All jobs"
+          onChange={value => setDraft(value || 'ALL')}
+          allowed={statuses.filter(value => value !== 'ALL') as string[]}
+        />
+      </FilterSheet>
     </View>
   );
 }

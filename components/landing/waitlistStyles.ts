@@ -1,7 +1,17 @@
-import { serif, createThemedStyles } from '../Ui/theme';
+import { createThemedStyles } from '../Ui/theme';
 
 export const useWaitlistStyles = createThemedStyles(colors => ({
   safe: { flex: 1, backgroundColor: '#ffffff' },
+  welcomeHeader: {
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  logo: { fontSize: 25, fontWeight: '800', color: colors.ink },
+  logoAccent: { color: colors.brand },
+  welcomeActions: { paddingHorizontal: 20, gap: 12 },
   content: {
     width: '100%',
     maxWidth: 640,
@@ -11,11 +21,11 @@ export const useWaitlistStyles = createThemedStyles(colors => ({
   section: { paddingHorizontal: 20, paddingVertical: 30, gap: 16 },
   heroTitle: {
     color: colors.ink,
-    fontFamily: serif,
+    fontWeight: '700',
     fontSize: 38,
     lineHeight: 43,
   },
-  title: { color: colors.ink, fontFamily: serif, fontSize: 28, lineHeight: 34 },
+  title: { color: colors.ink, fontWeight: '700', fontSize: 26, lineHeight: 34 },
   subtitle: {
     color: colors.ink,
     fontSize: 20,

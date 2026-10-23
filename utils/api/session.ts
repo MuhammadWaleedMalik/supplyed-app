@@ -49,6 +49,7 @@ function persistTokens() {
         'Secure session storage is unavailable. You may need to sign in after restarting.',
       );
     });
+  return storageQueue.then(() => undefined);
 }
 
 export async function restoreStoredTokens() {
@@ -87,6 +88,11 @@ export function getSessionVersion() {
   return sessionVersion;
 }
 
+export function assertSessionVersion(version: number) {
+  if (version !== sessionVersion)
+    throw new Error('Your session changed. Please reopen this screen.');
+}
+
 export function setCurrentSessionUser(user: User) {
   currentUser = user;
   sessionListeners.forEach(listener => listener());
@@ -107,14 +113,17 @@ export function expireSession() {
 export function saveTokens(result: Tokens) {
   const nextAccess = result.accessToken || result.tokens?.accessToken;
   if (typeof nextAccess !== 'string' || !nextAccess.trim()) {
-    throw new Error('The server did not return a valid session. Please sign in again.');
+    throw new Error(
+      'The server did not return a valid session. Please sign in again.',
+    );
   }
   if (!accessToken) sessionVersion += 1;
   accessToken = nextAccess;
   refreshToken =
     result.refreshToken || result.tokens?.refreshToken || refreshToken;
-  persistTokens();
+  const stored = persistTokens();
   sessionListeners.forEach(listener => listener());
+  return stored;
 }
 
 export function getAccessToken() {

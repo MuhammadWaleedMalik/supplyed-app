@@ -23,7 +23,7 @@ export default function ComplianceFields({
   const common = useCommonStyles();
   const styles = useStyles();
 
-  const isMatSchool = data.institutionType === 'MAT school';
+  const isMatSchool = data.institutionType === 'MAT_SCHOOL';
 
   return (
     <View style={styles.fields}>
@@ -32,7 +32,7 @@ export default function ComplianceFields({
           label="COMPLIANCE LEAD"
           placeholder="Name of safeguarding lead"
           value={data.complianceLead}
-          required={false}
+          required
           half={wide}
           onChangeText={value => update('complianceLead', value)}
         />
@@ -41,7 +41,7 @@ export default function ComplianceFields({
           placeholder="safeguarding@school.org.uk"
           value={data.complianceEmail}
           email
-          required={false}
+          required
           half={wide}
           onChangeText={value => update('complianceEmail', value)}
           error={

@@ -29,7 +29,6 @@ export default function ProfileCreated(props: Props) {
   const styles = useStyles();
 
   const waiting = props.creating || props.sendingSignatory;
-  const emailRequired = props.needsSignatory && !props.signatorySent;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -64,7 +63,7 @@ export default function ProfileCreated(props: Props) {
                   ? 'Sending the trust signatory email...'
                   : props.signatorySent
                   ? 'The trust signatory email has been sent. Track its approval on the documents screen.'
-                  : 'Send the trust signatory email before continuing.'}
+                  : 'Continue to documents to update the signatory details and send the approval request.'}
               </Text>
             ) : null}
             {props.signatoryError ? (
@@ -81,7 +80,7 @@ export default function ProfileCreated(props: Props) {
             <Button
               title="Continue to documents"
               onPress={props.onContinue}
-              disabled={waiting || emailRequired}
+              disabled={waiting}
             />
             {!props.user?.phoneVerified ? (
               <Text style={styles.note}>

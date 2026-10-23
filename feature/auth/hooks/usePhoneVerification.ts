@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getCurrentUser, User } from '../apis/authApi';
 import { ApiError } from '../../../utils/api/request';
 import { sendPhoneCode, verifyPhoneCode } from '../apis/phoneApi';
+import { useAuthAttempt } from '../../../utils/auth/useAuthAttempt';
 
 export function usePhoneVerification(
   user: User | undefined,
@@ -18,7 +19,7 @@ export function usePhoneVerification(
   const [now, setNow] = useState(Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const requestRunning = useRef(false);
+  const attempt = useAuthAttempt();
 
   const verified = savedVerified && phone.trim() === savedPhone;
   const resendSeconds = Math.max(0, Math.ceil((resendAt - now) / 1000));
@@ -27,7 +28,7 @@ export function usePhoneVerification(
     user &&
       !loading &&
       sentPhone === phone &&
-      code.length === 6 &&
+      /^\d{6}$/.test(code) &&
       expirySeconds > 0,
   );
 
@@ -56,7 +57,7 @@ export function usePhoneVerification(
   }
 
   function changeCode(value: string) {
-    setCode(value.replace(/\D/g, '').slice(0, 6));
+    setCode(value);
     setError('');
   }
 
@@ -70,14 +71,14 @@ export function usePhoneVerification(
   }
 
   async function send() {
-    if (!user || requestRunning.current || verified || Date.now() < resendAt)
-      return;
+    if (!user || verified || Date.now() < resendAt) return;
     if (!phone.trim()) {
       setError('Enter your phone number including its country code.');
       return;
     }
 
-    requestRunning.current = true;
+    const active = attempt.begin();
+    if (!active) return;
     setLoading(true);
     setError('');
     setCode('');
@@ -85,6 +86,7 @@ export function usePhoneVerification(
     setExpiresAt(0);
     try {
       const reply = await sendPhoneCode(phone);
+      if (!active()) return;
       const sentAt = Date.now();
       setPhone(reply.phone);
       setSentPhone(reply.phone);
@@ -92,12 +94,15 @@ export function usePhoneVerification(
       setResendAt(sentAt + reply.resendAvailableInSeconds * 1000);
       setExpiresAt(sentAt + reply.expiresInMinutes * 60 * 1000);
     } catch (problem) {
+      if (!active()) return;
       if (problem instanceof ApiError && problem.status === 409) {
         try {
           const currentUser = await getCurrentUser();
+          if (!active()) return;
           applyUser(currentUser);
           if (!currentUser.phoneVerified) setError(problem.message);
         } catch (refreshProblem) {
+          if (!active()) return;
           setError(
             refreshProblem instanceof Error
               ? refreshProblem.message
@@ -111,28 +116,37 @@ export function usePhoneVerification(
             : 'Unable to send a phone code.',
         );
       }
+    } finally {
+      attempt.finish();
+      if (active()) setLoading(false);
     }
-    requestRunning.current = false;
-    setLoading(false);
   }
 
   async function verify() {
-    if (!canVerify || requestRunning.current || Date.now() >= expiresAt) return;
-    requestRunning.current = true;
+    if (!canVerify || Date.now() >= expiresAt) return;
+    const active = attempt.begin();
+    if (!active) return;
     setLoading(true);
     setError('');
     try {
       const verifiedUser = await verifyPhoneCode(code);
+      if (!active()) return;
+      if (!verifiedUser.phoneVerified)
+        throw new Error('Phone verification was not confirmed.');
       applyUser(verifiedUser);
     } catch (problem) {
+      if (!active()) return;
       setError(
-        problem instanceof Error
+        problem instanceof ApiError && [400, 422].includes(problem.status)
+          ? 'That code was not accepted. Check the six digits or request a new code.'
+          : problem instanceof Error
           ? problem.message
           : 'Unable to verify your phone.',
       );
+    } finally {
+      attempt.finish();
+      if (active()) setLoading(false);
     }
-    requestRunning.current = false;
-    setLoading(false);
   }
 
   return {

@@ -84,12 +84,12 @@ export default function PublicThemeControls() {
             </View>
             <ScrollView contentContainerStyle={styles.content}>
               <Text style={styles.description}>
-                Choose a theme for this app session. You can also change it in
-                Settings after signing in.
+                Choose a theme for your app. You can also change it in Settings
+                after signing in.
               </Text>
               <ThemePicker />
               <Text style={styles.description}>
-                A full reload returns to Supply blue.
+                Your color is saved on this device.
               </Text>
             </ScrollView>
           </View>
@@ -140,8 +140,8 @@ const useStyles = createThemedStyles(colors => ({
   },
   title: { color: colors.ink, fontSize: 22, fontWeight: '700', flex: 1 },
   close: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,11 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import {
-  institutionTypes,
-  OnboardingData,
-} from '../../utils/onboarding/onboardingData';
+import DynamicSelect from '../Ui/DynamicSelect';
+import { OnboardingData } from '../../utils/onboarding/onboardingData';
 import { requiredError } from '../../utils/onboarding/onboardingUtils';
 
 type Props = {
@@ -21,7 +18,7 @@ export default function SchoolDetailsFields({
   attempted,
   update,
 }: Props) {
-  const isMat = data.institutionType === 'MAT school';
+  const isMat = data.institutionType === 'MAT_SCHOOL';
 
   return (
     <View style={styles.fields}>
@@ -39,7 +36,7 @@ export default function SchoolDetailsFields({
           placeholder="Headteacher, HR lead, cover manager"
           value={data.schoolRole}
           onChangeText={value => update('schoolRole', value)}
-          required={false}
+          required
           half={wide}
         />
       </View>
@@ -61,13 +58,14 @@ export default function SchoolDetailsFields({
           half={wide}
         />
       </View>
-      <Select
+      <DynamicSelect
         label="SCHOOL TYPE"
         value={data.institutionType}
         placeholder="Select school type"
-        options={institutionTypes}
+        name="institutionType"
         onChange={value => update('institutionType', value)}
         required
+        error={requiredError(data.institutionType, attempted)}
       />
       {isMat ? (
         <View style={[styles.row, wide && styles.wide]}>

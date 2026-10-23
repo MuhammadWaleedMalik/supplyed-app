@@ -4,9 +4,19 @@ import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '../Ui/theme';
 import { useJobStyles } from './jobStyles';
 
-type Props = { step: number; title: string; onClose: () => void };
+type Props = {
+  step: number;
+  total?: number;
+  title: string;
+  onClose: () => void;
+};
 
-export default function FlowProgress({ step, title, onClose }: Props) {
+export default function FlowProgress({
+  step,
+  total = 3,
+  title,
+  onClose,
+}: Props) {
   const { colors } = useTheme();
   const jobStyles = useJobStyles();
 
@@ -14,10 +24,13 @@ export default function FlowProgress({ step, title, onClose }: Props) {
     <View style={jobStyles.progressShell}>
       <View style={jobStyles.progressHead}>
         <View style={jobStyles.progressCopy}>
-          <Text style={jobStyles.stepLabel}>STEP {step} OF 3</Text>
+          <Text style={jobStyles.stepLabel}>
+            STEP {step} OF {total}
+          </Text>
           <Text style={jobStyles.flowTitle}>{title}</Text>
         </View>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Close flow"
           onPress={onClose}
           style={jobStyles.close}
@@ -26,7 +39,7 @@ export default function FlowProgress({ step, title, onClose }: Props) {
         </Pressable>
       </View>
       <View style={jobStyles.progress}>
-        {[1, 2, 3].map(item => (
+        {Array.from({ length: total }, (_, index) => index + 1).map(item => (
           <View
             key={item}
             style={[

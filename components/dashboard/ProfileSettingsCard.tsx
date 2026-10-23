@@ -12,6 +12,7 @@ import TeacherSettingsFields from './TeacherSettingsFields';
 type Props = {
   type: AccountType;
   fields: ProfileFields;
+  fieldErrors?: Partial<Record<keyof ProfileFields, string>>;
   wide: boolean;
   onChange: (name: keyof ProfileFields, value: string | boolean) => void;
 };
@@ -19,6 +20,7 @@ type Props = {
 export default function ProfileSettingsCard({
   type,
   fields,
+  fieldErrors,
   wide,
   onChange,
 }: Props) {
@@ -33,6 +35,7 @@ export default function ProfileSettingsCard({
         note="Role details used across jobs, applications, and matching."
       />
       <CommonProfileFields
+        fieldErrors={fieldErrors}
         fields={fields}
         wide={wide}
         showBio={type === 'teacher'}

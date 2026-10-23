@@ -1,0 +1,318 @@
+--- /dev/null
++++ b/utils/payments/pendingPayout.ts
+@@ -0,0 +1,111 @@
++import * as Keychain from 'react-native-keychain';
++import { createInstantPayout } from '../../feature/dashboard/shared/apis/paymentsApi';
++import { getCurrentSessionUser, getSessionVersion } from '../api/session';
++
++export type PendingPayout = {
++  requestId: string;
++  amountPence?: number;
++  createdAt: string;
++};
++const running = new Set<string>();
++
++function storageService() {
++  const userId = getCurrentSessionUser()?.id;
++  if (!userId) throw new Error('Sign in before withdrawing.');
++  return 'com.supplyed.payout.' + encodeURIComponent(userId);
++}
++
++function newRequestId() {
++  // This identifies a request; it is not an authentication credential.
++  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, letter => {
++    const random = Math.floor(Math.random() * 16);
++    return (letter === 'x' ? random : (random % 4) + 8).toString(16);
++  });
++}
++
++async function readSaved(service: string): Promise<PendingPayout | undefined> {
++  const saved = await Keychain.getGenericPassword({ service });
++  if (!saved) return undefined;
++  const pending = JSON.parse(saved.password) as PendingPayout;
++  if (
++    !pending ||
++    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
++      pending.requestId,
++    ) ||
++    !Number.isFinite(Date.parse(pending.createdAt)) ||
++    (pending.amountPence !== undefined &&
++      (!Number.isSafeInteger(pending.amountPence) || pending.amountPence < 40))
++  )
++    throw new Error(
++      'The saved withdrawal needs support review before another can be sent.',
++    );
++  return pending;
++}
++
++export function readPendingPayout() {
++  return readSaved(storageService());
++}
++
++export function sendPayout(amountPence?: number) {
++  return submitPayout(false, amountPence);
++}
++
++export function retrySavedPayout() {
++  return submitPayout(true);
++}
++
++async function submitPayout(retry: boolean, amountPence?: number) {
++  const service = storageService();
++  const session = getSessionVersion();
++  if (running.has(service))
++    throw new Error('This withdrawal is already being sent.');
++  running.add(service);
++  try {
++    let pending = await readSaved(service);
++    if (retry && !pending)
++      throw new Error('There is no saved withdrawal to retry.');
++    if (!retry && pending)
++      throw new Error('Resolve the saved withdrawal before starting another.');
++    if (!pending) {
++      if (
++        amountPence !== undefined &&
++        (!Number.isSafeInteger(amountPence) || amountPence < 40)
++      ) {
++        throw new Error('Enter a valid withdrawal of at least GBP 0.40.');
++      }
++      pending = {
++        requestId: newRequestId(),
++        amountPence,
++        createdAt: new Date().toISOString(),
++      };
++      const saved = await Keychain.setGenericPassword(
++        'payout',
++        JSON.stringify(pending),
++        {
++          service,
++          accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
++        },
++      );
++      if (!saved)
++        throw new Error(
++          'Unable to save the withdrawal securely. Nothing was sent.',
++        );
++    }
++    if (getSessionVersion() !== session)
++      throw new Error('Your session changed.');
++    // Do not clear on an error: a timeout, expired session or rejection during
++    // recovery cannot prove that the earlier attempt did not move money.
++    const payout = await createInstantPayout(
++      pending.amountPence,
++      pending.requestId,
++    );
++    const cleared = await Keychain.resetGenericPassword({ service });
++    if (!cleared)
++      throw new Error(
++        'Withdrawal confirmed, but its saved request could not be cleared. Retry the saved request to finish.',
++      );
++    return payout;
++  } finally {
++    running.delete(service);
++  }
++}
+--- a/components/dashboard/PayoutAccountCard.tsx
++++ b/components/dashboard/PayoutAccountCard.tsx
+@@ -1,5 +1,5 @@
+ import React from 'react';
+-import { Text, View } from 'react-native';
++import { Alert, Text, View } from 'react-native';
+ import { CreditCard } from 'lucide-react-native';
+ import { usePayoutAccount } from '../../feature/dashboard/shared/hooks/usePayoutAccount';
+ import Button from '../Ui/Button';
+@@ -7,6 +7,7 @@
+ import RecentPayoutsCard from './RecentPayoutsCard';
+ import SettingsCardHeader from './SettingsCardHeader';
+ import { useSettingsStyles } from './settingsStyles';
++import { formatPence } from '../../utils/payments/paymentUtils';
+ 
+ type Props = { showBalance?: boolean };
+ 
+@@ -76,6 +77,37 @@
+           disabled={disabled}
+           onPress={payouts.refresh}
+         />
++        {payouts.pendingWithdrawal ? (
++          <View style={settingsStyles.record}>
++            <Text style={settingsStyles.recordValue}>
++              Saved withdrawal needs confirmation
++            </Text>
++            <Text style={settingsStyles.cardNote}>
++              {payouts.pendingWithdrawal.amountPence === undefined
++                ? 'Full balance requested'
++                : formatPence(payouts.pendingWithdrawal.amountPence)}
++              {' on ' +
++                new Date(payouts.pendingWithdrawal.createdAt).toLocaleString() +
++                '. '}
++              Retry this saved request before starting another withdrawal. If it
++              needs support review, keep this request saved.
++            </Text>
++            <Button
++              title="Retry saved withdrawal"
++              disabled={disabled}
++              onPress={() =>
++                Alert.alert(
++                  'Retry saved withdrawal',
++                  'This resends the saved request. The server returns the same withdrawal if it was already processed.',
++                  [
++                    { text: 'Cancel', style: 'cancel' },
++                    { text: 'Retry', onPress: payouts.retryWithdrawal },
++                  ],
++                )
++              }
++            />
++          </View>
++        ) : null}
+         {payouts.notice ? (
+           <Text style={settingsStyles.recordValue}>{payouts.notice}</Text>
+         ) : null}
+--- a/feature/dashboard/shared/apis/paymentsApi.ts
++++ b/feature/dashboard/shared/apis/paymentsApi.ts
+@@ -48,9 +48,13 @@
+   return protectedRequest<PayoutBalance>(endpoints.payoutBalance);
+ }
+ 
+-export function createInstantPayout(amountPence?: number) {
+-  // An empty body asks the backend to withdraw the full instant balance.
+-  const body = amountPence === undefined ? {} : { amountPence };
++export function createInstantPayout(
++  amountPence: number | undefined,
++  requestId: string,
++) {
++  // Deploy the backend request-ID contract before using this client.
++  const body =
++    amountPence === undefined ? { requestId } : { amountPence, requestId };
+   return protectedRequest<PayoutSummary>(endpoints.instantPayout, 'POST', body);
+ }
+ 
+--- a/feature/dashboard/shared/hooks/usePayoutAccount.ts
++++ b/feature/dashboard/shared/hooks/usePayoutAccount.ts
+@@ -5,7 +5,12 @@
+ import { payoutResultIsUncertain } from '../../../../utils/payments/payoutUtils';
+ import { getSessionVersion } from '../../../../utils/api/session';
+ import {
+-  createInstantPayout,
++  PendingPayout,
++  readPendingPayout,
++  retrySavedPayout,
++  sendPayout,
++} from '../../../../utils/payments/pendingPayout';
++import {
+   createPayoutDashboardLink,
+   createPayoutOnboardingLink,
+   getPayoutAccount,
+@@ -26,6 +31,8 @@
+   const [needsRefresh, setNeedsRefresh] = useState(false);
+   const [error, setError] = useState('');
+   const [notice, setNotice] = useState('');
++  const [pendingWithdrawal, setPendingWithdrawal] = useState<PendingPayout>();
++  const [recoveryReady, setRecoveryReady] = useState(false);
+   // The ref also blocks two taps before React has rendered the disabled button.
+   const actionRunning = useRef(false);
+   const requestId = useRef(0);
+@@ -44,6 +51,10 @@
+     setNeedsRefresh(true);
+     setError('');
+     try {
++      const pending = await readPendingPayout();
++      if (!active()) return false;
++      setPendingWithdrawal(pending);
++      setRecoveryReady(true);
+       const latestAccount = await getPayoutAccount();
+       if (!active()) return false;
+       setAccount(latestAccount);
+@@ -112,7 +123,15 @@
+   }
+ 
+   async function withdraw(amountPence?: number) {
+-    if (!isActive() || actionRunning.current || loading || needsRefresh) return;
++    if (
++      !isActive() ||
++      actionRunning.current ||
++      loading ||
++      needsRefresh ||
++      !recoveryReady ||
++      pendingWithdrawal
++    )
++      return;
+     const requested = amountPence ?? balance?.instantAvailablePence ?? 0;
+     if (!account?.ready || !balance?.instantDestination) {
+       setError(
+@@ -134,7 +153,7 @@
+     setError('');
+     setNotice('');
+     try {
+-      const payout = await createInstantPayout(amountPence);
++      const payout = await sendPayout(amountPence);
+       if (!isActive()) return;
+       setNotice(
+         'Withdrawal requested. Status: ' +
+@@ -146,20 +165,46 @@
+       await refresh();
+     } catch (problem) {
+       if (!isActive()) return;
++      await refresh();
++      if (!isActive()) return;
++      setError(errorMessage(problem));
+       if (payoutResultIsUncertain(problem)) {
+-        setNeedsRefresh(true);
+         setNotice(
+-          'We could not confirm the withdrawal. Review the latest balance and recent payouts before trying again.',
++          'The withdrawal needs confirmation. Retry the saved withdrawal to use the same request.',
+         );
+-        const refreshed = await refresh();
+-        if (!refreshed) {
+-          setError(
+-            'Unable to check the withdrawal. Refresh payouts before trying again.',
+-          );
+-        }
+-      } else {
+-        setError(errorMessage(problem));
+       }
++    } finally {
++      actionRunning.current = false;
++      if (isActive()) setBusy(false);
++    }
++  }
++
++  async function retryWithdrawal() {
++    if (
++      !isActive() ||
++      actionRunning.current ||
++      loading ||
++      !recoveryReady ||
++      !pendingWithdrawal
++    )
++      return;
++    actionRunning.current = true;
++    setBusy(true);
++    setError('');
++    setNotice('');
++    try {
++      const payout = await retrySavedPayout();
++      if (!isActive()) return;
++      setNotice(
++        'Withdrawal confirmed. Status: ' +
++          payout.status.replace(/_/g, ' ') +
++          '.',
++      );
++      await refresh();
++    } catch (problem) {
++      if (!isActive()) return;
++      await refresh();
++      if (isActive()) setError(errorMessage(problem));
+     } finally {
+       actionRunning.current = false;
+       if (isActive()) setBusy(false);
+@@ -171,7 +216,9 @@
+     balance,
+     loading,
+     busy,
+-    needsRefresh,
++    needsRefresh: needsRefresh || !recoveryReady || Boolean(pendingWithdrawal),
++    pendingWithdrawal,
++    retryWithdrawal,
+     error,
+     notice,
+     refresh,

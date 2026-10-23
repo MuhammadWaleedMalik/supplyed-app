@@ -21,7 +21,10 @@ export function useTwoFactor(
       setError('Enter a six-digit code or a recovery code.');
       return;
     }
-    if (!token) { setError('Please sign in again to request a new challenge.'); return; }
+    if (!token) {
+      setError('Please sign in again to request a new challenge.');
+      return;
+    }
     const active = attempt.begin();
     if (!active) return;
     setLoading(true);
@@ -31,7 +34,7 @@ export function useTwoFactor(
       if (!active()) return;
       if (!reply.user)
         throw new Error('The server did not return your account.');
-      saveTokens(reply);
+      await saveTokens(reply);
       await onAuthenticated(reply.user);
     } catch (problem) {
       setError(
@@ -45,4 +48,3 @@ export function useTwoFactor(
 
   return { code, setCode, error, loading, verify };
 }
-

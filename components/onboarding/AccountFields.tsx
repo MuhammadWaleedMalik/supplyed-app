@@ -1,12 +1,10 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
+import DynamicSelect from '../Ui/DynamicSelect';
 import { createThemedStyles } from '../Ui/theme';
 import {
   AccountType,
-  cities,
-  countries,
   OnboardingData,
 } from '../../utils/onboarding/onboardingData';
 import { requiredError } from '../../utils/onboarding/onboardingUtils';
@@ -53,7 +51,7 @@ export default function AccountFields({
           />
           <Text style={styles.hint}>
             {phoneLocked
-              ? 'Your verified number is kept. Change it with SMS verification in Settings.'
+              ? 'Your verified number is locked to protect your account.'
               : 'You can verify this number after creating your profile.'}
           </Text>
         </View>
@@ -61,34 +59,39 @@ export default function AccountFields({
       {type === 'teacher' && (
         <View style={[styles.row, wide && styles.wide]}>
           <View style={[styles.field, wide && styles.half]}>
-            <Select
+            <DynamicSelect
               label="COUNTRY"
               value={data.country}
               placeholder="Select country"
-              options={countries}
+              name="country"
               onChange={value => update('country', value)}
+              required
             />
           </View>
           <View style={[styles.field, wide && styles.half]}>
-            <Select
+            <DynamicSelect
               label="CITY"
               value={data.city}
               placeholder="Select city"
-              options={cities}
+              name="city"
               onChange={value => update('city', value)}
+              required
+              error={requiredError(data.city, attempted)}
             />
           </View>
         </View>
       )}
-      <View style={[styles.field, wide && styles.half]}>
-        <Input
-          label="POSTAL CODE"
-          placeholder="M1 1AE"
-          required={false}
-          value={data.postcode}
-          onChangeText={value => update('postcode', value)}
-        />
-      </View>
+      {type === 'teacher' ? (
+        <View style={[styles.field, wide && styles.half]}>
+          <Input
+            label="POSTAL CODE"
+            placeholder="M1 1AE"
+            required
+            value={data.postcode}
+            onChangeText={value => update('postcode', value)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

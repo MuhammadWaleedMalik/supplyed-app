@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getCurrentSessionUser,
+  getSessionVersion,
   setCurrentSessionUser,
 } from '../../../../utils/api/session';
 import {
@@ -27,25 +28,42 @@ export function useAdminUsers() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const saving = useRef(false);
+  const mounted = useRef(true);
+  const requestId = useRef(0);
+  const session = useRef(getSessionVersion()).current;
+  const active = useCallback(
+    () => mounted.current && getSessionVersion() === session,
+    [session],
+  );
 
   const refresh = useCallback(async () => {
+    if (!active()) return;
+    const request = ++requestId.current;
     setLoading(true);
     setError('');
     try {
       const result = await getAdminUsers(page, phoneFilter);
+      if (!active() || request !== requestId.current) return;
       setUsers(result.users);
       setTotal(result.pagination.total);
       setHasNextPage(result.pagination.hasNextPage);
     } catch (problem) {
+      if (!active() || request !== requestId.current) return;
       setError(
         problem instanceof Error ? problem.message : 'Unable to load users.',
       );
+    } finally {
+      if (active() && request === requestId.current) setLoading(false);
     }
-    setLoading(false);
-  }, [page, phoneFilter]);
+  }, [page, phoneFilter, active]);
 
   useEffect(() => {
+    mounted.current = true;
     refresh();
+    return () => {
+      mounted.current = false;
+      requestId.current += 1;
+    };
   }, [refresh]);
 
   function changeFilter(value: string) {
@@ -84,7 +102,7 @@ export function useAdminUsers() {
   }
 
   async function save() {
-    if (saving.current) return;
+    if (!active() || saving.current) return;
     saving.current = true;
     setBusy(true);
     setError('');
@@ -93,22 +111,26 @@ export function useAdminUsers() {
       const savedUser = selectedUser
         ? await updateAdminUser(selectedUser, fields)
         : await createAdminUser(fields);
+      if (!active()) return;
       if (savedUser.id === getCurrentSessionUser()?.id) {
         setCurrentSessionUser(savedUser);
       }
       setSelectedUser(savedUser);
       setFields(adminUserFields(savedUser));
       await refresh();
+      if (!active()) return;
       setNotice(selectedUser ? 'User updated.' : 'User created.');
     } catch (problem) {
+      if (!active()) return;
       setError(
         problem instanceof Error
           ? problem.message
           : 'Unable to save this user.',
       );
+    } finally {
+      saving.current = false;
+      if (active()) setBusy(false);
     }
-    saving.current = false;
-    setBusy(false);
   }
 
   function previousPage() {

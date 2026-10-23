@@ -17,7 +17,7 @@ export default function CodeInputs({ digits, onChange }: Props) {
   const refs = useRef<Array<CodeInputRef | null>>([]);
 
   function changeCode(index: number, value: string) {
-    const numbers = value.replace(/\D/g, '');
+    const numbers = value;
     onChange(index, numbers);
     if (numbers.length === 1 && index < 5) refs.current[index + 1]?.focus();
     if (numbers.length > 1)
@@ -40,7 +40,6 @@ export default function CodeInputs({ digits, onChange }: Props) {
           }}
           accessibilityLabel={'Code digit ' + (index + 1)}
           keyboardType="number-pad"
-          maxLength={6}
           value={digits[index]}
           onChangeText={value => changeCode(index, value)}
           onKeyPress={({ nativeEvent }) => pressKey(index, nativeEvent.key)}

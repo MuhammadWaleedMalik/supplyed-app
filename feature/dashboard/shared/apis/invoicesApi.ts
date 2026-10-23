@@ -1,8 +1,14 @@
+import type { PlannedWorkUnits } from '../../../../utils/jobs/workSchedule';
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
 
 export type InvoiceRole = 'INSTRUCTOR' | 'INSTITUTION' | 'ADMIN';
-export type InvoiceStatus = 'PENDING' | 'OPEN' | 'PAID' | 'VOID' | 'UNCOLLECTIBLE';
+export type InvoiceStatus =
+  | 'PENDING'
+  | 'OPEN'
+  | 'PAID'
+  | 'VOID'
+  | 'UNCOLLECTIBLE';
 export type RefundReason = 'duplicate' | 'fraudulent' | 'requested_by_customer';
 
 export type BookingInvoice = {
@@ -15,7 +21,7 @@ export type BookingInvoice = {
 };
 
 export type Invoice = BookingInvoice & {
-  booking: {
+  booking: PlannedWorkUnits & {
     id: string;
     jobTitle: string;
     startDate: string | null;
@@ -57,10 +63,10 @@ type InvoicePageReply = {
   };
 };
 
-export type InvoicePage = { invoices: Invoice[]; hasNextPage: boolean };
+export type InvoicePage = { invoices: Invoice[]; hasNextPage: boolean; total: number };
 
-function listPath(path: string, page: number, filters: InvoiceFilters) {
-  let query = '?page=' + page + '&limit=20';
+function listPath(path: string, page: number, filters: InvoiceFilters, limit = 20) {
+  let query = '?page=' + page + '&limit=' + limit;
   if (filters.status && filters.status !== 'ALL') {
     query += '&status=' + encodeURIComponent(filters.status);
   }
@@ -71,27 +77,38 @@ function listPath(path: string, page: number, filters: InvoiceFilters) {
     query += '&instructorId=' + encodeURIComponent(filters.instructorId.trim());
   }
   if (filters.institutionId?.trim()) {
-    query += '&institutionId=' + encodeURIComponent(filters.institutionId.trim());
+    query +=
+      '&institutionId=' + encodeURIComponent(filters.institutionId.trim());
   }
   return path + query;
 }
 
-export async function getMyInvoices(page = 1, status = 'ALL') {
+export async function getMyInvoices(page = 1, status = 'ALL', limit = 20) {
   const reply = await protectedRequest<InvoicePageReply>(
-    listPath(endpoints.invoicesMine, page, { status }),
+    listPath(endpoints.invoicesMine, page, { status }, limit),
   );
-  return { invoices: reply.invoices, hasNextPage: reply.pagination.hasNextPage };
+  return {
+    invoices: reply.invoices,
+    hasNextPage: reply.pagination.hasNextPage,
+    total: reply.pagination.total,
+  };
 }
 
 export async function getAdminInvoices(page = 1, filters: InvoiceFilters = {}) {
   const reply = await protectedRequest<InvoicePageReply>(
     listPath(endpoints.invoices, page, filters),
   );
-  return { invoices: reply.invoices, hasNextPage: reply.pagination.hasNextPage };
+  return {
+    invoices: reply.invoices,
+    hasNextPage: reply.pagination.hasNextPage,
+    total: reply.pagination.total,
+  };
 }
 
 export function getInvoice(id: string) {
-  return protectedRequest<Invoice>(endpoints.invoices + '/' + encodeURIComponent(id));
+  return protectedRequest<Invoice>(
+    endpoints.invoices + '/' + encodeURIComponent(id),
+  );
 }
 
 export function createInvoice(data: {
@@ -103,14 +120,24 @@ export function createInvoice(data: {
 }
 
 export function resendInvoice(id: string) {
-  return protectedRequest<Invoice>(endpoints.invoices + '/' + encodeURIComponent(id) + '/send', 'POST');
+  return protectedRequest<Invoice>(
+    endpoints.invoices + '/' + encodeURIComponent(id) + '/send',
+    'POST',
+  );
 }
 
 export function voidInvoice(id: string) {
-  return protectedRequest<Invoice>(endpoints.invoices + '/' + encodeURIComponent(id) + '/void', 'POST');
+  return protectedRequest<Invoice>(
+    endpoints.invoices + '/' + encodeURIComponent(id) + '/void',
+    'POST',
+  );
 }
 
-export function refundInvoice(id: string, amountPence?: number, reason?: RefundReason) {
+export function refundInvoice(
+  id: string,
+  amountPence?: number,
+  reason?: RefundReason,
+) {
   return protectedRequest<Invoice>(
     endpoints.invoices + '/' + encodeURIComponent(id) + '/refund',
     'POST',

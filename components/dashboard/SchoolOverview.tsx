@@ -65,8 +65,9 @@ export default function SchoolOverview({
         <View key={job.id} style={styles.card}>
           <Text style={styles.cardTitle}>{job.title}</Text>
           <Text style={styles.cardBody}>
-            {job.subject || 'General'} | {job.city || 'Location pending'} |{' '}
-            {job.applicationCount || 0} applications
+            {job.subjects?.join(', ') || job.subject || 'General'} |{' '}
+            {job.city || 'Location pending'} | {job.applicationCount || 0}{' '}
+            applications
           </Text>
         </View>
       ))}

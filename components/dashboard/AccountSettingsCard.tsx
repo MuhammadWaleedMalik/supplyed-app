@@ -15,6 +15,7 @@ import { useSettingsStyles } from './settingsStyles';
 type Props = {
   settings?: ProfileSnapshot;
   fields: ProfileFields;
+  fieldErrors?: Partial<Record<keyof ProfileFields, string>>;
   imageUrl: string;
   loading: boolean;
   wide: boolean;
@@ -42,6 +43,7 @@ export default function AccountSettingsCard(props: Props) {
         <View style={settingsStyles.field}>
           <Input
             label="DISPLAY NAME"
+            error={props.fieldErrors?.accountName}
             value={props.fields.accountName}
             onChangeText={value => props.onChange('accountName', value)}
           />
@@ -55,14 +57,34 @@ export default function AccountSettingsCard(props: Props) {
           />
         </View>
       </View>
+      <Input
+        label="PHONE"
+        error={props.fieldErrors?.phone}
+        phone
+        required={false}
+        value={props.fields.phone}
+        disabled={
+          !props.settings ||
+          props.loading ||
+          props.settings.user.phoneVerified === true
+        }
+        onChangeText={value => props.onChange('phone', value)}
+      />
+      <Text style={settingsStyles.cardNote}>
+        {props.settings?.user.phoneVerified
+          ? 'This number is verified and cannot be edited.'
+          : 'Save your phone number with Save changes. Verification is optional; once verified, the number cannot be changed.'}
+      </Text>
       <PhoneVerificationCard
         user={props.settings?.user}
-        editable
-        disabled={props.loading}
+        disabled={
+          props.loading ||
+          props.fields.phone !== (props.settings?.user.phone || '')
+        }
         onVerified={props.onPhoneVerified}
       />
       <Text style={settingsStyles.cardNote}>
-        Email changes are not supported by the current API.
+        Your verified email is used to sign in and cannot be edited here.
       </Text>
     </View>
   );

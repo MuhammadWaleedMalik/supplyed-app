@@ -5,7 +5,6 @@ import {
 } from '../../shared/apis/applicationsApi';
 import { getJobsPage, getJob, Job } from '../../shared/apis/jobsApi';
 import type { TeacherApplication } from '../store/teacherSlice';
-import { ApiError } from '../../../../utils/api/request';
 
 export type TeacherDashboardData = {
   jobs: Job[];
@@ -17,20 +16,36 @@ export async function getTeacherApplications(): Promise<TeacherApplication[]> {
 
   return Promise.all(
     applications.map(async application => {
+      const historical = application.jobDetails
+        ? ({
+            ...application.jobDetails,
+            id: application.jobId,
+            postedByUserId: '',
+            title:
+              application.jobName ||
+              application.jobDetails.title ||
+              'Job title unavailable',
+          } as Job)
+        : undefined;
       try {
         const job = await getJob(application.jobId);
         return { ...application, job };
-      } catch (problem) {
-        if (problem instanceof ApiError && problem.status === 404) return application;
-        throw problem;
+      } catch {
+        // Embedded history remains usable after the public listing is hidden.
+        return historical ? { ...application, job: historical } : application;
       }
     }),
   );
 }
 
 export async function getTeacherDashboardData(): Promise<TeacherDashboardData> {
-  const jobs = (await getJobsPage(1)).jobs;
   const applications = await getTeacherApplications();
+  let jobs: Job[] = [];
+  try {
+    jobs = (await getJobsPage(1)).jobs;
+  } catch {
+    // Discovery loads its own pages and errors. It must not block application history.
+  }
 
   return { jobs, applications };
 }

@@ -1,6 +1,8 @@
 import { useTheme } from '../Ui/theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
+import ConfirmDialog from '../Ui/ConfirmDialog';
+import { StatusBadge } from '../Ui/RecordLayout';
 import {
   initPaymentSheet,
   initStripe,
@@ -29,7 +31,7 @@ import {
   openInvoicePdf,
   openStripeInvoice,
 } from '../../utils/payments/paymentUtils';
-import ChoiceField from './ChoiceField';
+import DynamicSelect from '../Ui/DynamicSelect';
 import { useStyles } from './dashboardStyles';
 import { useJobStyles } from './jobStyles';
 import InvoiceDetails from './InvoiceDetails';
@@ -55,6 +57,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
     'booking' in invoice ? invoice : null,
   );
   const [expanded, setExpanded] = useState(false);
+  const [confirmation, setConfirmation] = useState<Omit<React.ComponentProps<typeof ConfirmDialog>, 'visible' | 'onClose'>>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -66,6 +69,11 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
   );
   const working = useRef(false);
   const mounted = useRef(true);
+  const mountedSession = useRef(getSessionVersion()).current;
+  const active = useCallback(
+    () => mounted.current && getSessionVersion() === mountedSession,
+    [mountedSession],
+  );
   const returningFromPayment = useRef(false);
   const refreshAfterPaymentOpens = useRef(false);
   const current = details || invoice;
@@ -89,12 +97,13 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
   }, [invoice]);
 
   const refreshInvoice = useCallback(async () => {
-    if (working.current) return;
+    if (!active() || working.current) return;
     working.current = true;
     setBusy(true);
     setError('');
     try {
       const latest = await syncInvoice(invoice.id);
+      if (!active()) return;
       setDetails(latest);
       setNeedsRefresh(false);
       if (latest.status === 'PAID' || latest.status === 'VOID')
@@ -107,13 +116,13 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
       await onChanged?.();
       return latest;
     } catch (problem) {
-      setError(errorText(problem));
+      if (active()) setError(errorText(problem));
       return null;
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
-  }, [invoice.id, onChanged]);
+  }, [invoice.id, onChanged, active]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -138,7 +147,8 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
   }
 
   async function payInvoice(hosted = false) {
-    if (working.current || role !== 'INSTITUTION' || needsRefresh) return;
+    if (!active() || working.current || role !== 'INSTITUTION' || needsRefresh)
+      return;
     const sessionVersion = getSessionVersion();
     working.current = true;
     setBusy(true);
@@ -163,6 +173,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         return;
       }
       const session = await createInvoicePaymentSession(invoice.id);
+      if (!active()) return;
       setMessage(
         'Amount due: ' + formatPence(session.amountPence, session.currency),
       );
@@ -171,10 +182,10 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         urlScheme: 'supplyed',
       });
       if (!mounted.current || getSessionVersion() !== sessionVersion) return;
-      // This backend's CustomerSession is for the web. Native saved cards need a customerId.
       const setup = await initPaymentSheet({
         merchantDisplayName: 'SupplyEd',
         paymentIntentClientSecret: session.clientSecret,
+        customerSessionClientSecret: session.customerSessionClientSecret,
         returnURL: 'supplyed://stripe-redirect',
         allowsDelayedPaymentMethods: false,
         appearance: {
@@ -232,6 +243,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
       // Includes paid-elsewhere 409 and uncertain confirmation; never repeat checkout automatically.
       try {
         const latest = await syncInvoice(invoice.id);
+        if (!active()) return;
         setDetails(latest);
         if (latest.status === 'PAID' || latest.status === 'VOID') {
           returningFromPayment.current = false;
@@ -240,11 +252,11 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         }
         await onChanged?.();
       } catch {
-        setMessage('Refresh payment before trying again.');
+        if (active()) setMessage('Refresh payment before trying again.');
       }
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
       if (
         mounted.current &&
         getSessionVersion() === sessionVersion &&
@@ -258,19 +270,20 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
   }
 
   async function showPdf() {
-    if (working.current) return;
+    if (!active() || working.current) return;
     working.current = true;
     setBusy(true);
     setError('');
     try {
       const latest = await getInvoice(invoice.id);
+      if (!active()) return;
       setDetails(latest);
       await openInvoicePdf(latest.invoicePdfUrl);
     } catch (problem) {
-      setError(errorText(problem));
+      if (active()) setError(errorText(problem));
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 
@@ -278,75 +291,53 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
     action: () => Promise<unknown>,
     successMessage: string,
   ) {
-    if (working.current || needsRefresh) return;
+    if (!active() || working.current || needsRefresh) return false;
     working.current = true;
     setBusy(true);
     setError('');
     setMessage('');
     try {
       await action();
+      if (!active()) return false;
       setMessage(successMessage);
       setShowRefund(false);
       setRefundAmount('');
-      setDetails(await getInvoice(invoice.id));
+      const latest = await getInvoice(invoice.id);
+      if (!active()) return false;
+      setDetails(latest);
       await onChanged?.();
+      return true;
     } catch (problem) {
+      if (!active()) return false;
       setError(errorText(problem));
       // A failed response does not prove that Stripe rejected the mutation.
       // Reconcile the invoice and require a fresh review before another attempt.
       setNeedsRefresh(true);
       try {
-        setDetails(await getInvoice(invoice.id));
+        const latest = await getInvoice(invoice.id);
+        if (!active()) return false;
+        setDetails(latest);
         await onChanged?.();
       } catch {
-        setMessage(
-          'Refresh payment to confirm the invoice before trying again.',
-        );
+        if (active())
+          setMessage(
+            'Refresh payment to confirm the invoice before trying again.',
+          );
       }
+      return false;
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 
   function confirmResend() {
-    Alert.alert(
-      'Resend invoice email?',
-      'Send this open invoice to the school again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Resend',
-          onPress: () =>
-            changeInvoice(
-              () => resendInvoice(invoice.id),
-              'Invoice email sent.',
-            ),
-        },
-      ],
-    );
+    setConfirmation({ title: 'Resend invoice email?', context: details?.booking.jobTitle, description: 'Send this open invoice to the school again.', confirmLabel: 'Resend invoice', onConfirm: () => changeInvoice(() => resendInvoice(invoice.id), 'Invoice email sent.') });
   }
-
   async function confirmVoid() {
     const latest = await refreshInvoice();
-    if (
-      !latest ||
-      (latest.status !== 'OPEN' && latest.status !== 'UNCOLLECTIBLE')
-    )
-      return;
-    Alert.alert(
-      'Void this invoice?',
-      'The school will no longer be able to pay this invoice.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Void invoice',
-          style: 'destructive',
-          onPress: () =>
-            changeInvoice(() => voidInvoice(invoice.id), 'Invoice voided.'),
-        },
-      ],
-    );
+    if (!latest || !['OPEN', 'UNCOLLECTIBLE'].includes(latest.status)) return;
+    setConfirmation({ title: 'Void this invoice?', context: latest.booking.jobTitle, description: 'The school will no longer be able to pay this invoice.', confirmLabel: 'Void invoice', destructive: true, onConfirm: () => changeInvoice(() => voidInvoice(invoice.id), 'Invoice voided.') });
   }
 
   async function showRefundForm() {
@@ -375,26 +366,12 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
       amountPence ?? remainingPence,
       details?.currency || 'GBP',
     );
-    Alert.alert(
-      'Refund ' + amount + '?',
-      'This returns the money to the original payment method.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Refund',
-          style: 'destructive',
-          onPress: () =>
-            changeInvoice(
-              () => refundInvoice(invoice.id, amountPence, refundReason),
-              'Refund submitted.',
-            ),
-        },
-      ],
-    );
+    setConfirmation({ title: 'Refund ' + amount + '?', context: details?.booking.jobTitle, description: 'This returns the money to the original payment method. Review the amount before continuing.', confirmLabel: 'Confirm refund', destructive: true, onConfirm: () => changeInvoice(() => refundInvoice(invoice.id, amountPence, refundReason || undefined), 'Refund submitted.') });
   }
 
   return (
     <View style={styles.card}>
+      {confirmation ? <ConfirmDialog {...confirmation} visible onClose={() => setConfirmation(undefined)} /> : null}
       <View style={styles.sectionHead}>
         <View style={styles.teacherCopy}>
           <Text style={styles.cardTitle}>
@@ -404,18 +381,10 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
             <Text style={styles.cardBody}>{details.booking.jobTitle}</Text>
           ) : null}
           <Text style={styles.cardTitle}>
-            {formatPence(current.totalAmountPence, details?.currency || 'GBP')}
+            {formatPence(role === 'INSTRUCTOR' && details ? details.teacherAmountPence : current.totalAmountPence, details?.currency || 'GBP')}
           </Text>
         </View>
-        <View style={jobStyles.statusBadge}>
-          <Text style={jobStyles.statusText}>
-            {details?.amountRefundedPence
-              ? details.amountRefundedPence >= details.totalAmountPence
-                ? 'Fully refunded'
-                : 'Partially refunded'
-              : current.status.replace('_', ' ')}
-          </Text>
-        </View>
+        <StatusBadge status={current.status} label={details?.amountRefundedPence ? details.amountRefundedPence >= details.totalAmountPence ? 'Fully refunded' : 'Partially refunded' : undefined} />
       </View>
       <View style={styles.quickButtons}>
         {role === 'INSTITUTION' &&
@@ -440,13 +409,15 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
             ) : null}
           </>
         ) : null}
-        <Button
-          title={busy ? 'Please wait...' : 'Refresh payment'}
-          variant="social"
-          onPress={refreshInvoice}
-          disabled={busy}
-          compact
-        />
+        {expanded || needsRefresh ? (
+          <Button
+            title={busy ? 'Please wait...' : 'Refresh payment'}
+            variant="social"
+            onPress={refreshInvoice}
+            disabled={busy}
+            compact
+          />
+        ) : null}
         <Button
           title={expanded ? 'Hide details' : 'Invoice details'}
           variant="link"
@@ -456,14 +427,16 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         />
       </View>
       {expanded && details ? <InvoiceDetails invoice={details} /> : null}
-      <Button
-        title="Open invoice PDF"
-        variant="social"
-        onPress={showPdf}
-        disabled={busy}
-        compact
-      />
-      {role !== 'INSTRUCTOR' && current.status === 'OPEN' ? (
+      {expanded ? (
+        <Button
+          title="Open invoice PDF"
+          variant="social"
+          onPress={showPdf}
+          disabled={busy}
+          compact
+        />
+      ) : null}
+      {expanded && role !== 'INSTRUCTOR' && current.status === 'OPEN' ? (
         <Button
           title="Resend invoice email"
           variant="social"
@@ -472,7 +445,8 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
           compact
         />
       ) : null}
-      {role === 'ADMIN' &&
+      {expanded &&
+      role === 'ADMIN' &&
       (current.status === 'OPEN' || current.status === 'UNCOLLECTIBLE') ? (
         <Button
           title="Void invoice"
@@ -482,7 +456,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
           compact
         />
       ) : null}
-      {role === 'ADMIN' && current.status === 'PAID' && details ? (
+      {expanded && role === 'ADMIN' && current.status === 'PAID' && details ? (
         <View style={styles.section}>
           <Text style={styles.cardBody}>
             Remaining refundable:{' '}
@@ -506,10 +480,10 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
                 onChangeText={setRefundAmount}
                 disabled={busy}
               />
-              <ChoiceField
+              <DynamicSelect
+                name="refundReason"
                 label="Refund reason"
                 value={refundReason}
-                options={['requested_by_customer', 'duplicate', 'fraudulent']}
                 onChange={value => setRefundReason(value as RefundReason)}
               />
               <Button

@@ -8,17 +8,18 @@ import { useStyles } from './dashboardStyles';
 import { useAppSelector } from '../../store/hooks';
 
 type Props = {
+  role: 'teacher' | 'school';
   selected: DashboardPage;
   onSelect: (page: DashboardPage) => void;
 };
 
-export default function DashboardNav({ selected, onSelect }: Props) {
+export default function DashboardNav({ role, selected, onSelect }: Props) {
   const { colors } = useTheme();
   const styles = useStyles();
 
   const unread = useAppSelector(state => state.conversations.unread);
-  const items = dashboardTabs.map(tab => {
-    const active = selected === tab.label;
+  const items = dashboardTabs(role).map(tab => {
+    const active = selected === tab.page;
 
     return (
       <Pressable
@@ -26,16 +27,16 @@ export default function DashboardNav({ selected, onSelect }: Props) {
         accessibilityRole="button"
         accessibilityLabel={tab.label + ' tab'}
         accessibilityState={{ selected: active }}
-        onPress={() => onSelect(tab.label)}
+        onPress={() => onSelect(tab.page)}
         style={[styles.navTab, active && styles.navSelected]}
       >
         <View style={[styles.navIcon, active && styles.navIconSelected]}>
           <AppIcon
             name={tab.icon}
             color={active ? colors.brand : colors.muted}
-            size={18}
+            size={22}
           />
-          {tab.label === 'Messages' && unread > 0 ? (
+          {tab.page === 'Messages' && unread > 0 ? (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadText}>
                 {unread > 99 ? '99+' : unread}

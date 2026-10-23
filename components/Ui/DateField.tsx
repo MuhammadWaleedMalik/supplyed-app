@@ -9,10 +9,11 @@ type Props = {
   label: string;
   value: string;
   minimum?: string;
+  error?: string;
   onChange: (value: string) => void;
 };
 
-export default function DateField({ label, value, minimum, onChange }: Props) {
+export default function DateField({ label, value, minimum, error, onChange }: Props) {
   const { colors } = useTheme();
   const styles = useStyles();
 
@@ -26,14 +27,16 @@ export default function DateField({ label, value, minimum, onChange }: Props) {
       <Text style={styles.label}>{label}</Text>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={label + (error ? '. ' + error : '')}
         onPress={() => setOpen(true)}
-        style={styles.button}
+        style={[styles.button, !!error && styles.invalid]}
       >
         <Text style={[styles.value, !value && styles.placeholder]}>
           {value || 'Select date'}
         </Text>
         <CalendarDays color={colors.brand} size={19} />
       </Pressable>
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {open ? (
         <DateTimePicker
           value={selected}
@@ -71,6 +74,8 @@ const useStyles = createThemedStyles(colors => ({
   },
   value: { color: colors.ink, fontSize: 15, flex: 1 },
   placeholder: { color: '#8d9baa' },
+  invalid: { borderColor: '#b42318', backgroundColor: '#fff9f8' },
+  error: { color: '#b42318', fontSize: 12, lineHeight: 19 },
   done: { alignSelf: 'flex-end', padding: 10 },
   doneText: { color: colors.brand, fontWeight: '700' },
 }));

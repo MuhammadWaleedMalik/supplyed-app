@@ -24,6 +24,7 @@ export async function uploadDocument(
   const signed = await protectedRequest<{
     url: string;
     fileKey: string;
+    method?: string;
     requiredHeaders?: Record<string, string>;
   }>(endpoints.documents + '/' + row.id + '/upload-url', 'POST', {
     contentType,
@@ -31,7 +32,13 @@ export async function uploadDocument(
   });
   if (!signed.url || !signed.fileKey)
     throw new Error('The backend did not return a signed upload URL.');
-  await uploadFile(signed.url, file, { 'Content-Type': contentType, ...signed.requiredHeaders }, version);
+  await uploadFile(
+    signed.url,
+    file,
+    { 'Content-Type': contentType, ...signed.requiredHeaders },
+    version,
+    signed.method,
+  );
   return protectedRequest<Document>(
     endpoints.documents + '/' + row.id + '/upload-complete',
     'POST',

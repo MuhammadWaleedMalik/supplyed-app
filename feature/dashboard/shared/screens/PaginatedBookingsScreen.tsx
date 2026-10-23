@@ -1,15 +1,20 @@
-import React, { useRef, useState } from 'react';
+import { openJob, refreshMarketplace } from '../store/navigationSlice';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Pressable,
+  Linking,
   Text,
   View,
 } from 'react-native';
+import BookingFilterBar from '../../../../components/dashboard/BookingFilterBar';
+import BookingRecordCard from '../../../../components/dashboard/BookingRecordCard';
+import ConfirmDialog from '../../../../components/Ui/ConfirmDialog';
+import { Notice, RecordSkeleton } from '../../../../components/Ui/RecordLayout';
+import { ApiError } from '../../../../utils/api/request';
+import { getSessionVersion } from '../../../../utils/api/session';
 import Button from '../../../../components/Ui/Button';
 import Input from '../../../../components/Ui/Input';
-import Select from '../../../../components/Ui/Select';
 import ChoiceField from '../../../../components/dashboard/ChoiceField';
 import BookingInvoiceCard from '../../../../components/dashboard/BookingInvoiceCard';
 import LimitedProfileCard from '../../../../components/dashboard/LimitedProfileCard';
@@ -19,42 +24,21 @@ import { useTheme } from '../../../../components/Ui/theme';
 import { AccountType } from '../../../../utils/onboarding/onboardingData';
 import {
   Booking,
+  getBooking,
   cancelBooking,
   completeBooking,
   noShowBooking,
 } from '../apis/bookingsApi';
 import { createReview } from '../apis/reviewsApi';
-import { useBookings, type BookingFilters } from '../hooks/useBookings';
+import { useBookings } from '../hooks/useBookings';
 import { useLimitedProfile } from '../hooks/useLimitedProfile';
-import { useAppDispatch } from '../../../../store/hooks';
-import { openMessages } from '../store/navigationSlice';
-
-const statuses: BookingFilters['status'][] = [
-  'ALL',
-  'CONFIRMED',
-  'COMPLETED',
-  'CANCELLED',
-  'NO_SHOW',
-];
-const invoiceFilters = ['ALL', 'none', 'unpaid', 'paid'] as const;
-
-function dateText(value?: string | null) {
-  if (!value) return 'Not set';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString();
-}
-
-function payText(booking: Booking) {
-  if (booking.payAmount == null) return 'Pay not set';
-  return String(booking.payAmount) + ' ' + (booking.payType || 'pay');
-}
+import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
+import { openBookingMessages } from '../store/navigationSlice';
 
 function canActToday(value?: string | null) {
   if (!value) return true;
   const start = new Date(value).getTime();
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  return start <= today.getTime();
+  return Number.isFinite(start) && start <= Date.now();
 }
 
 function reviewWindowOpen(booking: Booking) {
@@ -85,6 +69,78 @@ export default function PaginatedBookingsScreen({ type }: Props) {
 
   const dispatch = useAppDispatch();
   const bookings = useBookings();
+  const bookingId = useAppSelector(
+    state => state.dashboardNavigation.notificationBookingId,
+  );
+  const [linkedBooking, setLinkedBooking] = useState<Booking>();
+  const [linkedLoading, setLinkedLoading] = useState(false);
+  const [linkedError, setLinkedError] = useState('');
+  const [linkedAttempt, setLinkedAttempt] = useState(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const version = getSessionVersion();
+    setLinkedBooking(undefined);
+    setLinkedError('');
+    setLinkedLoading(Boolean(bookingId));
+    if (!bookingId) return;
+    getBooking(bookingId)
+      .then(result => {
+        if (active && version === getSessionVersion()) setLinkedBooking(result);
+      })
+      .catch(problem => {
+        if (active && version === getSessionVersion())
+          setLinkedError(
+            problem instanceof Error
+              ? problem.message
+              : 'This booking is unavailable.',
+          );
+      })
+      .finally(() => {
+        if (active) setLinkedLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [bookingId, linkedAttempt]);
+  const visibleBookings = bookingId
+    ? linkedBooking
+      ? [linkedBooking]
+      : []
+    : bookings.bookings;
+  const isLoading = bookingId ? linkedLoading : bookings.loading;
+  async function refreshBookings() {
+    if (bookingId) {
+      setLinkedAttempt(value => value + 1);
+      return true;
+    }
+    return bookings.reload();
+  }
+  async function openDirections(booking: Booking) {
+    const destination = [
+      booking.job.address,
+      booking.job.city,
+      booking.job.postalCode,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    try {
+      await Linking.openURL(
+        'https://www.google.com/maps/dir/?api=1&destination=' +
+          encodeURIComponent(destination),
+      );
+    } catch {
+      bookings.setError(
+        'Unable to open maps. You can copy the address shown on the booking.',
+      );
+    }
+  }
   const profile = useLimitedProfile();
   const [cancelId, setCancelId] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -94,41 +150,46 @@ export default function PaginatedBookingsScreen({ type }: Props) {
   const [busy, setBusy] = useState(false);
   const working = useRef(false);
   const scrollStarted = useRef(false);
+  const [confirmation, setConfirmation] = useState<{ booking: Booking; action: 'complete' | 'no-show' }>();
+  const [notice, setNotice] = useState('');
 
   function confirmComplete(booking: Booking) {
-    Alert.alert('Mark booking complete?', 'This outcome is final.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Mark complete',
-        onPress: () => updateBooking(() => completeBooking(booking.id)),
-      },
-    ]);
+    setConfirmation({ booking, action: 'complete' });
   }
 
   function confirmNoShow(booking: Booking) {
-    Alert.alert('Report no-show?', 'This outcome is final.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Report no-show',
-        onPress: () => updateBooking(() => noShowBooking(booking.id)),
-      },
-    ]);
+    setConfirmation({ booking, action: 'no-show' });
   }
 
   async function updateBooking(action: () => Promise<unknown>) {
     if (working.current) return false;
     working.current = true;
     setBusy(true);
+    const version = getSessionVersion();
     bookings.setError('');
     try {
       await action();
-      return await bookings.reload();
+      if (version !== getSessionVersion() || !mounted.current) return false;
+      dispatch(refreshMarketplace());
+      setNotice('Booking updated. The latest details are shown below.');
+      if (!(await refreshBookings()))
+        bookings.setError(
+          'Your action was saved. Refresh bookings to see the latest details.',
+        );
+      return true;
     } catch (problem) {
-      bookings.setError(actionError(problem));
+      if (version !== getSessionVersion() || !mounted.current) return false;
+      if (problem instanceof ApiError && problem.status === 409) {
+        await refreshBookings();
+        if (version === getSessionVersion() && mounted.current)
+          bookings.setError(
+            'This booking changed. The latest details have been requested; check them before trying again.',
+          );
+      } else bookings.setError(actionError(problem));
       return false;
     } finally {
       working.current = false;
-      setBusy(false);
+      if (mounted.current && version === getSessionVersion()) setBusy(false);
     }
   }
 
@@ -171,48 +232,29 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     const showReview = reviewWindowOpen(booking) && !hasMyReview(booking, type);
 
     return (
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <View style={styles.teacherCopy}>
-            <Text style={styles.cardTitle}>{booking.job.title}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`View ${partyName} profile`}
-              onPress={() => openPartyProfile(booking)}
-            >
-              <Text style={styles.profileLink}>{partyName}</Text>
-            </Pressable>
-          </View>
-          <View style={jobStyles.statusBadge}>
-            <Text style={jobStyles.statusText}>{booking.status}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.cardBody}>
-          {dateText(booking.startDate)} to {dateText(booking.endDate)} |{' '}
-          {payText(booking)}
-        </Text>
-        <Text style={styles.cardBody}>
-          {[booking.job.address, booking.job.city, booking.job.postalCode]
-            .filter(Boolean)
-            .join(', ') || 'Address not set'}
-        </Text>
-        {booking.job.parkingInfo ? (
-          <Text style={styles.teacherMeta}>
-            Parking: {booking.job.parkingInfo}
-          </Text>
-        ) : null}
-        {booking.cancelReason ? (
-          <Text style={styles.teacherMeta}>Reason: {booking.cancelReason}</Text>
-        ) : null}
-
-        {booking.applicationId ? (
+      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} footer={booking.status === 'COMPLETED' || booking.invoice ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
+        {type === 'teacher' && [
+          booking.job.address,
+          booking.job.city,
+          booking.job.county,
+          booking.job.postalCode,
+        ].some(Boolean) ? (
           <Button
-            title={type === 'school' ? 'Message teacher' : 'Message school'}
+            title="Get directions"
             variant="social"
-            onPress={() => dispatch(openMessages(booking.applicationId))}
+            onPress={() => openDirections(booking)}
           />
         ) : null}
+        <Button
+          title="View job"
+          variant="social"
+          onPress={() => dispatch(openJob(booking.job.id))}
+        />
+        <Button
+          title={type === 'school' ? 'Message teacher' : 'Message school'}
+          variant="social"
+          onPress={() => dispatch(openBookingMessages(booking.id))}
+        />
         {showSchoolActions ? (
           <View style={styles.quickButtons}>
             <Button
@@ -237,6 +279,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
               <>
                 <Input
                   label="CANCEL REASON"
+                  maxLength={1000}
                   placeholder="Why is this booking cancelled?"
                   multiline
                   value={cancelReason}
@@ -261,7 +304,10 @@ export default function PaginatedBookingsScreen({ type }: Props) {
               <Button
                 title="Cancel booking"
                 variant="link"
-                onPress={() => setCancelId(booking.id)}
+                onPress={() => {
+                  setCancelId(booking.id);
+                  setCancelReason('');
+                }}
                 disabled={busy}
                 compact
               />
@@ -281,6 +327,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
                 />
                 <Input
                   label="COMMENT"
+                  maxLength={2000}
                   placeholder="Optional review comment"
                   multiline
                   required={false}
@@ -305,30 +352,28 @@ export default function PaginatedBookingsScreen({ type }: Props) {
             ) : (
               <Button
                 title="Leave a review"
-                onPress={() => setReviewId(booking.id)}
+                onPress={() => {
+                  setReviewId(booking.id);
+                  setComment('');
+                  setRating('5');
+                }}
                 disabled={busy}
                 compact
               />
             )}
           </View>
         ) : null}
-        {booking.status === 'COMPLETED' || booking.invoice ? (
-          <BookingInvoiceCard
-            booking={booking}
-            role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'}
-            onChanged={bookings.reload}
-          />
-        ) : null}
-      </View>
+      </BookingRecordCard>
     );
   }
 
   const filtersAreActive = Object.values(bookings.filters).some(
-    value => value !== '' && value !== 'ALL',
+    value => value !== '' && value !== 'ALL' && value !== 'All',
   );
 
   return (
     <>
+      {confirmation ? <ConfirmDialog key={confirmation.booking.id + confirmation.action} visible title={confirmation.action === 'complete' ? 'Complete this booking?' : 'Report a no-show?'} context={confirmation.booking.job.title + ' · ' + confirmation.booking.instructor.fullName} description={confirmation.action === 'complete' ? 'Confirm that the placement has finished. This records the final outcome and makes the booking available for invoicing and reviews.' : 'Confirm the teacher did not attend this placement. This records a final no-show outcome.'} confirmLabel={confirmation.action === 'complete' ? 'Confirm completion' : 'Confirm no-show'} destructive={confirmation.action === 'no-show'} onClose={() => setConfirmation(undefined)} onConfirm={() => updateBooking(() => confirmation.action === 'complete' ? completeBooking(confirmation.booking.id) : noShowBooking(confirmation.booking.id))} /> : null}
       <LimitedProfileCard
         profile={profile.profile}
         error={profile.error}
@@ -338,7 +383,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
       <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.page}
-        data={bookings.bookings}
+        data={visibleBookings}
         keyExtractor={booking => booking.id}
         renderItem={renderBooking}
         keyboardShouldPersistTaps="handled"
@@ -347,100 +392,59 @@ export default function PaginatedBookingsScreen({ type }: Props) {
         }}
         onEndReachedThreshold={0.35}
         onEndReached={() => {
-          if (!scrollStarted.current) return;
+          if (bookingId || !scrollStarted.current) return;
           scrollStarted.current = false;
           bookings.loadMore();
         }}
-        refreshing={bookings.loading && bookings.bookings.length > 0}
-        onRefresh={bookings.reload}
+        refreshing={isLoading && visibleBookings.length > 0}
+        onRefresh={refreshBookings}
         ListHeaderComponent={
           <View style={jobStyles.shell}>
+            {notice ? <Notice text={notice} /> : null}
             <View style={jobStyles.progressCopy}>
               <Text style={jobStyles.listTitle}>Bookings</Text>
               <Text style={jobStyles.modeBody}>
-                Confirmed work, cancellations, completion, invoices, and
-                reviews.
+                Stay on top of your placements, people and next steps.
               </Text>
             </View>
 
-            <View style={styles.filters}>
-              {statuses.map(item => {
-                const active = item === bookings.filters.status;
-                return (
-                  <Pressable
-                    key={item}
-                    disabled={busy || bookings.loading}
-                    onPress={() => bookings.setFilter('status', item)}
-                    style={[styles.filter, active && styles.filterActive]}
-                  >
-                    <Text
-                      style={[
-                        styles.filterText,
-                        active && styles.filterTextActive,
-                      ]}
-                    >
-                      {item.replace('_', ' ')}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={jobStyles.wizard}>
-              <Input
-                label="SEARCH BOOKINGS"
-                required={false}
-                maxLength={100}
-                placeholder="Job, teacher, or school"
-                value={bookings.filters.search}
-                onChangeText={value => bookings.setFilter('search', value)}
+            {!bookingId ? (
+              <BookingFilterBar
+                filters={bookings.filters}
+                onChange={bookings.setFilter}
               />
-              <Input
-                label="FROM DATE"
-                required={false}
-                placeholder="YYYY-MM-DD"
-                value={bookings.filters.from}
-                onChangeText={value => bookings.setFilter('from', value)}
-              />
-              <Input
-                label="TO DATE"
-                required={false}
-                placeholder="YYYY-MM-DD"
-                value={bookings.filters.to}
-                onChangeText={value => bookings.setFilter('to', value)}
-              />
-              <Select
-                label="INVOICE"
-                placeholder="All invoice states"
-                value={bookings.filters.invoice}
-                options={[...invoiceFilters]}
-                onChange={value =>
-                  bookings.setFilter(
-                    'invoice',
-                    value as BookingFilters['invoice'],
-                  )
-                }
-              />
-              {filtersAreActive ? (
-                <Button
-                  title="Clear filters"
-                  variant="link"
-                  compact
-                  onPress={bookings.clearFilters}
-                />
-              ) : null}
-            </View>
+            ) : null}
+            {!bookingId && bookings.filters.agenda !== 'All' ? (
+              <Text style={styles.teacherMeta}>
+                {bookings.bookings.length} matching bookings in{' '}
+                {bookings.loadedCount} loaded.
+                {bookings.hasMore
+                  ? ' Load more to check remaining records.'
+                  : ''}
+              </Text>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
-          bookings.loading ? (
-            <ActivityIndicator color={colors.brand} />
+          isLoading ? (
+            <RecordSkeleton />
           ) : (
             <View style={[styles.card, styles.emptyCard]}>
-              <Text style={styles.cardTitle}>No bookings found</Text>
+              <Text style={styles.cardTitle}>
+                {bookingId
+                  ? 'Booking unavailable'
+                  : bookings.hasMore
+                  ? 'No matches in loaded bookings'
+                  : filtersAreActive
+                  ? 'No bookings match these filters'
+                  : 'No bookings yet'}
+              </Text>
               <Text style={[styles.cardBody, styles.centerText]}>
-                Change the filters or wait for a hired application to create a
-                booking.
+                {bookingId
+                  ? 'Retry or use Show all bookings to continue.'
+                  : bookings.hasMore
+                  ? 'Load more to check the remaining records.'
+                  : 'Try another view or clear filters. Confirmed hires appear here.'}
               </Text>
             </View>
           )
@@ -450,12 +454,34 @@ export default function PaginatedBookingsScreen({ type }: Props) {
             {bookings.loadingMore ? (
               <ActivityIndicator color={colors.brand} />
             ) : null}
+            {linkedError ? (
+              <Text style={jobStyles.error} accessibilityLiveRegion="polite">
+                {linkedError}
+              </Text>
+            ) : null}
+            {bookings.error || linkedError ? (
+              <Button
+                title="Refresh bookings"
+                variant="social"
+                disabled={isLoading || busy}
+                onPress={refreshBookings}
+              />
+            ) : null}
+            {!bookingId && bookings.hasMore ? (
+              <Button
+                title="Load more bookings"
+                variant="social"
+                disabled={bookings.loading || bookings.loadingMore}
+                onPress={bookings.loadMore}
+              />
+            ) : null}
             {bookings.error ? (
               <Text style={jobStyles.error} accessibilityLiveRegion="polite">
                 {bookings.error}
               </Text>
             ) : null}
-            {bookings.bookings.length &&
+            {!bookingId &&
+            bookings.bookings.length > 0 &&
             !bookings.hasMore &&
             !bookings.loading ? (
               <Text style={[styles.cardBody, styles.centerText]}>

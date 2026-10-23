@@ -2,14 +2,19 @@ import type { AppIconName } from '../components/Ui/AppIcon';
 import type { DashboardPage } from '../feature/dashboard/shared/store/navigationSlice';
 
 export type DashboardTabItem = {
-  label: DashboardPage;
+  page: DashboardPage;
+  label: string;
   icon: AppIconName;
 };
 
-export const dashboardTabs: DashboardTabItem[] = [
-  { label: 'Dashboard', icon: 'dashboard' },
-  { label: 'Jobs', icon: 'jobs' },
-  { label: 'Applications', icon: 'applications' },
-  { label: 'Bookings', icon: 'bookings' },
-  { label: 'Messages', icon: 'messages' },
-];
+export function dashboardTabs(role: 'teacher' | 'school'): DashboardTabItem[] {
+  return [
+    { page: 'Dashboard', label: 'Home', icon: 'dashboard' },
+    { page: 'Jobs', label: 'Jobs', icon: 'jobs' },
+    role === 'school'
+      ? { page: 'Teachers', label: 'Teachers', icon: 'teachers' }
+      : { page: 'Applications', label: 'Applications', icon: 'applications' },
+    { page: 'Bookings', label: 'Bookings', icon: 'bookings' },
+    { page: 'Messages', label: 'Inbox', icon: 'messages' },
+  ];
+}

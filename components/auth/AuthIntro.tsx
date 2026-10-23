@@ -25,6 +25,23 @@ export default function AuthIntro({
   const common = useCommonStyles();
   const introStyles = useIntroStyles();
 
+  if (!wide) {
+    return (
+      <View style={introStyles.mobileHeader}>
+        <Button title="Back" onPress={onBack} variant="link" compact />
+        <Text style={introStyles.mobileBrand}>
+          Supply<Text style={introStyles.blue}>ED</Text>
+        </Text>
+        <Button
+          title={verify || register ? 'Log in' : 'Sign up'}
+          onPress={onSwitch}
+          variant="link"
+          compact
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[introStyles.panel, wide && introStyles.wide]}>
       <GridBackground />

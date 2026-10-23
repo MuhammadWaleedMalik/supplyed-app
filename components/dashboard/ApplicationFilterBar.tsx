@@ -1,9 +1,11 @@
-import React from 'react';
-import { View } from 'react-native';
-import { applicationStatuses } from '../../constants/jobOptions';
-import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import { useJobStyles } from './jobStyles';
+import React, { useState } from 'react';
+import { Text, View } from 'react-native';
+import SearchField from '../Ui/SearchField';
+import FilterButton from '../Ui/FilterButton';
+import FilterSheet from '../Ui/FilterSheet';
+import { statusLabel } from '../../utils/ui/marketplaceLabels';
+import ApplicationStatusField from './ApplicationStatusField';
+import { useStyles } from './dashboardStyles';
 
 type Props = {
   search: string;
@@ -18,24 +20,41 @@ export default function ApplicationFilterBar({
   onSearch,
   onStatus,
 }: Props) {
-  const jobStyles = useJobStyles();
+  const styles = useStyles();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(status);
 
   return (
-    <View style={jobStyles.wizard}>
-      <Input
-        label="SEARCH APPLICATIONS"
-        required={false}
+    <View style={styles.section}>
+      <SearchField
         value={search}
         placeholder="Job title or status"
         onChangeText={onSearch}
       />
-      <Select
-        label="STATUS"
-        value={status}
-        placeholder="All statuses"
-        options={['ALL', ...applicationStatuses]}
-        onChange={onStatus}
-      />
+      <View style={styles.sectionHead}>
+        <Text style={styles.cardBody}>
+          {status === 'ALL' ? 'All applications' : statusLabel(status)} · Newest first
+        </Text>
+        <FilterButton
+          count={status === 'ALL' ? 0 : 1}
+          onPress={() => {
+            setDraft(status);
+            setOpen(true);
+          }}
+        />
+      </View>
+      <FilterSheet
+        visible={open}
+        title="Filter applications"
+        onClose={() => setOpen(false)}
+        onReset={() => setDraft('APPLIED')}
+        onApply={() => {
+          onStatus(draft);
+          setOpen(false);
+        }}
+      >
+        <ApplicationStatusField value={draft} onChange={setDraft} />
+      </FilterSheet>
     </View>
   );
 }

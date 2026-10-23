@@ -1,6 +1,37 @@
 import { createThemedStyles } from '../Ui/theme';
 
 export const useSettingsStyles = createThemedStyles(colors => ({
+  screenBody: { flex: 1 },
+  sectionTabs: {
+    flexDirection: 'row',
+    gap: 6,
+    marginHorizontal: 18,
+    marginTop: 12,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: colors.soft,
+  },
+  sectionTab: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  sectionTabActive: { backgroundColor: colors.brand },
+  sectionTabText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
+  sectionTabTextActive: { color: '#ffffff' },
+  saveBar: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 12,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.brandBorder,
+    backgroundColor: '#ffffff',
+  },
   page: {
     padding: 18,
     paddingBottom: 36,

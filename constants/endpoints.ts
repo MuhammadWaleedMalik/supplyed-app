@@ -43,7 +43,11 @@ export const endpoints = {
   conversationUnread: '/conversations/unread-count',
   conversationForApplication: (id: string) =>
     '/conversations/application/' + encodeURIComponent(id),
+  conversationForBooking: (id: string) =>
+    '/conversations/booking/' + encodeURIComponent(id),
   conversation: (id: string) => '/conversations/' + encodeURIComponent(id),
+  conversationThreads: (id: string) =>
+    '/conversations/' + encodeURIComponent(id) + '/threads',
   conversationMessages: (id: string) =>
     '/conversations/' + encodeURIComponent(id) + '/messages',
   conversationRead: (id: string) =>

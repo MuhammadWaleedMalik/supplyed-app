@@ -1,0 +1,195 @@
+--- a/features/auth/backend.ts
++++ b/features/auth/backend.ts
+@@ -400,7 +400,7 @@
+   return response;
+ }
+ 
+-export async function verifyEmail(input: EmailVerificationInput): Promise<BackendAuthResponse> {
++export async function verifyEmail(input: EmailVerificationInput): Promise<BackendAuthResponse | TwoFactorLoginChallenge> {
+   if (!input || typeof input.code !== "string" || !validateOtpCode(input.code) || !validateEmail(input.email)) throw new Error("Enter a valid email and 6-digit verification code.");
+   const payload = {
+     otp: input.code,
+@@ -416,11 +416,12 @@
+       throw new Error("Request a new verification code before verifying this email.");
+     }
+ 
+-    return normalizeAuthResponse(
++    return normalizeLoginResponse(
+       await api.post<unknown>(backendAuthEndpoints.verifyEmail, payload, {
+         auth: false,
+         headers: { Authorization: `Bearer ${input.otpToken}` },
+       }),
++      input.email,
+     );
+   }
+ 
+--- a/features/auth/actions.ts
++++ b/features/auth/actions.ts
+@@ -420,6 +420,10 @@
+   try {
+     const response = await verifyEmail(input);
+ 
++    if (isTwoFactorChallenge(response)) {
++      return actionOk(response, "Email verified. Enter your authenticator or recovery code to finish signing in.");
++    }
++
+     return actionOk(
+       {
+         ...(await createVerifiedSessionPayload(response)),
+--- a/components/organisms/LoginRouteClient.tsx
++++ b/components/organisms/LoginRouteClient.tsx
+@@ -230,6 +230,17 @@
+         message: verificationResult.message,
+         ok: false as const,
+       };
++    }
++
++    if (isTwoFactorChallenge(verificationResult.data)) {
++      setVerificationToken(undefined);
++      startTwoFactorChallenge(
++        verificationResult.data.email,
++        verificationResult.data.twoFactorToken,
++        verificationResult.message,
++        verificationResult.data.expiresInMinutes,
++      );
++      return { ok: true as const };
+     }
+ 
+     const sessionPayload = readAuthSessionTicketPayload(verificationResult.data);
+--- a/app/(auth)/signup/actions.ts
++++ b/app/(auth)/signup/actions.ts
+@@ -6,6 +6,7 @@
+   resendEmailVerificationAction,
+   signupWithEmailAction,
+   verifyEmailSessionAction,
++  verifyTwoFactorLoginAction,
+ } from "@/features/auth/actions";
+ 
+ export async function signupAction(previousState: unknown, formData: FormData) {
+@@ -27,3 +28,7 @@
+ export async function resendSignupVerification(previousState: unknown, formData: FormData) {
+   return resendEmailVerificationAction(previousState, formData);
+ }
++
++export async function verifySignupTwoFactor(previousState: unknown, formData: FormData) {
++  return verifyTwoFactorLoginAction(previousState, formData);
++}
+--- a/components/organisms/SignupRouteClient.tsx
++++ b/components/organisms/SignupRouteClient.tsx
+@@ -4,7 +4,7 @@
+ import { useRouter } from "next/navigation";
+ import { signIn } from "next-auth/react";
+ 
+-import { resendSignupVerification, signupAction, verifySignupEmail } from "@/app/(auth)/signup/actions";
++import { resendSignupVerification, signupAction, verifySignupEmail, verifySignupTwoFactor } from "@/app/(auth)/signup/actions";
+ import { readUnknownAuthErrorMessage } from "@/features/auth/error-messages";
+ import { readAuthSessionTicketPayload } from "@/lib/auth-session-routing";
+ import { nextCodeResendAvailableAt } from "@/lib/code-resend-cooldown";
+@@ -22,8 +22,10 @@
+ import { AuthFlowLoader, PublicThemeControls, ToastStack } from "../molecules";
+ import { SignupAccessPage } from "./SignupAccessPage";
+ import { SignupVerifyPage } from "./SignupVerifyPage";
+-
+-type SignupStage = "account" | "verify";
++import { TwoFactorChallengePage } from "./TwoFactorChallengePage";
++import type { TwoFactorLoginChallenge } from "@/features/auth/types";
++
++type SignupStage = "account" | "verify" | "two-factor";
+ 
+ function socialUnavailableMessage(provider: "google" | "microsoft-entra-id") {
+   return provider === "google"
+@@ -65,6 +67,8 @@
+   const [signupEmail, setSignupEmail] = useState("");
+   const [verificationNotice, setVerificationNotice] = useState<string>();
+   const [verificationToken, setVerificationToken] = useState<string>();
++  const [twoFactor, setTwoFactor] = useState<TwoFactorLoginChallenge>();
++  const [twoFactorExpiresAt, setTwoFactorExpiresAt] = useState<number>();
+   const [resendAvailableAt, setResendAvailableAt] = useState<number>();
+   const { authToasts, dismissAuthToast, showAuthError } = useAuthToasts(initialError);
+ 
+@@ -105,6 +109,8 @@
+   }
+ 
+   function backToAccount() {
++    setTwoFactor(undefined);
++    setTwoFactorExpiresAt(undefined);
+     setSignupEmail("");
+     setVerificationToken(undefined);
+     setVerificationNotice(undefined);
+@@ -112,14 +118,13 @@
+     setStage("account");
+   }
+ 
+-  async function finishVerification(code: string) {
+-    let verificationResult: Awaited<ReturnType<typeof verifySignupEmail>>;
++  async function finishVerification(code: string, verifyTwoFactor = false) {
++    let verificationResult: Awaited<ReturnType<typeof verifySignupEmail>> | Awaited<ReturnType<typeof verifySignupTwoFactor>>;
+ 
+     try {
+-      verificationResult = await verifySignupEmail(
+-        null,
+-        formData({ code, email: signupEmail, otpToken: verificationToken ?? "" }),
+-      );
++      verificationResult = verifyTwoFactor
++        ? await verifySignupTwoFactor(null, formData({ code, email: signupEmail, twoFactorToken: twoFactor?.twoFactorToken ?? "" }))
++        : await verifySignupEmail(null, formData({ code, email: signupEmail, otpToken: verificationToken ?? "" }));
+     } catch (error) {
+       const message = readUnknownAuthErrorMessage(error, "We could not verify that code.");
+       showAuthError(message);
+@@ -132,6 +137,19 @@
+         message: verificationResult.message,
+         ok: false as const,
+       };
++    }
++
++    if ("twoFactorRequired" in verificationResult.data && verificationResult.data.twoFactorRequired) {
++      const challenge = verificationResult.data;
++      setTwoFactor(challenge);
++      setTwoFactorExpiresAt(
++        typeof challenge.expiresInMinutes === "number" && Number.isFinite(challenge.expiresInMinutes) && challenge.expiresInMinutes > 0
++          ? Date.now() + challenge.expiresInMinutes * 60 * 1000
++          : undefined,
++      );
++      setVerificationToken(undefined);
++      setStage("two-factor");
++      return { ok: true as const };
+     }
+ 
+     const sessionPayload = readAuthSessionTicketPayload(verificationResult.data);
+@@ -265,6 +283,23 @@
+     );
+   }
+ 
++  if (stage === "two-factor" && twoFactor) {
++    return (
++      <>
++        <TwoFactorChallengePage
++          email={twoFactor.email}
++          expiresAt={twoFactorExpiresAt}
++          notice="Email verified. Complete two-factor verification to continue."
++          onBack={goLogin}
++          onLanding={goLanding}
++          onVerified={(code) => finishVerification(code, true)}
++        />
++        <PublicThemeControls />
++        <ToastStack autoCloseMs={7000} onDismiss={dismissAuthToast} toasts={authToasts} />
++      </>
++    );
++  }
++
+   return null;
+ }
+ 
+--- a/auth.ts
++++ b/auth.ts
+@@ -301,7 +301,9 @@
+           const code = readCredential(credentials, "code").trim();
+           const otpToken = readCredential(credentials, "otpToken");
+           if (!validateOtpCode(code)) return null;
+-          return toAuthUser(await verifyEmail({ code, email, otpToken }));
++          const response = await verifyEmail({ code, email, otpToken });
++          if ("twoFactorRequired" in response) return null;
++          return toAuthUser(response);
+         }
+ 
+         const password = readCredential(credentials, "password");

@@ -1,229 +1,208 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, Text, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { FlatList, Text, View } from 'react-native';
 import Button from '../../../../components/Ui/Button';
+import DynamicSelect from '../../../../components/Ui/DynamicSelect';
 import Input from '../../../../components/Ui/Input';
+import FilterButton from '../../../../components/Ui/FilterButton';
+import FilterSheet from '../../../../components/Ui/FilterSheet';
+import {
+  EmptyState,
+  ListFeedback,
+  RecordSkeleton,
+} from '../../../../components/Ui/RecordLayout';
 import InvoiceCard from '../../../../components/dashboard/InvoiceCard';
 import AdminInvoiceCreate from '../../../../components/dashboard/AdminInvoiceCreate';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
-import { useJobStyles } from '../../../../components/dashboard/jobStyles';
+import { usePagedResource } from '../hooks/usePagedResource';
+import { useForegroundRefresh } from '../hooks/useForegroundRefresh';
 import {
   getAdminInvoices,
   getMyInvoices,
-  Invoice,
   InvoiceFilters,
   InvoiceRole,
 } from '../apis/invoicesApi';
 
-type Props = { role: InvoiceRole };
-
-export default function BillingScreen({ role }: Props) {
+export default function BillingScreen({
+  role,
+  header,
+}: {
+  role: InvoiceRole;
+  header?: React.ReactNode;
+}) {
   const styles = useStyles();
-  const jobStyles = useJobStyles();
-
   const [status, setStatus] = useState('ALL');
-  const [page, setPage] = useState(1);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [draftStatus, setDraftStatus] = useState('ALL');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [bookingId, setBookingId] = useState('');
   const [instructorId, setInstructorId] = useState('');
   const [institutionId, setInstitutionId] = useState('');
   const [filters, setFilters] = useState<InvoiceFilters>({});
-  const requestId = useRef(0);
-  const statuses =
-    role === 'ADMIN'
-      ? ['ALL', 'PENDING', 'OPEN', 'PAID', 'VOID', 'UNCOLLECTIBLE']
-      : ['ALL', 'OPEN', 'PAID', 'VOID', 'UNCOLLECTIBLE'];
-
-  const loadInvoices = useCallback(async () => {
-    const request = ++requestId.current;
-    setLoading(true);
-    setError('');
-    try {
-      const reply =
+  const scrollStarted = useRef(false);
+  const loader = useCallback(
+    async (page: number) => {
+      const result =
         role === 'ADMIN'
           ? await getAdminInvoices(page, { ...filters, status })
           : await getMyInvoices(page, status);
-      if (request !== requestId.current) return false;
-      setInvoices(reply.invoices);
-      setHasNextPage(reply.hasNextPage);
-      return true;
-    } catch (problem) {
-      if (request !== requestId.current) return false;
-      setError(
-        problem instanceof Error ? problem.message : 'Unable to load invoices.',
-      );
-      return false;
-    } finally {
-      if (request === requestId.current) setLoading(false);
-    }
-  }, [role, page, status, filters]);
-
-  useEffect(() => {
-    loadInvoices();
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') loadInvoices();
-    });
-    return () => {
-      requestId.current += 1;
-      subscription.remove();
-    };
-  }, [loadInvoices]);
-
-  function changeStatus(nextStatus: string) {
-    setStatus(nextStatus);
-    setPage(1);
-  }
-
-  function applyFilters() {
-    setFilters({
-      bookingId: bookingId.trim(),
-      instructorId: instructorId.trim(),
-      institutionId: institutionId.trim(),
-    });
-    setPage(1);
-  }
-
-  function clearFilters() {
-    setBookingId('');
-    setInstructorId('');
-    setInstitutionId('');
-    setFilters({});
-    setStatus('ALL');
-    setPage(1);
-  }
-
+      return {
+        items: result.invoices,
+        page,
+        hasMore: result.hasNextPage,
+        total: result.total,
+      };
+    },
+    [role, status, filters],
+  );
+  const pages = usePagedResource(loader);
+  useForegroundRefresh(() => {
+    if (!pages.loading) pages.refreshLoaded();
+  });
+  const heading = (
+    <View style={styles.section}>
+      {header}
+      <Text style={styles.title}>
+        {role === 'ADMIN'
+          ? 'Payments & invoices'
+          : role === 'INSTRUCTOR'
+          ? 'Invoice history'
+          : 'Billing'}
+      </Text>
+      <Text style={styles.cardBody}>
+        Track payments and open your invoice documents. Older invoices load as
+        you scroll.
+      </Text>
+      <View style={styles.sectionHead}>
+        <Text style={styles.teacherMeta}>
+          {pages.total == null
+            ? 'Newest first'
+            : pages.total + ' invoices · Newest first'}
+        </Text>
+        <FilterButton
+          count={
+            (status === 'ALL' ? 0 : 1) +
+            Object.values(filters).filter(Boolean).length
+          }
+          onPress={() => {
+            setDraftStatus(status);
+            setBookingId(filters.bookingId || '');
+            setInstructorId(filters.instructorId || '');
+            setInstitutionId(filters.institutionId || '');
+            setFiltersOpen(true);
+          }}
+        />
+      </View>
+      {role === 'ADMIN' ? (
+        <Button
+          title={showCreate ? 'Close invoice form' : 'Create invoice'}
+          variant="outline"
+          onPress={() => setShowCreate(value => !value)}
+        />
+      ) : null}
+      {role === 'ADMIN' && showCreate ? (
+        <AdminInvoiceCreate onChanged={pages.refreshLoaded} />
+      ) : null}
+    </View>
+  );
   return (
-    <View style={jobStyles.shell}>
-      <View style={jobStyles.progressCopy}>
-        <Text style={jobStyles.listTitle}>
-          {role === 'ADMIN'
-            ? 'Payments and invoices'
-            : role === 'INSTRUCTOR'
-            ? 'Earnings invoices'
-            : 'Billing'}
-        </Text>
-        <Text style={jobStyles.modeBody}>
-          {role === 'INSTRUCTOR'
-            ? 'View invoices, teacher pay, and payment status.'
-            : 'View invoice details, payment status, and invoice documents.'}
-        </Text>
-      </View>
-      {role === 'ADMIN' ? (
-        <AdminInvoiceCreate onChanged={loadInvoices} />
-      ) : null}
-      <View style={styles.badges}>
-        {statuses.map(item => (
-          <Pressable
-            key={item}
-            accessibilityRole="button"
-            accessibilityState={{
-              selected: status === item,
-              disabled: loading,
-            }}
-            disabled={loading}
-            onPress={() => changeStatus(item)}
-            style={[styles.filter, status === item && styles.filterActive]}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                status === item && styles.filterTextActive,
-              ]}
-            >
-              {item}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {role === 'ADMIN' ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Filter invoices</Text>
-          <Input
-            label="BOOKING ID"
-            placeholder="Optional booking ID"
-            required={false}
-            value={bookingId}
-            onChangeText={setBookingId}
-            disabled={loading}
+    <View style={styles.scroll}>
+      <FlatList
+        data={pages.items}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.page}
+        ListHeaderComponent={heading}
+        renderItem={({ item }) => (
+          <InvoiceCard
+            invoice={item}
+            role={role}
+            onChanged={pages.refreshLoaded}
           />
-          <Input
-            label="INSTRUCTOR ID"
-            placeholder="Optional teacher ID"
-            required={false}
-            value={instructorId}
-            onChangeText={setInstructorId}
-            disabled={loading}
+        )}
+        refreshing={pages.loading && pages.items.length > 0}
+        onRefresh={pages.refreshLoaded}
+        onScrollBeginDrag={() => {
+          scrollStarted.current = true;
+        }}
+        onEndReachedThreshold={0.35}
+        onEndReached={() => {
+          if (scrollStarted.current && pages.hasMore && !pages.loading) {
+            scrollStarted.current = false;
+            pages.loadMore();
+          }
+        }}
+        ListEmptyComponent={
+          pages.loading ? (
+            <RecordSkeleton />
+          ) : !pages.error ? (
+            <EmptyState
+              title="No invoices found"
+              description="Invoices for completed bookings appear here. Try another status to see other invoices."
+            />
+          ) : undefined
+        }
+        ListFooterComponent={
+          <ListFeedback
+            loading={pages.loading && pages.items.length > 0}
+            error={pages.error}
+            hasMore={pages.hasMore}
+            onMore={pages.loadMore}
+            onRetry={pages.refreshLoaded}
+            count={pages.items.length}
           />
-          <Input
-            label="INSTITUTION ID"
-            placeholder="Optional school ID"
-            required={false}
-            value={institutionId}
-            onChangeText={setInstitutionId}
-            disabled={loading}
-          />
-          <Button
-            title="Apply filters"
-            onPress={applyFilters}
-            disabled={loading}
-            compact
-          />
-          <Button
-            title="Clear filters"
-            variant="link"
-            onPress={clearFilters}
-            disabled={loading}
-            compact
-          />
-        </View>
-      ) : null}
-      <Button
-        title={loading ? 'Loading invoices...' : 'Refresh invoices'}
-        variant="social"
-        onPress={loadInvoices}
-        disabled={loading}
-        compact
+        }
       />
-      {error ? (
-        <Text style={jobStyles.error} accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : null}
-      {!loading && !error && invoices.length === 0 ? (
-        <View style={[styles.card, styles.emptyCard]}>
-          <Text style={styles.cardTitle}>No invoices found</Text>
-          <Text style={styles.cardBody}>
-            Invoices for completed bookings appear here.
-          </Text>
-        </View>
-      ) : null}
-      {invoices.map(invoice => (
-        <InvoiceCard
-          key={invoice.id}
-          invoice={invoice}
-          role={role}
-          onChanged={loadInvoices}
+      <FilterSheet
+        visible={filtersOpen}
+        title="Filter invoices"
+        onClose={() => setFiltersOpen(false)}
+        onReset={() => {
+          setBookingId('');
+          setInstructorId('');
+          setInstitutionId('');
+          setDraftStatus('ALL');
+        }}
+        onApply={() => {
+          setFilters({
+            bookingId: bookingId.trim(),
+            instructorId: instructorId.trim(),
+            institutionId: institutionId.trim(),
+          });
+          setStatus(draftStatus);
+          setFiltersOpen(false);
+        }}
+        applyLabel="Show invoices"
+      >
+        <DynamicSelect
+          name="invoiceStatus"
+          label="Invoice status"
+          placeholder="All statuses"
+          value={draftStatus === 'ALL' ? '' : draftStatus}
+          onChange={value => setDraftStatus(value || 'ALL')}
+          exclude={role === 'ADMIN' ? [] : ['PENDING']}
         />
-      ))}
-      <View style={styles.topActions}>
-        <Button
-          title="Previous"
-          variant="social"
-          onPress={() => setPage(page - 1)}
-          disabled={loading || page <= 1}
-          compact
-        />
-        <Text style={styles.cardBody}>Page {page}</Text>
-        <Button
-          title="Next"
-          variant="social"
-          onPress={() => setPage(page + 1)}
-          disabled={loading || !hasNextPage}
-          compact
-        />
-      </View>
+        {role === 'ADMIN' ? (
+          <>
+            <Input
+              label="BOOKING ID"
+              required={false}
+              value={bookingId}
+              onChangeText={setBookingId}
+            />
+            <Input
+              label="INSTRUCTOR ID"
+              required={false}
+              value={instructorId}
+              onChangeText={setInstructorId}
+            />
+            <Input
+              label="INSTITUTION ID"
+              required={false}
+              value={institutionId}
+              onChangeText={setInstitutionId}
+            />
+          </>
+        ) : null}
+      </FilterSheet>
     </View>
   );
 }

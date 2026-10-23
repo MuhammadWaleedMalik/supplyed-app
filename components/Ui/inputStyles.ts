@@ -47,8 +47,8 @@ export const useStyles = createThemedStyles((colors, common) => ({
     textAlignVertical: 'top',
   },
   eye: {
-    minWidth: 44,
-    minHeight: 46,
+    minWidth: 48,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

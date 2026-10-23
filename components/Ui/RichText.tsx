@@ -1,9 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { StyleProp, StyleSheet, Text, TextStyle, View } from 'react-native';
+import {
+  Linking,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+} from 'react-native';
+import { editorHtml, safeLink } from '../../utils/ui/safeHtml';
 import RenderHtml, { RenderHTMLProps } from 'react-native-render-html';
 import { useTheme } from './theme';
+import ContentPreview from './ContentPreview';
 import {
-  hasRichTextMarkup,
   ignoredRichTextTags,
   richTextToPlainText,
 } from '../../utils/ui/richText';
@@ -13,6 +21,8 @@ type Props = {
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
   emptyText?: string;
+  title?: string;
+  expandable?: boolean;
 };
 
 const allowedStyles: RenderHTMLProps['allowedStyles'] = [
@@ -20,6 +30,9 @@ const allowedStyles: RenderHTMLProps['allowedStyles'] = [
   'fontStyle',
   'textDecorationLine',
   'textAlign',
+  'fontFamily',
+  'fontSize',
+  'color',
 ];
 const tagsStyles = {
   p: { marginTop: 0, marginBottom: 8 },
@@ -33,6 +46,8 @@ export default function RichText({
   style,
   numberOfLines,
   emptyText = 'No cover letter added.',
+  title = 'Full description',
+  expandable = true,
 }: Props) {
   const { colors } = useTheme();
   const themedTagsStyles = useMemo(
@@ -40,18 +55,29 @@ export default function RichText({
     [colors.brandDark],
   );
   const [width, setWidth] = useState(0);
-  const plainText = useMemo(() => richTextToPlainText(value), [value]);
+  const plainText = useMemo(
+    () => richTextToPlainText(editorHtml(value || '')),
+    [value],
+  );
   const source = useMemo(
     () => ({
       // Editors often insert nonbreaking spaces between every word. Ordinary
       // spaces let the proposal wrap naturally on narrow mobile screens.
-      html: (value || '').replace(/&nbsp;|&#0*160;|&#x0*a0;|\u00a0/gi, ' '),
+      html: editorHtml(value || '').replace(
+        /&nbsp;|&#0*160;|&#x0*a0;|\u00a0/gi,
+        ' ',
+      ),
     }),
     [value],
   );
   const baseStyle = useMemo(() => ({ ...StyleSheet.flatten(style) }), [style]);
 
-  if (!plainText || numberOfLines || !hasRichTextMarkup(value || '')) {
+  if (expandable && plainText) {
+    return <ContentPreview text={plainText} title={title} style={style} lines={numberOfLines || 4}>
+      <RichText value={value} style={style} emptyText={emptyText} expandable={false} />
+    </ContentPreview>;
+  }
+  if (!plainText || numberOfLines) {
     return (
       <Text style={style} numberOfLines={numberOfLines}>
         {plainText || emptyText}
@@ -69,6 +95,14 @@ export default function RichText({
           tagsStyles={themedTagsStyles}
           allowedStyles={allowedStyles}
           ignoredDomTags={ignoredRichTextTags}
+          renderersProps={{
+            a: {
+              onPress: (_event, href) => {
+                const url = safeLink(href);
+                if (url) Linking.openURL(url).catch(() => {});
+              },
+            },
+          }}
         />
       ) : null}
     </View>

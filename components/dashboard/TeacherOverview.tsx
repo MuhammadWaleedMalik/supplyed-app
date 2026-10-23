@@ -20,11 +20,11 @@ export default function TeacherOverview({
 }: Props) {
   const styles = useStyles();
 
-  const interviews = applications.filter(
-    application => application.status === 'INTERVIEW',
+  const shortlisted = applications.filter(
+    application => application.status === 'SHORTLISTED',
   ).length;
-  const applicationsInProgress = applications.filter(
-    application => !['REJECTED', 'HIRED'].includes(application.status),
+  const applicationsInProgress = applications.filter(application =>
+    ['APPLIED', 'VIEWED', 'SHORTLISTED'].includes(application.status),
   ).length;
 
   return (
@@ -48,8 +48,8 @@ export default function TeacherOverview({
           <Text style={styles.metricLabel}>IN PROGRESS</Text>
         </View>
         <View style={styles.metric}>
-          <Text style={styles.metricValue}>{interviews}</Text>
-          <Text style={styles.metricLabel}>INTERVIEWS</Text>
+          <Text style={styles.metricValue}>{shortlisted}</Text>
+          <Text style={styles.metricLabel}>SHORTLISTED</Text>
         </View>
       </View>
 
@@ -67,8 +67,8 @@ export default function TeacherOverview({
         <View key={job.id} style={styles.card}>
           <Text style={styles.cardTitle}>{job.title}</Text>
           <Text style={styles.cardBody}>
-            {job.subject || 'General'} | {job.city || 'Flexible'} |{' '}
-            {job.status || 'OPEN'}
+            {job.subjects?.join(', ') || job.subject || 'General'} |{' '}
+            {job.city || 'Flexible'} | {job.status || 'OPEN'}
           </Text>
         </View>
       ))}

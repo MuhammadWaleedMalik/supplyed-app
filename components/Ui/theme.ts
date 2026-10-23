@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import { ThemeColors, useTheme } from './brandTheme';
 export {
   applyBrandTheme,
-  brandThemes,
+  restoreBrandTheme,
   getBrandTheme,
   useTheme,
 } from './brandTheme';
 export type { BrandThemeId, ThemeColors } from './brandTheme';
 
-export const serif = Platform.OS === 'ios' ? 'Georgia' : 'serif';
+// The web app uses the platform sans-serif stack for headings and body text.
+export const serif = undefined;
 
 function commonStyles(colors: ThemeColors) {
   return StyleSheet.create({

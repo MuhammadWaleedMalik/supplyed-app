@@ -1,3 +1,4 @@
+import { plannedLabel } from '../../utils/jobs/workSchedule';
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { Invoice } from '../../feature/dashboard/shared/apis/invoicesApi';
@@ -31,8 +32,13 @@ export default function InvoiceDetails({ invoice }: { invoice: Invoice }) {
         }).format(invoice.rateAmount)}{' '}
         ({invoice.payType})
       </Text>
+      <Text style={styles.cardBody}>
+        {plannedLabel(invoice.booking)} (agreed plan)
+      </Text>
       {invoice.unitsWorked !== null ? (
-        <Text style={styles.cardBody}>Units worked: {invoice.unitsWorked}</Text>
+        <Text style={styles.cardBody}>
+          Actual units worked: {invoice.unitsWorked}
+        </Text>
       ) : null}
       <Text style={styles.cardBody}>
         Teacher pay: {formatPence(invoice.teacherAmountPence, invoice.currency)}

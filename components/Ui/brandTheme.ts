@@ -1,63 +1,7 @@
 import { useSyncExternalStore } from 'react';
+import * as Keychain from 'react-native-keychain';
+import { deriveBrandTheme } from '../../utils/ui/themeColors';
 
-export const brandThemes = [
-  {
-    id: 'supply-blue',
-    name: 'Supply blue',
-    brand: '#008CC4',
-    brandDark: '#006D99',
-    brandTint: '#E6F4F9',
-    brandBorder: '#C7E6F2',
-    brandRgb: '0, 140, 196',
-  },
-  {
-    id: 'emerald',
-    name: 'Emerald',
-    brand: '#16A34A',
-    brandDark: '#117F3A',
-    brandTint: '#E8F6ED',
-    brandBorder: '#CCEBD7',
-    brandRgb: '22, 163, 74',
-  },
-  {
-    id: 'violet',
-    name: 'Violet',
-    brand: '#7C3AED',
-    brandDark: '#612DB9',
-    brandTint: '#F2EBFD',
-    brandBorder: '#E2D4FB',
-    brandRgb: '124, 58, 237',
-  },
-  {
-    id: 'rose',
-    name: 'Rose',
-    brand: '#E11D48',
-    brandDark: '#B01738',
-    brandTint: '#FCE8ED',
-    brandBorder: '#F8CDD7',
-    brandRgb: '225, 29, 72',
-  },
-  {
-    id: 'amber',
-    name: 'Amber',
-    brand: '#D97706',
-    brandDark: '#A95D05',
-    brandTint: '#FBF1E6',
-    brandBorder: '#F7E1C8',
-    brandRgb: '217, 119, 6',
-  },
-  {
-    id: 'slate',
-    name: 'Slate',
-    brand: '#334155',
-    brandDark: '#283342',
-    brandTint: '#EBECEE',
-    brandBorder: '#D2D5DA',
-    brandRgb: '51, 65, 85',
-  },
-] as const;
-
-export type BrandThemeId = (typeof brandThemes)[number]['id'];
 export type ThemeColors = {
   brand: string;
   brandDark: string;
@@ -70,27 +14,34 @@ export type ThemeColors = {
   soft: string;
   dark: string;
 };
-
-const themes = brandThemes.map(palette => ({
-  id: palette.id,
-  name: palette.name,
-  colors: {
-    brand: palette.brand,
-    brandDark: palette.brandDark,
-    brandTint: palette.brandTint,
-    brandBorder: palette.brandBorder,
-    brandRgb: palette.brandRgb,
-    ink: '#162b3a',
-    muted: '#65758a',
-    border: '#e0e5eb',
-    soft: '#f7f8f9',
-    dark: '#090b0c',
-  } as ThemeColors,
-}));
-
-// Session-only: survives navigation and login/logout, resets on a full reload.
-let currentTheme = themes[0];
+export type BrandThemeId = string;
+const service = 'com.supplyed.preferences';
 const listeners = new Set<() => void>();
+let changed = false;
+let urgentBanner = true;
+let writes: Promise<unknown> = Promise.resolve();
+
+function makeTheme(accent: string, name = 'Custom color') {
+  const theme = deriveBrandTheme(accent);
+  return {
+    id: theme.accent.toLowerCase(),
+    name,
+    urgentBanner,
+    colors: {
+      brand: theme.accent,
+      brandDark: theme.dark,
+      brandTint: theme.tint,
+      brandBorder: theme.tint2,
+      brandRgb: theme.rgb.split(' ').join(', '),
+      ink: '#15232d',
+      muted: '#5f707b',
+      border: '#e2e8ec',
+      soft: '#f5f7f9',
+      dark: '#090b0c',
+    } as ThemeColors,
+  };
+}
+let currentTheme = makeTheme('#008CC4', 'Supply blue');
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -100,12 +51,41 @@ function subscribe(listener: () => void) {
 export function getBrandTheme() {
   return currentTheme;
 }
-export function applyBrandTheme(id: BrandThemeId) {
-  const theme = themes.find(item => item.id === id);
-  if (!theme || theme === currentTheme) return;
-  currentTheme = theme;
+export async function restoreBrandTheme() {
+  try {
+    await writes;
+    const saved = await Keychain.getGenericPassword({ service });
+    if (!saved || changed) return;
+    const data = JSON.parse(saved.password);
+    urgentBanner = data.urgentBanner !== false;
+    currentTheme = makeTheme(
+      typeof data.accent === 'string' ? data.accent : '#008CC4',
+      data.name,
+    );
+    listeners.forEach(listener => listener());
+  } catch {
+    /* Keep the session preference when storage is unavailable. */
+  }
+}
+export function applyBrandTheme(accent: string, name?: string) {
+  changed = true;
+  currentTheme = makeTheme(accent, name);
   listeners.forEach(listener => listener());
+  const saved = JSON.stringify({
+    accent: currentTheme.colors.brand,
+    name: currentTheme.name,
+    urgentBanner,
+  });
+  writes = writes
+    .catch(() => {})
+    .then(() => Keychain.setGenericPassword('preferences', saved, { service }))
+    .catch(() => {});
 }
 export function useTheme() {
   return useSyncExternalStore(subscribe, getBrandTheme, getBrandTheme);
+}
+
+export function applyUrgentBanner(value: boolean) {
+  urgentBanner = value;
+  applyBrandTheme(currentTheme.colors.brand, currentTheme.name);
 }

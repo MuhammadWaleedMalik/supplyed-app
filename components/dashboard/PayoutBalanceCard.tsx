@@ -1,11 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Wallet } from 'lucide-react-native';
 import type { PayoutBalance } from '../../feature/dashboard/shared/apis/paymentsApi';
 import { formatPence } from '../../utils/payments/paymentUtils';
 import { readPayoutAmount } from '../../utils/payments/payoutUtils';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
+import ConfirmDialog from '../Ui/ConfirmDialog';
 import SettingsCardHeader from './SettingsCardHeader';
 import { useSettingsStyles } from './settingsStyles';
 
@@ -22,7 +23,11 @@ export default function PayoutBalanceCard(props: Props) {
 
   const [amount, setAmount] = useState('');
   const [amountError, setAmountError] = useState('');
-  const [confirming, setConfirming] = useState(false);
+  const [withdrawal, setWithdrawal] = useState<{
+    amountPence: number;
+    destination: string;
+  } | null>(null);
+  const confirming = !!withdrawal;
   const confirmationOpen = useRef(false);
   const canWithdraw =
     props.balance.instantAvailablePence >= 40 &&
@@ -31,7 +36,7 @@ export default function PayoutBalanceCard(props: Props) {
 
   function closeConfirmation() {
     confirmationOpen.current = false;
-    setConfirming(false);
+    setWithdrawal(null);
   }
 
   function confirmWithdrawal() {
@@ -54,31 +59,30 @@ export default function PayoutBalanceCard(props: Props) {
     }
 
     confirmationOpen.current = true;
-    setConfirming(true);
     const requested = amountPence ?? props.balance.instantAvailablePence;
-    Alert.alert(
-      'Confirm instant withdrawal',
-      'Withdraw ' +
-        formatPence(requested) +
-        ' to ' +
-        props.balance.instantDestination?.label +
-        '?',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: closeConfirmation },
-        {
-          text: 'Withdraw',
-          onPress: () => {
-            closeConfirmation();
-            props.onWithdraw(amountPence);
-          },
-        },
-      ],
-      { cancelable: true, onDismiss: closeConfirmation },
-    );
+    setWithdrawal({
+      amountPence: requested,
+      destination:
+        props.balance.instantDestination?.label || 'your payout account',
+    });
   }
 
   return (
     <View style={settingsStyles.card}>
+      <ConfirmDialog
+        visible={confirming}
+        title="Confirm instant withdrawal"
+        context={withdrawal ? formatPence(withdrawal.amountPence) : undefined}
+        description={`Withdraw this amount to ${
+          withdrawal?.destination || 'your payout account'
+        }? Review the amount before continuing.`}
+        confirmLabel="Withdraw"
+        onClose={closeConfirmation}
+        onConfirm={async () => {
+          if (!withdrawal || props.disabled || !canWithdraw) return false;
+          await props.onWithdraw(withdrawal.amountPence);
+        }}
+      />
       <SettingsCardHeader
         icon={Wallet}
         title="PAYOUT BALANCE"

@@ -1,3 +1,4 @@
+import { useForegroundRefresh } from './useForegroundRefresh';
 import { useEffect, useRef, useState } from 'react';
 import {
   getApplicationSchoolProfile,
@@ -15,15 +16,10 @@ function profileError(problem: unknown) {
     (problem.status === 403 || problem.status === 404)
   )
     return 'This marketplace profile is unavailable.';
-  return problem instanceof Error
-    ? problem.message
-    : 'Unable to load profile.';
+  return problem instanceof Error ? problem.message : 'Unable to load profile.';
 }
 
-export function useLimitedProfile(
-  initialType?: ProfileType,
-  initialId = '',
-) {
+export function useLimitedProfile(initialType?: ProfileType, initialId = '') {
   const [profile, setProfile] = useState<LimitedProfile>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,7 +76,9 @@ export function useLimitedProfile(
   }
 
   useEffect(() => {
-    return () => { requestId.current += 1; };
+    return () => {
+      requestId.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -89,6 +87,7 @@ export function useLimitedProfile(
     }
 
     let active = true;
+    requestId.current += 1;
 
     async function loadInitialProfile() {
       setProfile(undefined);
@@ -120,8 +119,28 @@ export function useLimitedProfile(
 
     return () => {
       active = false;
+      requestId.current += 1;
     };
   }, [initialId, initialType]);
+
+  const refreshing = useRef(false);
+  useForegroundRefresh(async () => {
+    if (!profile || profile.reviewType !== 'instructor' || refreshing.current)
+      return;
+    const request = requestId.current;
+    refreshing.current = true;
+    try {
+      const next = await getInstructorProfile(profile.id);
+      if (request === requestId.current) setProfile(next);
+    } catch {
+      if (request === requestId.current)
+        setProfile(current =>
+          current ? { ...current, bookings: null } : current,
+        );
+    } finally {
+      refreshing.current = false;
+    }
+  }, profile?.reviewType === 'instructor');
 
   return {
     profile,

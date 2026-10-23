@@ -1,58 +1,22 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
+import { displayDate, displayPay } from '../../utils/ui/marketplaceLabels';
 import Button from '../Ui/Button';
-import Input from '../Ui/Input';
-import { useApplicationStyles } from './applicationStyles';
-import { useJobStyles } from './jobStyles';
-
-type Props = {
-  job: Job;
-  coverLetter: string;
-  onCoverLetter: (value: string) => void;
-  onNext: () => void;
-};
-
-export default function ApplicationDetailsStep({
-  job,
-  coverLetter,
-  onCoverLetter,
-  onNext,
-}: Props) {
-  const applicationStyles = useApplicationStyles();
-  const jobStyles = useJobStyles();
-
-  return (
-    <View style={jobStyles.formSection}>
-      <View style={jobStyles.summary}>
-        <Text style={jobStyles.sectionTitle}>{job.title}</Text>
-        <Text style={jobStyles.modeBody}>
-          {job.subject || 'General'} · {job.city || 'Location pending'}
-        </Text>
-        <View style={applicationStyles.metaGrid}>
-          <Text style={applicationStyles.meta}>
-            {job.payAmount
-              ? `${job.payAmount} ${job.payType || ''}`
-              : 'Pay not listed'}
-          </Text>
-          <Text style={applicationStyles.meta}>
-            {job.startDate?.slice(0, 10) || 'Flexible start'}
-          </Text>
-        </View>
-      </View>
-      <Text style={jobStyles.modeBody}>
-        {job.description || 'No role description added.'}
-      </Text>
-      <Text style={jobStyles.sectionTitle}>Why are you a good fit?</Text>
-      <Input
-        label="PROPOSAL / COVER LETTER"
-        required={false}
-        multiline
-        value={coverLetter}
-        placeholder="Share your relevant experience and availability"
-        onChangeText={onCoverLetter}
-      />
-      <Button title="Review application" onPress={onNext} />
-    </View>
-  );
+import ProposalEditor from '../Ui/ProposalEditor';
+import RichText from '../Ui/RichText';
+import { InfoGrid, RecordSection } from '../Ui/RecordLayout';
+import { useStyles } from './dashboardStyles';
+type Props = { job: Job; coverLetter: string; onCoverLetter: (value: string) => void; onNext: () => void };
+export default function ApplicationDetailsStep({ job, coverLetter, onCoverLetter, onNext }: Props) {
+  const styles = useStyles();
+  return <View style={styles.section}>
+    <RecordSection title={job.title} subtitle={job.institution?.name || 'Your next teaching opportunity'}>
+      <InfoGrid items={[{ label: 'Starts', value: displayDate(job.startDate) }, { label: 'Pay', value: displayPay(job.payAmount, job.payType) }, { label: 'Location', value: [job.address, job.city, job.postalCode].filter(Boolean).join(', ') }]} />
+      <RichText value={job.description} title="Role description" emptyText="No role description added." />
+    </RecordSection>
+    <View><Text style={styles.cardTitle}>Make your introduction</Text><Text style={styles.cardBody}>Tell the school about your relevant experience and why this role suits you. A proposal is optional; your teacher profile is included with your application.</Text></View>
+    <ProposalEditor value={coverLetter} onChange={onCoverLetter} />
+    <Button title="Review application" onPress={onNext} />
+  </View>;
 }

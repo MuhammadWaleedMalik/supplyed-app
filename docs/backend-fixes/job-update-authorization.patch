@@ -1,0 +1,15 @@
+--- a/src/modules/jobs/jobs.service.ts
++++ b/src/modules/jobs/jobs.service.ts
+@@ -196,6 +196,12 @@
+ 
+   async update(id: string, userId: string, role: Role, dto: UpdateJobDto) {
+     const job = await this.assertOwner(id, userId, role);
++    if (role !== Role.ADMIN) {
++      await this.getOperatingPoster(userId, 'update a job');
++      if (job.status === JobStatus.SUSPENDED) {
++        throw new ForbiddenException('This job has been suspended by an admin');
++      }
++    }
+     const payType = dto.payType === undefined ? job.payType : dto.payType;
+     const workUnits = jobWorkUnits({
+       payType,

@@ -1,16 +1,18 @@
+import { choiceText } from '../../utils/ui/choices';
+import RichText from '../Ui/RichText';
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { JobForm } from '../../feature/dashboard/shared/apis/jobsApi';
-import { todayInputValue } from '../../utils/jobs/dateUtils';
 import Button from '../Ui/Button';
-import DateField from '../Ui/DateField';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
+import DynamicSelect from '../Ui/DynamicSelect';
 import ChoiceField from './ChoiceField';
 import { useJobStyles } from './jobStyles';
 
 type Props = {
   form: JobForm;
+  draftOnly?: boolean;
+  published?: boolean;
   error: string;
   loading: boolean;
   onChange: (name: keyof JobForm, value: string) => void;
@@ -20,6 +22,8 @@ type Props = {
 
 export default function JobRequirementsStep({
   form,
+  draftOnly,
+  published,
   error,
   loading,
   onChange,
@@ -39,13 +43,7 @@ export default function JobRequirementsStep({
         value={form.minExperienceYears}
         onChangeText={value => onChange('minExperienceYears', value)}
       />
-      <Input
-        label="SKILLS"
-        required={false}
-        value={form.requiredSkills}
-        placeholder="Classroom management, SEN"
-        onChangeText={value => onChange('requiredSkills', value)}
-      />
+
       <ChoiceField
         label="QTS required"
         value={form.qts}
@@ -65,42 +63,37 @@ export default function JobRequirementsStep({
         value={form.parkingInfo}
         onChangeText={value => onChange('parkingInfo', value)}
       />
-      <DateField
-        label="LISTING EXPIRES"
-        value={form.expiresAt}
-        minimum={todayInputValue()}
-        onChange={value => onChange('expiresAt', value)}
+      <DynamicSelect
+        label="KEY STAGES"
+        multiple
+        value={form.keyStages}
+        placeholder="Choose key stage"
+        name="keyStage"
+        onChange={value => onChange('keyStages', value)}
       />
-
       <View style={jobStyles.summary}>
         <Text style={jobStyles.sectionTitle}>{form.title}</Text>
         <Text style={jobStyles.modeBody}>
-          {form.subject} | {form.city || 'Location to be confirmed'}
+          {choiceText(form.subject)} | {form.city || 'Location to be confirmed'}
         </Text>
       </View>
 
-      <Select
+      <RichText value={form.description} />
+      <DynamicSelect
+        name="jobStatus"
         label="PUBLISH AS"
         value={form.status}
         placeholder="Choose status"
-        options={['ACTIVE', 'DRAFT']}
+        allowed={
+          published ? ['ACTIVE'] : draftOnly ? ['DRAFT'] : ['ACTIVE', 'DRAFT']
+        }
         onChange={value => onChange('status', value)}
       />
 
       {error ? <Text style={jobStyles.error}>{error}</Text> : null}
 
       <View style={jobStyles.actions}>
-        <Button
-          title={
-            loading
-              ? 'Publishing...'
-              : form.status === 'ACTIVE'
-              ? 'Publish job'
-              : 'Save draft'
-          }
-          onPress={onSave}
-          disabled={loading}
-        />
+        <Button title="Review job" onPress={onSave} disabled={loading} />
         <Button title="Back" variant="link" onPress={onBack} compact />
       </View>
     </View>

@@ -1,14 +1,16 @@
-import React, { useRef, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, View } from 'react-native';
 import {
   createInvoice,
   getAdminInvoices,
   Invoice,
 } from '../../feature/dashboard/shared/apis/invoicesApi';
 import { ApiError } from '../../utils/api/request';
+import { getSessionVersion } from '../../utils/api/session';
 import { buildAdminInvoiceData } from '../../utils/payments/invoiceValidation';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
+import ConfirmDialog from '../Ui/ConfirmDialog';
 import { useStyles } from './dashboardStyles';
 import { useJobStyles } from './jobStyles';
 import InvoiceCard from './InvoiceCard';
@@ -26,10 +28,23 @@ export default function AdminInvoiceCreate({ onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [error, setError] = useState('');
+  const [pendingInvoice, setPendingInvoice] = useState<ReturnType<
+    typeof buildAdminInvoiceData
+  > | null>(null);
   const working = useRef(false);
+  const mounted = useRef(true);
+  const session = useRef(getSessionVersion()).current;
+  const active = () => mounted.current && getSessionVersion() === session;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function refreshExistingInvoice() {
     const reply = await getAdminInvoices(1, { bookingId: bookingId.trim() });
+    if (!active()) return;
     setCreated(
       reply.invoices.find(invoice => invoice.status !== 'VOID') || null,
     );
@@ -39,14 +54,7 @@ export default function AdminInvoiceCreate({ onChanged }: Props) {
   function confirmCreate() {
     try {
       const data = buildAdminInvoiceData(bookingId, units, poNumber);
-      Alert.alert(
-        'Create booking invoice?',
-        'Only completed bookings with a ready teacher payout account can be invoiced. SupplyEd calculates the total.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Create invoice', onPress: () => sendInvoice(data) },
-        ],
-      );
+      setPendingInvoice(data);
     } catch (problem) {
       setError(
         problem instanceof Error
@@ -57,14 +65,18 @@ export default function AdminInvoiceCreate({ onChanged }: Props) {
   }
 
   async function sendInvoice(data: ReturnType<typeof buildAdminInvoiceData>) {
-    if (working.current || needsRefresh) return;
+    if (!active() || working.current || needsRefresh) return false;
     working.current = true;
     setBusy(true);
     setError('');
     try {
-      setCreated(await createInvoice(data));
+      const invoice = await createInvoice(data);
+      if (!active()) return false;
+      setCreated(invoice);
       await onChanged();
+      return true;
     } catch (problem) {
+      if (!active()) return false;
       setError(
         problem instanceof Error
           ? problem.message
@@ -81,26 +93,30 @@ export default function AdminInvoiceCreate({ onChanged }: Props) {
         try {
           await refreshExistingInvoice();
         } catch {
-          setError(
-            'Unable to confirm the invoice. Refresh existing invoices before trying again.',
-          );
+          if (active())
+            setError(
+              'Unable to confirm the invoice. Refresh existing invoices before trying again.',
+            );
         }
       }
+      return false;
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 
   async function refreshBeforeRetry() {
-    if (working.current) return;
+    if (!active() || working.current) return;
     working.current = true;
     setBusy(true);
     setError('');
     try {
       await refreshExistingInvoice();
+      if (!active()) return;
       setNeedsRefresh(false);
     } catch (problem) {
+      if (!active()) return;
       setError(
         problem instanceof Error
           ? problem.message
@@ -108,12 +124,23 @@ export default function AdminInvoiceCreate({ onChanged }: Props) {
       );
     } finally {
       working.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 
   return (
     <View style={styles.card}>
+      <ConfirmDialog
+        visible={!!pendingInvoice}
+        title="Create booking invoice?"
+        description="Only completed bookings with a ready teacher payout account can be invoiced. SupplyEd calculates the total."
+        context={
+          pendingInvoice ? `Booking ${pendingInvoice.bookingId}` : undefined
+        }
+        confirmLabel="Create invoice"
+        onClose={() => setPendingInvoice(null)}
+        onConfirm={() => (pendingInvoice ? sendInvoice(pendingInvoice) : false)}
+      />
       <Text style={styles.cardTitle}>Create completed booking invoice</Text>
       <Text style={styles.cardBody}>
         Enter a completed booking ID. For daily or hourly work, enter days or

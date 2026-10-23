@@ -1,4 +1,8 @@
+import RichText from '../../../../components/Ui/RichText';
 import React, { useRef } from 'react';
+import Button from '../../../../components/Ui/Button';
+import { useAppDispatch } from '../../../../store/hooks';
+import { openJob, startJobCopy } from '../../shared/store/navigationSlice';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import JobFilterBar from '../../../../components/dashboard/JobFilterBar';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
@@ -14,6 +18,7 @@ function statusLabel(status?: string) {
 }
 
 function JobHistoryCard({ job }: { job: Job }) {
+  const dispatch = useAppDispatch();
   const styles = useStyles();
   const jobStyles = useJobStyles();
 
@@ -33,15 +38,27 @@ function JobHistoryCard({ job }: { job: Job }) {
         </View>
       </View>
       <Text style={styles.cardBody}>
-        {job.subject || 'General teaching role'}
+        {job.subjects?.join(', ') || job.subject || 'General teaching role'}
       </Text>
       {job.description ? (
-        <Text numberOfLines={3} style={styles.cardBody}>
-          {job.description}
-        </Text>
+        <RichText
+          value={job.description}
+          numberOfLines={3}
+          style={styles.cardBody}
+        />
       ) : null}
       <Text style={styles.cardBody}>{location || 'Location not provided'}</Text>
       <Text style={styles.cardBody}>{dateRange || 'Dates not provided'}</Text>
+      <Button
+        title="View job & applicants"
+        variant="outline"
+        onPress={() => dispatch(openJob(job.id))}
+      />
+      <Button
+        title="Duplicate as draft"
+        variant="social"
+        onPress={() => dispatch(startJobCopy(job.id))}
+      />
       <Text style={styles.cardBody}>
         {job.payAmount != null
           ? `GBP ${job.payAmount.toFixed(2)} / ${job.payType || 'booking'}`

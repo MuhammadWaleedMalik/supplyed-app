@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import ConfirmDialog from '../Ui/ConfirmDialog';
 import type { Booking } from '../../feature/dashboard/shared/apis/bookingsApi';
 import {
   BookingInvoice,
@@ -33,6 +34,7 @@ export default function BookingInvoiceCard({
     booking.invoice || null,
   );
   const [showForm, setShowForm] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [units, setUnits] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,19 +58,12 @@ export default function BookingInvoiceCard({
       );
       return;
     }
-    Alert.alert(
-      'Create invoice?',
-      'SupplyEd will calculate the total using this booking. The teacher must have payouts ready.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Create invoice', onPress: sendInvoice },
-      ],
-    );
+    setConfirming(true);
   }
 
   async function sendInvoice() {
     if (working.current || needsRefresh || booking.status !== 'COMPLETED')
-      return;
+      return false;
     working.current = true;
     setBusy(true);
     setError('');
@@ -78,6 +73,8 @@ export default function BookingInvoiceCard({
       setInvoice(await createInvoice(data));
       setShowForm(false);
       await onChanged();
+      setConfirming(false);
+      return true;
     } catch (problem) {
       setError(
         problem instanceof Error
@@ -101,6 +98,7 @@ export default function BookingInvoiceCard({
           );
         }
       }
+      return false;
     } finally {
       working.current = false;
       setBusy(false);
@@ -133,6 +131,7 @@ export default function BookingInvoiceCard({
 
   return (
     <View style={styles.section}>
+      {confirming ? <ConfirmDialog visible title="Create booking invoice?" context={booking.job.title} description="SupplyEd calculates the total from the completed booking and actual units worked. The teacher must have payouts ready." confirmLabel="Create invoice" onClose={() => setConfirming(false)} onConfirm={sendInvoice} /> : null}
       {invoice?.status === 'VOID' ? (
         <InvoiceCard invoice={invoice} role={role} onChanged={onChanged} />
       ) : null}

@@ -5,16 +5,18 @@ import { createThemedStyles } from './theme';
 type Props = {
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 };
 
-export default function Checkbox({ label, checked, onChange }: Props) {
+export default function Checkbox({ label, checked, disabled, onChange }: Props) {
   const styles = useStyles();
 
   return (
     <Pressable
       accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
+      accessibilityState={{ checked, disabled }}
+      disabled={disabled}
       onPress={() => onChange(!checked)}
       style={styles.row}
     >

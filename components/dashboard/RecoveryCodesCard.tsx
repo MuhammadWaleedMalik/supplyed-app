@@ -33,7 +33,7 @@ export default function RecoveryCodesCard({
       <View style={securityStyles.count}>
         <Text style={securityStyles.countLabel}>CODES REMAINING</Text>
         <Text style={securityStyles.countValue}>
-          {status?.recoveryCodesRemaining || 0}
+          {status ? status.recoveryCodesRemaining : '—'}
         </Text>
       </View>
       {codes.length ? (
@@ -54,7 +54,7 @@ export default function RecoveryCodesCard({
         />
       ) : null}
       {codes.length ? (
-        <Button title="Download recovery codes" onPress={onDownload} />
+        <Button title="Save or share recovery codes" onPress={onDownload} />
       ) : null}
     </View>
   );

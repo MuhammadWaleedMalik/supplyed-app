@@ -49,5 +49,3 @@ const styles = StyleSheet.create({
   form: { gap: 17 },
   error: { color: '#c93251', fontSize: 12 },
 });
-
-

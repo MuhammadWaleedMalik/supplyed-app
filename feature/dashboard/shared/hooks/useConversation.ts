@@ -1,3 +1,8 @@
+import {
+  useDraft,
+  updateDraft,
+  getDraft,
+} from '../../../../utils/messaging/drafts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import {
@@ -38,9 +43,12 @@ export function useConversation(id: string, focused = true) {
   const [syncing, setSyncing] = useState(false);
   const [olderLoading, setOlderLoading] = useState(false);
   const hasMore = savedHistory?.hasMore || false;
-  const [busy, setBusy] = useState(false);
+  const { sending: busy, uncertain } = useDraft(id);
+  const session = useRef(getSessionVersion()).current;
+  const setBusy = (sending: boolean) => updateDraft(id, { sending }, session);
+  const setUncertain = (value: boolean) =>
+    updateDraft(id, { uncertain: value }, session);
   const [error, setError] = useState('');
-  const [uncertain, setUncertain] = useState(false);
   const [caughtUp, setCaughtUp] = useState(true);
   const [foreground, setForeground] = useState(
     AppState.currentState === 'active',
@@ -178,7 +186,11 @@ export function useConversation(id: string, focused = true) {
       } catch (problem) {
         // A later visible update retries, but unread status may be stale meanwhile.
         if (!cancelled && valid())
-          setError(problem instanceof Error ? problem.message : 'Unable to mark messages as read. Refresh to retry.');
+          setError(
+            problem instanceof Error
+              ? problem.message
+              : 'Unable to mark messages as read. Refresh to retry.',
+          );
       } finally {
         readingRef.current = false;
       }
@@ -232,8 +244,9 @@ export function useConversation(id: string, focused = true) {
 
   async function send(body: string, attachments: MessageAttachment[]) {
     if (
+      getDraft(id).sending ||
       sendingRef.current ||
-      uncertain ||
+      getDraft(id).uncertain ||
       !conversation ||
       conversation.readOnly
     )
@@ -248,15 +261,16 @@ export function useConversation(id: string, focused = true) {
         body,
         attachments.map(file => file.id),
       );
-      if (!valid()) return false;
+      if (session !== getSessionVersion()) return false;
       dispatch(saveMessages({ id, messages: [message] }));
       refresh();
       return true;
     } catch (problem) {
-      if (!valid()) return false;
+      if (session !== getSessionVersion()) return false;
       const unknownResult =
         !(problem instanceof ApiError) ||
         problem.status === 0 ||
+        problem.status === 408 ||
         problem.status >= 500;
       if (unknownResult) setUncertain(true);
       if (
@@ -264,16 +278,20 @@ export function useConversation(id: string, focused = true) {
         (problem instanceof ApiError && problem.status === 403)
       )
         await refresh();
-      if (valid())
-        setError(
-          problem instanceof Error
-            ? problem.message
-            : 'Unable to send message.',
-        );
+      updateDraft(
+        id,
+        {
+          error:
+            problem instanceof Error
+              ? problem.message
+              : 'Unable to send message.',
+        },
+        session,
+      );
       return false;
     } finally {
       sendingRef.current = false;
-      if (valid()) setBusy(false);
+      setBusy(false);
     }
   }
 
@@ -287,7 +305,10 @@ export function useConversation(id: string, focused = true) {
     typingTimer.current = setTimeout(stopTyping, 3000);
   }
   async function reviewUncertainSend() {
-    if (await refresh()) setUncertain(false);
+    if (await refresh()) {
+      setUncertain(false);
+      updateDraft(id, { error: '' }, session);
+    }
   }
   return {
     conversation,

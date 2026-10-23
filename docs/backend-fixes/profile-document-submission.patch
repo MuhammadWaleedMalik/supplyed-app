@@ -1,0 +1,126 @@
+--- /dev/null
++++ b/src/common/profile/profile-submission-documents.ts
+@@ -0,0 +1,44 @@
++import { BadRequestException } from '@nestjs/common';
++import { DocumentContext, DocumentVerificationStatus, Prisma } from '@prisma/client';
++
++/** Match onboarding: the newest uploaded file decides each active requirement. */
++export async function assertProfileDocumentsReady(
++  transaction: Prisma.TransactionClient,
++  userId: string,
++  context: DocumentContext,
++) {
++  const requirements = await transaction.documentRequirement.findMany({
++    where: { context, isActive: true, documentType: { isActive: true } },
++    select: {
++      isRequired: true,
++      documentType: { select: { name: true } },
++      documents: {
++        where: { userId, applicationId: null, deletedAt: null, uploadedAt: { not: null } },
++        orderBy: [{ uploadedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
++        take: 1,
++        select: { uploadedAt: true, fileKey: true, status: true },
++      },
++    },
++  });
++  const missing = requirements.filter((requirement) => {
++    const document = requirement.documents[0];
++    const needsReplacement =
++      document &&
++      (document.status === DocumentVerificationStatus.REJECTED ||
++        document.status === DocumentVerificationStatus.REQUIRES_INFO);
++    if (!requirement.isRequired && !needsReplacement) return false;
++    const ready =
++      document?.uploadedAt &&
++      document.fileKey &&
++      (document.status === DocumentVerificationStatus.PENDING ||
++        document.status === DocumentVerificationStatus.APPROVED ||
++        document.status === DocumentVerificationStatus.NOT_REQUIRED);
++    return !ready;
++  });
++  if (missing.length) {
++    throw new BadRequestException(
++      'Upload or replace these documents before submitting: ' +
++        missing.map((requirement) => requirement.documentType.name).join(', '),
++    );
++  }
++}
+--- a/src/modules/instructors/instructors.service.ts
++++ b/src/modules/instructors/instructors.service.ts
+@@ -255,6 +255,8 @@
+       instructor.id,
+       instructor.status,
+       targetStatus,
++      {},
++      userId,
+     );
+ 
+     if (!updatedInstructor) {
+--- a/src/modules/instructors/instructors.repository.ts
++++ b/src/modules/instructors/instructors.repository.ts
+@@ -1,5 +1,6 @@
+ import { Injectable } from '@nestjs/common';
+-import { BookingStatus, DocumentVerificationStatus, Prisma, ProfileStatus, Role } from '@prisma/client';
++import { assertProfileDocumentsReady } from '../../common/profile/profile-submission-documents';
++import { DocumentContext, BookingStatus, DocumentVerificationStatus, Prisma, ProfileStatus, Role } from '@prisma/client';
+ import { canClaimProfile } from '../../common/profile/profile-claim';
+ import { PrismaService } from '../../prisma/prisma.service';
+ 
+@@ -91,10 +92,14 @@
+     currentStatus: ProfileStatus,
+     status: ProfileStatus,
+     data: Prisma.InstructorProfileUpdateManyMutationInput = {},
++    submissionUserId?: string,
+   ) {
+     return this.prisma.$transaction(async (transaction) => {
++      if (submissionUserId) {
++        await assertProfileDocumentsReady(transaction, submissionUserId, DocumentContext.INSTRUCTOR_PROFILE);
++      }
+       const result = await transaction.instructorProfile.updateMany({
+-        where: { id, status: currentStatus },
++        where: { id, status: currentStatus, ...(submissionUserId ? { userId: submissionUserId } : {}) },
+         data: { ...data, status },
+       });
+ 
+--- a/src/modules/institutions/institutions.service.ts
++++ b/src/modules/institutions/institutions.service.ts
+@@ -203,6 +203,7 @@
+       institution.status,
+       targetStatus,
+       false,
++      userId,
+     );
+ 
+     if (!updatedInstitution) {
+--- a/src/modules/institutions/institutions.repository.ts
++++ b/src/modules/institutions/institutions.repository.ts
+@@ -1,5 +1,6 @@
+ import { Injectable } from '@nestjs/common';
+-import { Prisma, ProfileStatus, Role, SignatoryApprovalStatus } from '@prisma/client';
++import { assertProfileDocumentsReady } from '../../common/profile/profile-submission-documents';
++import { DocumentContext, Prisma, ProfileStatus, Role, SignatoryApprovalStatus } from '@prisma/client';
+ import { canClaimProfile } from '../../common/profile/profile-claim';
+ import { PrismaService } from '../../prisma/prisma.service';
+ 
+@@ -87,10 +88,19 @@
+     });
+   }
+ 
+-  updateStatus(id: string, currentStatus: ProfileStatus, status: ProfileStatus, verified: boolean) {
++  updateStatus(
++    id: string,
++    currentStatus: ProfileStatus,
++    status: ProfileStatus,
++    verified: boolean,
++    submissionUserId?: string,
++  ) {
+     return this.prisma.$transaction(async (transaction) => {
++      if (submissionUserId) {
++        await assertProfileDocumentsReady(transaction, submissionUserId, DocumentContext.INSTITUTION_PROFILE);
++      }
+       const result = await transaction.institutionProfile.updateMany({
+-        where: { id, status: currentStatus },
++        where: { id, status: currentStatus, ...(submissionUserId ? { userId: submissionUserId } : {}) },
+         data: { status, verified },
+       });
+ 

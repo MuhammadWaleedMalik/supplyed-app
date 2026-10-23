@@ -1,12 +1,14 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Button from '../Ui/Button';
 import Checkbox from '../Ui/Checkbox';
 import Input from '../Ui/Input';
-import Select from '../Ui/Select';
-import * as options from '../../constants/waitlistOptions';
+import DynamicSelect from '../Ui/DynamicSelect';
+import { readChoices, writeChoices } from '../../utils/ui/choices';
+
 import { WaitlistType } from '../../feature/landing/apis/waitlistApi';
 import { useWaitlist } from '../../feature/landing/hooks/useWaitlist';
+import type { DropdownName } from '../../feature/dropdowns/apis/dropdownsApi';
 import { WaitlistFormData } from '../../utils/landing/waitlistValidation';
 import { useWaitlistStyles as useStyles } from './waitlistStyles';
 
@@ -39,14 +41,14 @@ export default function WaitlistForm({ type, form }: Props) {
   function select(
     key: keyof WaitlistFormData,
     label: string,
-    values: string[],
+    name: DropdownName,
   ) {
     return (
-      <Select
+      <DynamicSelect
         label={label}
         placeholder="Choose an option"
         value={String(form.data[key])}
-        options={values}
+        name={name}
         required
         onChange={value => form.update(key, value)}
         error={form.errors[key]}
@@ -92,21 +94,18 @@ export default function WaitlistForm({ type, form }: Props) {
               Help us bring the right schools on first.
             </Text>
             <Text style={styles.label}>Phases you teach</Text>
-            {options.teachingPhases.map(phase => (
-              <Checkbox
-                key={phase}
-                label={phase}
-                checked={form.details.phases.includes(phase)}
-                onChange={checked =>
-                  form.setDetails(previous => ({
-                    ...previous,
-                    phases: checked
-                      ? [...previous.phases, phase]
-                      : previous.phases.filter(item => item !== phase),
-                  }))
-                }
-              />
-            ))}
+            <DynamicSelect
+              name="waitlistPhase"
+              label="Phases you teach"
+              multiple
+              value={writeChoices(form.details.phases)}
+              onChange={value =>
+                form.setDetails(previous => ({
+                  ...previous,
+                  phases: readChoices(value),
+                }))
+              }
+            />
             <Input
               label="Main subject (secondary)"
               required={false}
@@ -166,25 +165,25 @@ export default function WaitlistForm({ type, form }: Props) {
         {select(
           'role',
           school ? 'Your role' : 'I work as a',
-          school ? options.schoolRoles : options.teacherRoles,
+          school ? 'waitlistSchoolRole' : 'waitlistTeacherRole',
         )}
         {select(
           'area',
           school ? 'Area' : "Where you'll work",
-          school ? options.schoolAreas : options.teacherAreas,
+          school ? 'waitlistSchoolArea' : 'waitlistTeacherArea',
         )}
         {school ? (
           <>
-            {select('schoolType', 'School type', options.schoolTypes)}
+            {select('schoolType', 'School type', 'waitlistSchoolType')}
             {select(
               'supplyDaysPerTerm',
               'Supply days per term (roughly)',
-              options.supplyDays,
+              'supplyDaysPerTerm',
             )}
             {select(
               'coverBookingMethod',
               'How you book cover now',
-              options.bookingMethods,
+              'coverBookingMethod',
             )}
             <Checkbox
               label="Tell me about the Founding Schools Programme (20 places)"
@@ -199,31 +198,9 @@ export default function WaitlistForm({ type, form }: Props) {
             {select(
               'currentSupply',
               'Are you doing supply now?',
-              options.currentSupplyOptions,
+              'currentSupply',
             )}
-            <Text style={styles.label}>Days a week you'd want *</Text>
-            <View style={styles.choices}>
-              {options.daysPerWeekOptions.map(day => (
-                <Pressable
-                  key={day}
-                  accessibilityRole="radio"
-                  accessibilityLabel={day}
-                  accessibilityState={{
-                    checked: form.data.daysPerWeek === day,
-                  }}
-                  onPress={() => form.update('daysPerWeek', day)}
-                  style={[
-                    styles.choice,
-                    form.data.daysPerWeek === day && styles.selectedChoice,
-                  ]}
-                >
-                  <Text style={styles.label}>{day}</Text>
-                </Pressable>
-              ))}
-            </View>
-            {form.errors.daysPerWeek ? (
-              <Text style={styles.error}>{form.errors.daysPerWeek}</Text>
-            ) : null}
+            {select('daysPerWeek', 'Days per week', 'daysPerWeek')}
             <Checkbox
               label="Email me about the first cohort and launch. Unsubscribe any time."
               checked={form.data.emailConsent}

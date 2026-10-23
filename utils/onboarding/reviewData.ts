@@ -1,7 +1,10 @@
+import { choiceText } from '../ui/choices';
 import { AccountType, OnboardingData } from './onboardingData';
 
 function shown(value: string) {
-  return value.trim() || 'Not provided';
+  return (
+    (value.startsWith('[') ? choiceText(value) : value.trim()) || 'Not provided'
+  );
 }
 
 export function accountReview(
@@ -32,7 +35,7 @@ export function schoolReview(data: OnboardingData) {
     ['SCHOOL TYPE', data.institutionType],
   ];
 
-  if (data.institutionType === 'MAT school') {
+  if (data.institutionType === 'MAT_SCHOOL') {
     items.push(
       ['TRUST NAME', shown(data.trustName)],
       ['TRUST COMPANY NUMBER', shown(data.trustCompanyNumber)],
@@ -57,7 +60,7 @@ export function complianceReview(data: OnboardingData) {
     ['SAFEGUARDING', data.confirmed ? 'Confirmed' : 'Not confirmed'],
   ];
 
-  if (data.institutionType === 'MAT school') {
+  if (data.institutionType === 'MAT_SCHOOL') {
     items.push(
       ['SIGNATORY NAME', shown(data.signatoryName)],
       ['SIGNATORY EMAIL', shown(data.signatoryEmail)],
@@ -78,7 +81,6 @@ export function teacherReview(data: OnboardingData) {
     ['HOURLY RATE', shown(data.hourlyRate)],
     ['CURRENCY', shown(data.currency)],
     ['TRAVEL DISTANCE', shown(data.travelDistance)],
-    ['TRN', shown(data.trn)],
     ['BIO', shown(data.bio)],
   ];
 }

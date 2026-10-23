@@ -6,11 +6,16 @@ import {
   Modal,
   Platform,
   ScrollView,
+  RefreshControl,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import DetailHeader from '../../../../components/Ui/DetailHeader';
+import { useSessionState } from '../../../../utils/ui/useSessionState';
+import SearchField from '../../../../components/Ui/SearchField';
+import RecommendedJobs from '../../../../components/dashboard/RecommendedJobs';
+import ChoiceField from '../../../../components/dashboard/ChoiceField';
 import Button from '../../../../components/Ui/Button';
 import ApplicationWizard from '../../../../components/dashboard/ApplicationWizard';
 import FindJobFilters from '../../../../components/dashboard/FindJobFilters';
@@ -25,6 +30,7 @@ export default function TeacherJobsScreen() {
   const styles = useStyles();
 
   const jobs = useTeacherJobs();
+  const [view, setView] = useSessionState('teacher.jobs.view', 'All jobs');
   const dispatch = useAppDispatch();
   const scrollStarted = useRef(false);
 
@@ -35,6 +41,15 @@ export default function TeacherJobsScreen() {
       style={styles.scroll}
       contentContainerStyle={styles.page}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        view === 'All jobs' ? (
+          <RefreshControl
+            refreshing={jobs.jobsLoading && jobs.jobs.length > 0}
+            onRefresh={jobs.retryJobs}
+            tintColor={colors.brand}
+          />
+        ) : undefined
+      }
       scrollEventThrottle={100}
       onScrollBeginDrag={() => {
         scrollStarted.current = true;
@@ -48,7 +63,7 @@ export default function TeacherJobsScreen() {
           scrollStarted.current
         ) {
           scrollStarted.current = false;
-          jobs.loadMoreJobs();
+          if (view === 'All jobs') jobs.loadMoreJobs();
         }
       }}
     >
@@ -56,39 +71,74 @@ export default function TeacherJobsScreen() {
         <Text style={styles.title}>
           {jobs.notificationJobId ? 'Job details' : 'Find your next role'}
         </Text>
-        <Text style={styles.subtitle}>Jobs currently posted by schools.</Text>
 
-        {jobs.notificationJobId ? (
-          <Button
-            title="Show all jobs"
-            variant="link"
-            onPress={() => dispatch(showPage('Jobs'))}
+        {!jobs.notificationJobId ? (
+          <ChoiceField
+            label="Browse jobs"
+            hideLabel
+            value={view}
+            options={['For you', 'All jobs']}
+            onChange={setView}
           />
-        ) : (
-          <FindJobFilters
-            roleType={jobs.roleType}
-            keyStage={jobs.keyStage}
-            subject={jobs.subject}
-            onRoleType={jobs.setRoleType}
-            onKeyStage={jobs.setKeyStage}
-            onSubject={jobs.setSubject}
-          />
-        )}
-
-        {jobs.error ? <Text style={styles.cardBody}>{jobs.error}</Text> : null}
-
-        {jobs.jobsLoading && !jobs.jobs.length ? (
-          <ActivityIndicator color={colors.brandDark} />
-        ) : (
-          <TeacherJobList
-            jobs={jobs.jobs}
+        ) : null}
+        {view === 'For you' && !jobs.notificationJobId ? (
+          <RecommendedJobs
             appliedJobIds={appliedJobIds}
             onApply={jobs.startApplication}
           />
+        ) : (
+          <>
+            {jobs.notificationJobId ? (
+              <Button
+                title="Show all jobs"
+                variant="link"
+                onPress={() => dispatch(showPage('Jobs'))}
+              />
+            ) : (
+              <>
+                <SearchField
+                  placeholder="Job title or keyword"
+                  value={jobs.search}
+                  onChangeText={jobs.setSearch}
+                />
+                <FindJobFilters
+                  roleType={jobs.roleType}
+                  keyStage={jobs.keyStage}
+                  subject={jobs.subject}
+                  onRoleType={jobs.setRoleType}
+                  onKeyStage={jobs.setKeyStage}
+                  onSubject={jobs.setSubject}
+                />
+              </>
+            )}
+
+            {jobs.error ? (
+              <>
+                <Text accessibilityLiveRegion="polite" style={styles.cardBody}>
+                  {jobs.error}
+                </Text>
+                <Button
+                  title="Retry jobs"
+                  variant="social"
+                  onPress={jobs.retryJobs}
+                />
+              </>
+            ) : null}
+
+            {jobs.jobsLoading && !jobs.jobs.length ? (
+              <ActivityIndicator color={colors.brandDark} />
+            ) : (
+              <TeacherJobList
+                jobs={jobs.jobs}
+                appliedJobIds={appliedJobIds}
+                onApply={jobs.startApplication}
+              />
+            )}
+            {jobs.jobsLoadingMore ? (
+              <ActivityIndicator color={colors.brandDark} />
+            ) : null}
+          </>
         )}
-        {jobs.jobsLoadingMore ? (
-          <ActivityIndicator color={colors.brandDark} />
-        ) : null}
       </View>
       {jobs.selectedJob ? (
         <Modal
@@ -103,15 +153,7 @@ export default function TeacherJobsScreen() {
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
               <SafeAreaView style={styles.safeArea}>
-                <View style={styles.detailHeader}>
-                  <Button
-                    title="Back to jobs"
-                    variant="link"
-                    icon={<ArrowLeft size={20} color={colors.brandDark} />}
-                    onPress={jobs.closeApplication}
-                    disabled={jobs.submitting}
-                  />
-                </View>
+                <DetailHeader title="Apply for this role" subtitle="Introduce yourself to the school" onBack={jobs.closeApplication} disabled={jobs.submitting} backLabel="Return to jobs" />
                 <ScrollView
                   key={jobs.applyStep}
                   contentContainerStyle={styles.page}

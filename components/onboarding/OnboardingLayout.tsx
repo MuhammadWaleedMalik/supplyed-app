@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -25,6 +26,7 @@ type Props = {
   onBack: () => void;
   onContinue: () => void;
   children: React.ReactNode;
+  error?: string;
 };
 
 export default function OnboardingLayout({
@@ -37,11 +39,17 @@ export default function OnboardingLayout({
   onBack,
   onContinue,
   children,
+  error,
 }: Props) {
   const styles = useStyles();
 
   const { width, fontScale } = useWindowDimensions();
   const wide = width / fontScale >= 850;
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  useEffect(() => {
+    Keyboard.dismiss();
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -56,6 +64,7 @@ export default function OnboardingLayout({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          ref={scroll}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scroll}
@@ -76,6 +85,11 @@ export default function OnboardingLayout({
                 total={steps.length}
               />
               <View style={styles.fields}>{children}</View>
+              {error ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {error}
+                </Text>
+              ) : null}
               <OnboardingFooter
                 finalStep={step === steps.length}
                 onBack={onBack}

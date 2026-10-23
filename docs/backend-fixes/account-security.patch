@@ -1,0 +1,1080 @@
+--- a/src/modules/users/users.controller.ts
++++ b/src/modules/users/users.controller.ts
+@@ -1,4 +1,15 @@
+-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
++import {
++  Body,
++  Controller,
++  Delete,
++  ForbiddenException,
++  Get,
++  Param,
++  ParseUUIDPipe,
++  Patch,
++  Post,
++  Query,
++} from '@nestjs/common';
+ import { ApiBearerAuth, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+ import { CurrentUser } from '../../common/decorators/current-user.decorator';
+ import { ResponseMessage } from '../../common/decorators/response-message.decorator';
+@@ -81,7 +92,10 @@
+   @Get(':id')
+   @swagger.getById()
+   @ResponseMessage('User fetched successfully')
+-  async getById(@Param('id') id: string) {
++  async getById(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() viewer: AuthUser) {
++    if (viewer.id !== id && viewer.role !== Role.ADMIN) {
++      throw new ForbiddenException('You can only view your own account');
++    }
+     const user = await this.usersService.getById(id);
+ 
+     return UserResponseDto.fromUser(user);
+@@ -91,7 +105,7 @@
+   @swagger.update()
+   @ResponseMessage('User updated successfully')
+   async update(@CurrentUser('id') userId: string, @Body() updateUserDto: UpdateUserDto) {
+-    const user = await this.usersService.update(userId, updateUserDto);
++    const user = await this.usersService.updateOwn(userId, updateUserDto);
+ 
+     return UserResponseDto.fromUser(user);
+   }
+--- a/src/modules/users/users.service.ts
++++ b/src/modules/users/users.service.ts
+@@ -1,5 +1,7 @@
+ import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+ import * as bcrypt from 'bcrypt';
++import { UpdateUserDto } from './dto/update-user.dto';
++import { toE164 } from '../sms/phone-number';
+ import { AdminCreateUserDto } from './dto/admin-create-user.dto';
+ import { Prisma } from '@prisma/client';
+ import { PRISMA_ERROR_CODE } from '../../common/constants/prisma-error.constants';
+@@ -33,7 +35,10 @@
+         phoneVerified: dto.phoneVerified ?? false,
+       });
+     } catch (error) {
+-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === PRISMA_ERROR_CODE.UNIQUE_CONSTRAINT) {
++      if (
++        error instanceof Prisma.PrismaClientKnownRequestError &&
++        error.code === PRISMA_ERROR_CODE.UNIQUE_CONSTRAINT
++      ) {
+         throw new ConflictException('Email is already registered');
+       }
+       throw error;
+@@ -116,6 +121,30 @@
+     return { ...user, twoFactorEnabled: Boolean(user.twoFactorAuth?.enabledAt) };
+   }
+ 
++  async updateOwn(id: string, dto: UpdateUserDto) {
++    const current = await this.getById(id);
++    const data: Pick<UpdateUserInput, 'name' | 'phone'> = { name: dto.name?.trim() };
++    if (dto.phone !== undefined) {
++      const phone = toE164(dto.phone);
++      if (!phone) throw new BadRequestException('Enter a valid phone number');
++      if (current.phoneVerified && phone !== current.phone) {
++        throw new ConflictException({
++          code: 'PHONE_VERIFIED_LOCKED',
++          message: 'This number is verified and cannot be edited.',
++        });
++      }
++      data.phone = phone;
++    }
++    const updated = await this.usersRepository.updateOwnBasics(
++      id,
++      data,
++      current.phone ?? null,
++      current.phoneVerified === true,
++    );
++    if (!updated) throw new ConflictException('Your account changed. Refresh before saving again.');
++    return this.getById(id);
++  }
++
+   async update(id: string, updateUserInput: UpdateUserInput) {
+     const current = await this.getById(id);
+     const phone = updateUserInput.phone === undefined ? current.phone : updateUserInput.phone;
+@@ -124,7 +153,11 @@
+     }
+ 
+     // A profile belongs to the role it was created under; changing the role would orphan it.
+-    if (updateUserInput.role && updateUserInput.role !== current.role && (await this.usersRepository.hasProfile(id))) {
++    if (
++      updateUserInput.role &&
++      updateUserInput.role !== current.role &&
++      (await this.usersRepository.hasProfile(id))
++    ) {
+       throw new ConflictException('The user has a profile; delete it before changing their role');
+     }
+ 
+@@ -170,10 +203,14 @@
+   async markPhoneVerified(id: string, phone: string) {
+     await this.getById(id);
+ 
+-    return this.usersRepository.update(id, {
+-      phone,
+-      phoneVerified: true,
+-    });
++    const updated = await this.usersRepository.verifyPhoneOnce(id, phone);
++    if (!updated) {
++      throw new ConflictException({
++        code: 'PHONE_VERIFIED_LOCKED',
++        message: 'This number is verified and cannot be edited.',
++      });
++    }
++    return updated;
+   }
+ 
+   async updatePassword(id: string, password: string) {
+--- a/src/modules/users/users.repository.ts
++++ b/src/modules/users/users.repository.ts
+@@ -155,7 +155,9 @@
+         skip,
+         take,
+         orderBy: [
+-          sortBy === 'lastLogin' ? { lastLogin: { sort: sortOrder, nulls: 'last' } } : { createdAt: sortOrder },
++          sortBy === 'lastLogin'
++            ? { lastLogin: { sort: sortOrder, nulls: 'last' } }
++            : { createdAt: sortOrder },
+           { id: 'desc' },
+         ],
+         omit: { password: true },
+@@ -181,6 +183,38 @@
+     });
+   }
+ 
++  updateOwnBasics(
++    id: string,
++    data: Pick<UpdateUserInput, 'name' | 'phone'>,
++    previousPhone: string | null,
++    previousVerified: boolean,
++  ) {
++    return this.prisma.$transaction(async (transaction) => {
++      const result = await transaction.user.updateMany({
++        where: {
++          id,
++          ...(data.phone === undefined ? {} : { phone: previousPhone, phoneVerified: previousVerified }),
++        },
++        data,
++      });
++      return result.count === 1
++        ? transaction.user.findUnique({ where: { id }, omit: { password: true } })
++        : null;
++    });
++  }
++
++  verifyPhoneOnce(id: string, phone: string) {
++    return this.prisma.$transaction(async (transaction) => {
++      const result = await transaction.user.updateMany({
++        where: { id, phoneVerified: false },
++        data: { phone, phoneVerified: true },
++      });
++      return result.count === 1
++        ? transaction.user.findUnique({ where: { id }, omit: { password: true } })
++        : null;
++    });
++  }
++
+   updatePassword(id: string, password: string) {
+     return this.users.update({
+       where: { id },
+--- a/src/modules/users/dto/update-user.dto.ts
++++ b/src/modules/users/dto/update-user.dto.ts
+@@ -1,14 +1,14 @@
+ import { ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsOptional, IsString } from 'class-validator';
++import { IsString, ValidateIf } from 'class-validator';
+ 
+ export class UpdateUserDto {
+   @ApiPropertyOptional({ example: 'Abdul Waheed' })
+-  @IsOptional()
++  @ValidateIf((_object, value) => value !== undefined)
+   @IsString()
+   name?: string;
+ 
+   @ApiPropertyOptional({ example: '09123456789' })
+-  @IsOptional()
++  @ValidateIf((_object, value) => value !== undefined)
+   @IsString()
+   phone?: string;
+ }
+--- a/src/modules/phone-verification/phone-verification.service.ts
++++ b/src/modules/phone-verification/phone-verification.service.ts
+@@ -1,4 +1,4 @@
+-import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
++import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+ import * as bcrypt from 'bcrypt';
+ import { generateOtp, otpMaxAttempts, otpTtlMinutes } from '../../common/otp/otp-policy';
+ import { toE164 } from '../sms/phone-number';
+@@ -7,8 +7,6 @@
+ import { UsersService } from '../users/users.service';
+ import { PhoneOtpResponseDto } from './dto/phone-verification.dto';
+ import { PhoneVerificationOtpRepository } from './phone-verification-otp.repository';
+-
+-const HOUR_MS = 60 * 60 * 1000;
+ 
+ @Injectable()
+ export class PhoneVerificationService {
+@@ -27,22 +25,25 @@
+ 
+     const user = await this.usersService.getById(userId);
+ 
+-    if (user.phoneVerified && user.phone === phone) {
+-      throw new ConflictException('This phone number is already verified');
++    if (user.phoneVerified) {
++      throw new ConflictException({
++        code: 'PHONE_VERIFIED_LOCKED',
++        message: 'This number is verified and cannot be edited.',
++      });
+     }
+-
+-    // Every SMS costs money and is a target for SMS-pumping fraud, so sends are throttled per user.
+-    await this.assertCanSend(userId);
+ 
+     const otp = generateOtp();
+     const expiresInMinutes = otpTtlMinutes();
+ 
+-    await this.otpRepository.create({
+-      userId,
+-      phone,
+-      codeHash: await bcrypt.hash(otp, 10),
+-      expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000),
+-    });
++    await this.otpRepository.create(
++      {
++        userId,
++        phone,
++        codeHash: await bcrypt.hash(otp, 10),
++        expiresAt: new Date(Date.now() + expiresInMinutes * 60 * 1000),
++      },
++      { cooldownSeconds: this.resendCooldownSeconds, maxPerHour: this.maxSendsPerHour },
++    );
+     await this.smsService.sendPhoneVerificationOtp(phone, otp, expiresInMinutes);
+ 
+     return {
+@@ -62,43 +63,20 @@
+     const otpMatches = await bcrypt.compare(otp, otpRecord.codeHash);
+ 
+     if (!otpMatches) {
+-      const updatedOtp = await this.otpRepository.incrementAttempts(otpRecord.id);
+-
+-      if (updatedOtp.attempts >= otpMaxAttempts()) {
+-        await this.otpRepository.consume(otpRecord.id);
+-      }
++      await this.otpRepository.recordFailedAttempt(otpRecord.id, userId, otpMaxAttempts());
+ 
+       throw new BadRequestException('Invalid or expired verification code');
+     }
+ 
+-    await this.otpRepository.consumeAllForUser(userId);
+-    // The code proves ownership of the number it was sent to, so that number becomes the user's phone.
+-    await this.usersService.markPhoneVerified(userId, otpRecord.phone);
++    const completed = await this.otpRepository.complete(
++      otpRecord.id,
++      userId,
++      otpMaxAttempts(),
++      otpRecord.phone,
++    );
++    if (!completed) throw new BadRequestException('Invalid or expired verification code');
+ 
+     return UserResponseDto.fromUser(await this.usersService.getById(userId));
+-  }
+-
+-  private async assertCanSend(userId: string) {
+-    const latest = await this.otpRepository.findLatestByUserId(userId);
+-
+-    if (latest) {
+-      const waitSeconds = Math.ceil(
+-        (latest.createdAt.getTime() + this.resendCooldownSeconds * 1000 - Date.now()) / 1000,
+-      );
+-
+-      if (waitSeconds > 0) {
+-        throw new HttpException(
+-          `Please wait ${waitSeconds} seconds before requesting another code`,
+-          HttpStatus.TOO_MANY_REQUESTS,
+-        );
+-      }
+-    }
+-
+-    const sentLastHour = await this.otpRepository.countSentSince(userId, new Date(Date.now() - HOUR_MS));
+-
+-    if (sentLastHour >= this.maxSendsPerHour) {
+-      throw new HttpException('Too many verification codes requested; try again later', HttpStatus.TOO_MANY_REQUESTS);
+-    }
+   }
+ 
+   private get resendCooldownSeconds() {
+--- /dev/null
++++ b/src/common/otp/otp-send-limit.ts
+@@ -0,0 +1,33 @@
++import { HttpException, HttpStatus } from '@nestjs/common';
++
++export function otpSendLimit() {
++  const cooldown = Number(process.env.OTP_RESEND_COOLDOWN_SECONDS);
++  const hourly = Number(process.env.OTP_MAX_SENDS_PER_HOUR);
++  return {
++    cooldownSeconds: Number.isInteger(cooldown) && cooldown >= 0 ? cooldown : 60,
++    maxPerHour: Number.isInteger(hourly) && hourly > 0 ? hourly : 5,
++  };
++}
++
++export function assertOtpSendAllowed(
++  latest: { createdAt: Date } | null,
++  sentLastHour: number,
++  limit: { cooldownSeconds: number; maxPerHour: number },
++  now: Date,
++) {
++  const wait = latest
++    ? Math.ceil((latest.createdAt.getTime() + limit.cooldownSeconds * 1000 - now.getTime()) / 1000)
++    : 0;
++  if (wait > 0) {
++    throw new HttpException(
++      'Please wait ' + wait + ' seconds before requesting another code',
++      HttpStatus.TOO_MANY_REQUESTS,
++    );
++  }
++  if (sentLastHour >= limit.maxPerHour) {
++    throw new HttpException(
++      'Too many verification codes requested; try again later',
++      HttpStatus.TOO_MANY_REQUESTS,
++    );
++  }
++}
+--- a/src/modules/auth/email-verification-otp.repository.ts
++++ b/src/modules/auth/email-verification-otp.repository.ts
+@@ -1,97 +1,76 @@
+-import { Injectable } from '@nestjs/common';
++import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+ import { PrismaService } from '../../prisma/prisma.service';
+-
+-export type EmailVerificationOtpRecord = {
+-  id: string;
+-  userId: string;
+-  codeHash: string;
+-  expiresAt: Date;
+-  attempts: number;
+-  consumedAt?: Date | null;
+-  createdAt: Date;
+-};
+-
+-type EmailVerificationOtpDelegate = {
+-  create(args: unknown): Promise<EmailVerificationOtpRecord>;
+-  findFirst(args: unknown): Promise<EmailVerificationOtpRecord | null>;
+-  update(args: unknown): Promise<EmailVerificationOtpRecord>;
+-  updateMany(args: unknown): Promise<{ count: number }>;
+-};
++import { assertOtpSendAllowed, otpSendLimit } from '../../common/otp/otp-send-limit';
++import { Role } from '../../common/enums/role.enum';
+ 
+ @Injectable()
+ export class EmailVerificationOtpRepository {
+   constructor(private readonly prisma: PrismaService) {}
+ 
+-  async create(data: { userId: string; codeHash: string; expiresAt: Date }) {
+-    const now = new Date();
+-
+-    await this.otps.updateMany({
+-      where: {
+-        userId: data.userId,
+-        consumedAt: null,
+-      },
+-      data: {
+-        consumedAt: now,
+-      },
+-    });
+-
+-    return this.otps.create({
+-      data,
++  async create(data: {
++    userId: string;
++    codeHash: string;
++    expiresAt: Date;
++    signup?: { password: string; role: Role };
++  }) {
++    return this.prisma.$transaction(async (transaction) => {
++      // All OTP send/verify transactions lock the same user row before changing a code.
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${data.userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: data.userId } });
++      if (!user) throw new BadRequestException('Unable to send verification code');
++      if (user.emailVerified) throw new ConflictException('Email is already verified');
++      const now = new Date();
++      const latest = await transaction.emailVerificationOtp.findFirst({
++        where: { userId: data.userId },
++        orderBy: { createdAt: 'desc' },
++      });
++      const count = await transaction.emailVerificationOtp.count({
++        where: { userId: data.userId, createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
++      });
++      assertOtpSendAllowed(latest, count, otpSendLimit(), now);
++      const { signup, ...record } = data;
++      if (signup) await transaction.user.update({ where: { id: data.userId }, data: signup });
++      await transaction.emailVerificationOtp.updateMany({
++        where: { userId: data.userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++      return transaction.emailVerificationOtp.create({ data: record });
+     });
+   }
+ 
+   findLatestActiveByUserId(userId: string, now = new Date()) {
+-    return this.otps.findFirst({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-        expiresAt: {
+-          gt: now,
+-        },
+-      },
+-      orderBy: {
+-        createdAt: 'desc',
+-      },
++    return this.prisma.emailVerificationOtp.findFirst({
++      where: { userId, consumedAt: null, expiresAt: { gt: now } },
++      orderBy: { createdAt: 'desc' },
+     });
+   }
+ 
+-  incrementAttempts(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        attempts: {
+-          increment: 1,
+-        },
+-      },
++  recordFailedAttempt(id: string, userId: string, maxAttempts: number) {
++    return this.prisma.emailVerificationOtp.updateMany({
++      where: { id, userId, consumedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: maxAttempts } },
++      data: { attempts: { increment: 1 } },
+     });
+   }
+ 
+-  consume(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        consumedAt: new Date(),
+-      },
++  async complete(id: string, userId: string, maxAttempts: number): Promise<boolean> {
++    return this.prisma.$transaction(async (transaction) => {
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: userId } });
++      if (!user || user.emailVerified) return false;
++      const now = new Date();
++      // The comparison can finish after resend, expiry, or another request. Claim only the still-valid record.
++      const claimed = await transaction.emailVerificationOtp.updateMany({
++        where: { id, userId, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: maxAttempts } },
++        data: { consumedAt: now },
++      });
++      if (claimed.count !== 1) return false;
++      await transaction.user.update({ where: { id: userId }, data: { emailVerified: true } });
++      await transaction.emailVerificationOtp.updateMany({
++        where: { userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++
++      return true;
+     });
+   }
+-
+-  consumeAllForUser(userId: string) {
+-    return this.otps.updateMany({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-      },
+-      data: {
+-        consumedAt: new Date(),
+-      },
+-    });
+-  }
+-
+-  private get otps(): EmailVerificationOtpDelegate {
+-    return (
+-      this.prisma as unknown as {
+-        emailVerificationOtp: EmailVerificationOtpDelegate;
+-      }
+-    ).emailVerificationOtp;
+-  }
+ }
+--- a/src/modules/auth/password-reset-otp.repository.ts
++++ b/src/modules/auth/password-reset-otp.repository.ts
+@@ -1,97 +1,72 @@
+-import { Injectable } from '@nestjs/common';
++import { BadRequestException, Injectable } from '@nestjs/common';
+ import { PrismaService } from '../../prisma/prisma.service';
+-
+-export type PasswordResetOtpRecord = {
+-  id: string;
+-  userId: string;
+-  codeHash: string;
+-  expiresAt: Date;
+-  attempts: number;
+-  consumedAt?: Date | null;
+-  createdAt: Date;
+-};
+-
+-type PasswordResetOtpDelegate = {
+-  create(args: unknown): Promise<PasswordResetOtpRecord>;
+-  findFirst(args: unknown): Promise<PasswordResetOtpRecord | null>;
+-  update(args: unknown): Promise<PasswordResetOtpRecord>;
+-  updateMany(args: unknown): Promise<{ count: number }>;
+-};
++import { assertOtpSendAllowed, otpSendLimit } from '../../common/otp/otp-send-limit';
+ 
+ @Injectable()
+ export class PasswordResetOtpRepository {
+   constructor(private readonly prisma: PrismaService) {}
+ 
+   async create(data: { userId: string; codeHash: string; expiresAt: Date }) {
+-    const now = new Date();
++    return this.prisma.$transaction(async (transaction) => {
++      // All OTP send/verify transactions lock the same user row before changing a code.
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${data.userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: data.userId } });
++      if (!user) throw new BadRequestException('Unable to send verification code');
+ 
+-    await this.otps.updateMany({
+-      where: {
+-        userId: data.userId,
+-        consumedAt: null,
+-      },
+-      data: {
+-        consumedAt: now,
+-      },
+-    });
++      const now = new Date();
++      const latest = await transaction.passwordResetOtp.findFirst({
++        where: { userId: data.userId },
++        orderBy: { createdAt: 'desc' },
++      });
++      const count = await transaction.passwordResetOtp.count({
++        where: { userId: data.userId, createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
++      });
++      assertOtpSendAllowed(latest, count, otpSendLimit(), now);
+ 
+-    return this.otps.create({
+-      data,
++      await transaction.passwordResetOtp.updateMany({
++        where: { userId: data.userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++      return transaction.passwordResetOtp.create({ data: data });
+     });
+   }
+ 
+   findLatestActiveByUserId(userId: string, now = new Date()) {
+-    return this.otps.findFirst({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-        expiresAt: {
+-          gt: now,
+-        },
+-      },
+-      orderBy: {
+-        createdAt: 'desc',
+-      },
++    return this.prisma.passwordResetOtp.findFirst({
++      where: { userId, consumedAt: null, expiresAt: { gt: now } },
++      orderBy: { createdAt: 'desc' },
+     });
+   }
+ 
+-  incrementAttempts(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        attempts: {
+-          increment: 1,
+-        },
+-      },
++  recordFailedAttempt(id: string, userId: string, maxAttempts: number) {
++    return this.prisma.passwordResetOtp.updateMany({
++      where: { id, userId, consumedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: maxAttempts } },
++      data: { attempts: { increment: 1 } },
+     });
+   }
+ 
+-  consume(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        consumedAt: new Date(),
+-      },
++  async complete(id: string, userId: string, maxAttempts: number, passwordHash: string): Promise<boolean> {
++    return this.prisma.$transaction(async (transaction) => {
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: userId } });
++      if (!user) return false;
++      const now = new Date();
++      // The comparison can finish after resend, expiry, or another request. Claim only the still-valid record.
++      const claimed = await transaction.passwordResetOtp.updateMany({
++        where: { id, userId, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: maxAttempts } },
++        data: { consumedAt: now },
++      });
++      if (claimed.count !== 1) return false;
++      await transaction.user.update({ where: { id: userId }, data: { password: passwordHash } });
++      await transaction.passwordResetOtp.updateMany({
++        where: { userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++      await transaction.refreshToken.updateMany({
++        where: { userId, revokedAt: null },
++        data: { revokedAt: now },
++      });
++      return true;
+     });
+   }
+-
+-  consumeAllForUser(userId: string) {
+-    return this.otps.updateMany({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-      },
+-      data: {
+-        consumedAt: new Date(),
+-      },
+-    });
+-  }
+-
+-  private get otps(): PasswordResetOtpDelegate {
+-    return (
+-      this.prisma as unknown as {
+-        passwordResetOtp: PasswordResetOtpDelegate;
+-      }
+-    ).passwordResetOtp;
+-  }
+ }
+--- a/src/modules/phone-verification/phone-verification-otp.repository.ts
++++ b/src/modules/phone-verification/phone-verification-otp.repository.ts
+@@ -1,107 +1,77 @@
+-import { Injectable } from '@nestjs/common';
++import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+ import { PrismaService } from '../../prisma/prisma.service';
+-
+-export type PhoneVerificationOtpRecord = {
+-  id: string;
+-  userId: string;
+-  phone: string;
+-  codeHash: string;
+-  expiresAt: Date;
+-  attempts: number;
+-  consumedAt?: Date | null;
+-  createdAt: Date;
+-};
+-
+-type PhoneVerificationOtpDelegate = {
+-  create(args: unknown): Promise<PhoneVerificationOtpRecord>;
+-  findFirst(args: unknown): Promise<PhoneVerificationOtpRecord | null>;
+-  count(args: unknown): Promise<number>;
+-  update(args: unknown): Promise<PhoneVerificationOtpRecord>;
+-  updateMany(args: unknown): Promise<{ count: number }>;
+-};
++import { assertOtpSendAllowed, otpSendLimit } from '../../common/otp/otp-send-limit';
+ 
+ @Injectable()
+ export class PhoneVerificationOtpRepository {
+   constructor(private readonly prisma: PrismaService) {}
+ 
+-  /** Issuing a new code invalidates any earlier unused one. */
+-  async create(data: { userId: string; phone: string; codeHash: string; expiresAt: Date }) {
+-    await this.consumeAllForUser(data.userId);
++  async create(
++    data: { userId: string; phone: string; codeHash: string; expiresAt: Date },
++    limit = otpSendLimit(),
++  ) {
++    return this.prisma.$transaction(async (transaction) => {
++      // All OTP send/verify transactions lock the same user row before changing a code.
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${data.userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: data.userId } });
++      if (!user) throw new BadRequestException('Unable to send verification code');
++      if (user.phoneVerified) {
++        throw new ConflictException({
++          code: 'PHONE_VERIFIED_LOCKED',
++          message: 'This number is verified and cannot be edited.',
++        });
++      }
++      const now = new Date();
++      const latest = await transaction.phoneVerificationOtp.findFirst({
++        where: { userId: data.userId },
++        orderBy: { createdAt: 'desc' },
++      });
++      const count = await transaction.phoneVerificationOtp.count({
++        where: { userId: data.userId, createdAt: { gte: new Date(now.getTime() - 60 * 60 * 1000) } },
++      });
++      assertOtpSendAllowed(latest, count, limit, now);
+ 
+-    return this.otps.create({
+-      data,
++      await transaction.phoneVerificationOtp.updateMany({
++        where: { userId: data.userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++      return transaction.phoneVerificationOtp.create({ data: data });
+     });
+   }
+ 
+   findLatestActiveByUserId(userId: string, now = new Date()) {
+-    return this.otps.findFirst({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-        expiresAt: {
+-          gt: now,
+-        },
+-      },
+-      orderBy: {
+-        createdAt: 'desc',
+-      },
+-    });
+-  }
+-
+-  /** The most recent code sent to the user, used or not; drives the resend cooldown. */
+-  findLatestByUserId(userId: string) {
+-    return this.otps.findFirst({
+-      where: { userId },
++    return this.prisma.phoneVerificationOtp.findFirst({
++      where: { userId, consumedAt: null, expiresAt: { gt: now } },
+       orderBy: { createdAt: 'desc' },
+     });
+   }
+ 
+-  countSentSince(userId: string, since: Date) {
+-    return this.otps.count({
+-      where: {
+-        userId,
+-        createdAt: { gte: since },
+-      },
++  recordFailedAttempt(id: string, userId: string, maxAttempts: number) {
++    return this.prisma.phoneVerificationOtp.updateMany({
++      where: { id, userId, consumedAt: null, expiresAt: { gt: new Date() }, attempts: { lt: maxAttempts } },
++      data: { attempts: { increment: 1 } },
+     });
+   }
+ 
+-  incrementAttempts(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        attempts: {
+-          increment: 1,
+-        },
+-      },
++  async complete(id: string, userId: string, maxAttempts: number, phone: string): Promise<boolean> {
++    return this.prisma.$transaction(async (transaction) => {
++      await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
++      const user = await transaction.user.findUnique({ where: { id: userId } });
++      if (!user || user.phoneVerified) return false;
++      const now = new Date();
++      // The comparison can finish after resend, expiry, or another request. Claim only the still-valid record.
++      const claimed = await transaction.phoneVerificationOtp.updateMany({
++        where: { id, userId, consumedAt: null, expiresAt: { gt: now }, attempts: { lt: maxAttempts } },
++        data: { consumedAt: now },
++      });
++      if (claimed.count !== 1) return false;
++      await transaction.user.update({ where: { id: userId }, data: { phone, phoneVerified: true } });
++      await transaction.phoneVerificationOtp.updateMany({
++        where: { userId, consumedAt: null },
++        data: { consumedAt: now },
++      });
++
++      return true;
+     });
+   }
+-
+-  consume(id: string) {
+-    return this.otps.update({
+-      where: { id },
+-      data: {
+-        consumedAt: new Date(),
+-      },
+-    });
+-  }
+-
+-  consumeAllForUser(userId: string) {
+-    return this.otps.updateMany({
+-      where: {
+-        userId,
+-        consumedAt: null,
+-      },
+-      data: {
+-        consumedAt: new Date(),
+-      },
+-    });
+-  }
+-
+-  private get otps(): PhoneVerificationOtpDelegate {
+-    return (
+-      this.prisma as unknown as {
+-        phoneVerificationOtp: PhoneVerificationOtpDelegate;
+-      }
+-    ).phoneVerificationOtp;
+-  }
+ }
+--- a/src/modules/auth/auth.service.ts
++++ b/src/modules/auth/auth.service.ts
+@@ -1,4 +1,11 @@
+-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
++import {
++  BadRequestException,
++  ConflictException,
++  HttpException,
++  HttpStatus,
++  Injectable,
++  UnauthorizedException,
++} from '@nestjs/common';
+ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
+ import * as bcrypt from 'bcrypt';
+ import { randomUUID } from 'node:crypto';
+@@ -65,8 +72,11 @@
+     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+ 
+     if (existingUser && !existingUser.emailVerified) {
+-      const user = await this.usersService.updateSignup(existingUser.id, hashedPassword, registerDto.role);
+-      await this.issueEmailVerificationOtp(user);
++      await this.issueEmailVerificationOtp(existingUser, {
++        password: hashedPassword,
++        role: registerDto.role,
++      });
++      const user = await this.usersService.getById(existingUser.id);
+       return this.createEmailVerificationResponse(user);
+     }
+ 
+@@ -139,7 +149,10 @@
+   async me(userId: string) {
+     const user = await this.usersService.getById(userId);
+ 
+-    return UserResponseDto.fromUser({ ...user, twoFactorEnabled: await this.twoFactorService.isEnabled(user.id) });
++    return UserResponseDto.fromUser({
++      ...user,
++      twoFactorEnabled: await this.twoFactorService.isEnabled(user.id),
++    });
+   }
+ 
+   async verifyTwoFactorLogin(userId: string, challengeId: string | undefined, code: string) {
+@@ -192,25 +205,27 @@
+     const otpMatches = await bcrypt.compare(otp, otpRecord.codeHash);
+ 
+     if (!otpMatches) {
+-      const updatedOtp = await this.emailOtpRepository.incrementAttempts(otpRecord.id);
+-
+-      if (updatedOtp.attempts >= otpMaxAttempts()) {
+-        await this.emailOtpRepository.consume(otpRecord.id);
+-      }
++      await this.emailOtpRepository.recordFailedAttempt(otpRecord.id, user.id, otpMaxAttempts());
+ 
+       throw new BadRequestException('Invalid or expired verification code');
+     }
+ 
+-    await this.emailOtpRepository.consumeAllForUser(user.id);
+-    const verifiedUser = await this.usersService.markEmailVerified(user.id);
+-
+-    return this.createLoginResponse(verifiedUser);
++    const completed = await this.emailOtpRepository.complete(otpRecord.id, user.id, otpMaxAttempts());
++    if (!completed) throw new BadRequestException('Invalid or expired verification code');
++    const verifiedUser = await this.usersService.getById(user.id);
++    return this.createAuthenticatedResponse(verifiedUser);
+   }
+ 
+   async forgotPassword(email: string) {
+     const user = await this.usersService.findByEmail(email);
+     if (user) {
+-      await this.issuePasswordResetOtp(user);
++      try {
++        await this.issuePasswordResetOtp(user);
++      } catch (error) {
++        // A resend limit must not reveal whether this email belongs to an account.
++        if (!(error instanceof HttpException) || error.getStatus() !== HttpStatus.TOO_MANY_REQUESTS)
++          throw error;
++      }
+     }
+ 
+     return {
+@@ -244,26 +259,30 @@
+     const otpMatches = await bcrypt.compare(otp, otpRecord.codeHash);
+ 
+     if (!otpMatches) {
+-      const updatedOtp = await this.passwordResetOtpRepository.incrementAttempts(otpRecord.id);
+-
+-      if (updatedOtp.attempts >= otpMaxAttempts()) {
+-        await this.passwordResetOtpRepository.consume(otpRecord.id);
+-      }
++      await this.passwordResetOtpRepository.recordFailedAttempt(otpRecord.id, user.id, otpMaxAttempts());
+ 
+       throw new BadRequestException('Invalid or expired password reset code');
+     }
+ 
+     const hashedPassword = await bcrypt.hash(password, 10);
+ 
+-    await this.usersService.updatePassword(user.id, hashedPassword);
+-    await this.passwordResetOtpRepository.consumeAllForUser(user.id);
++    const completed = await this.passwordResetOtpRepository.complete(
++      otpRecord.id,
++      user.id,
++      otpMaxAttempts(),
++      hashedPassword,
++    );
++    if (!completed) throw new BadRequestException('Invalid or expired password reset code');
+ 
+     return {
+       passwordReset: true,
+     };
+   }
+ 
+-  private async issueEmailVerificationOtp(user: { id: string; email: string; emailVerified?: boolean | null }) {
++  private async issueEmailVerificationOtp(
++    user: { id: string; email: string; emailVerified?: boolean | null },
++    signup?: { password: string; role: Role },
++  ) {
+     if (user.emailVerified) {
+       return;
+     }
+@@ -276,6 +295,7 @@
+       userId: user.id,
+       codeHash,
+       expiresAt,
++      signup,
+     });
+     await this.mailService.sendEmailVerificationOtp(user.email, otp);
+   }
+@@ -367,7 +387,10 @@
+     return this.createLoginResponse(user);
+   }
+ 
+-  private async createLoginResponse(user: { id: string; email: string; role: Role }, twoFactorVerified = false) {
++  private async createLoginResponse(
++    user: { id: string; email: string; role: Role },
++    twoFactorVerified = false,
++  ) {
+     const tokens = await this.signTokens(user, twoFactorVerified);
+     const updatedUser = await this.usersService.recordLogin(user.id);
+     return {
+--- a/src/modules/two-factor/two-factor.repository.ts
++++ b/src/modules/two-factor/two-factor.repository.ts
+@@ -12,7 +12,10 @@
+     return this.prisma.twoFactorAuthentication.findUnique({ where: { userId } });
+   }
+ 
+-  async replacePendingSecret(userId: string, secretEncrypted: string): Promise<TwoFactorAuthentication | null> {
++  async replacePendingSecret(
++    userId: string,
++    secretEncrypted: string,
++  ): Promise<TwoFactorAuthentication | null> {
+     const updated = await this.prisma.twoFactorAuthentication.updateMany({
+       where: { userId, enabledAt: null },
+       data: {
+@@ -48,9 +51,14 @@
+     }
+   }
+ 
+-  async enable(userId: string, step: number, recoveryCodeHashes: string[]): Promise<boolean> {
++  async enable(
++    userId: string,
++    step: number,
++    recoveryCodeHashes: string[],
++    secretEncrypted: string,
++  ): Promise<boolean> {
+     const result = await this.prisma.twoFactorAuthentication.updateMany({
+-      where: { userId, enabledAt: null },
++      where: { userId, enabledAt: null, secretEncrypted },
+       data: {
+         enabledAt: new Date(),
+         lastUsedStep: step,
+@@ -103,7 +111,12 @@
+     });
+   }
+ 
+-  completeChallengeWithTotp(challengeId: string, userId: string, step: number, maxAttempts: number): Promise<boolean> {
++  completeChallengeWithTotp(
++    challengeId: string,
++    userId: string,
++    step: number,
++    maxAttempts: number,
++  ): Promise<boolean> {
+     return this.completeTransaction(async (transaction) => {
+       await this.consumeChallenge(transaction, challengeId, userId, maxAttempts);
+       const authentication = await transaction.twoFactorAuthentication.updateMany({
+@@ -127,6 +140,7 @@
+     recoveryCodeHash: string,
+     remainingHashes: string[],
+     maxAttempts: number,
++    expectedHashes: string[],
+   ): Promise<boolean> {
+     return this.completeTransaction(async (transaction) => {
+       await this.consumeChallenge(transaction, challengeId, userId, maxAttempts);
+@@ -134,7 +148,7 @@
+         where: {
+           userId,
+           enabledAt: { not: null },
+-          recoveryCodeHashes: { has: recoveryCodeHash },
++          recoveryCodeHashes: { equals: expectedHashes, has: recoveryCodeHash },
+         },
+         data: { recoveryCodeHashes: remainingHashes },
+       });
+--- a/src/modules/two-factor/two-factor.service.ts
++++ b/src/modules/two-factor/two-factor.service.ts
+@@ -27,7 +27,10 @@
+     }
+ 
+     const secret = this.crypto.generateSecret();
+-    const authentication = await this.repository.replacePendingSecret(userId, this.crypto.encryptSecret(secret));
++    const authentication = await this.repository.replacePendingSecret(
++      userId,
++      this.crypto.encryptSecret(secret),
++    );
+ 
+     if (!authentication) {
+       throw new ConflictException('Two-factor authentication is already enabled');
+@@ -65,6 +68,7 @@
+       userId,
+       step,
+       recoveryCodes.map((recoveryCode) => this.crypto.hashRecoveryCode(recoveryCode)),
++      authentication.secretEncrypted,
+     );
+ 
+     if (!enabled) {
+@@ -136,7 +140,13 @@
+       throw this.invalidCode();
+     }
+ 
+-    const completed = await this.completeChallenge(authentication, challengeId, userId, code, this.maxAttempts);
++    const completed = await this.completeChallenge(
++      authentication,
++      challengeId,
++      userId,
++      code,
++      this.maxAttempts,
++    );
+ 
+     if (!completed) {
+       const consume = challenge.attempts + 1 >= this.maxAttempts;
+@@ -178,7 +188,11 @@
+     const recoveryCodes = this.crypto.generateRecoveryCodes();
+     const hashes = recoveryCodes.map((recoveryCode) => this.crypto.hashRecoveryCode(recoveryCode));
+     const replaced = this.crypto.isRecoveryCode(code)
+-      ? await this.repository.replaceRecoveryCodesWithRecoveryCode(userId, this.crypto.hashRecoveryCode(code), hashes)
++      ? await this.repository.replaceRecoveryCodesWithRecoveryCode(
++          userId,
++          this.crypto.hashRecoveryCode(code),
++          hashes,
++        )
+       : await this.replaceRecoveryCodesWithTotp(userId, authentication.secretEncrypted, code, hashes);
+ 
+     if (!replaced) {
+@@ -211,13 +225,16 @@
+         recoveryCodeHash,
+         authentication.recoveryCodeHashes.filter((hash) => hash !== recoveryCodeHash),
+         maxAttempts,
++        authentication.recoveryCodeHashes,
+       );
+     }
+ 
+     const secret = this.crypto.decryptSecret(authentication.secretEncrypted);
+     const step = this.crypto.findMatchingTotpStep(secret, code);
+ 
+-    return step === null ? false : this.repository.completeChallengeWithTotp(challengeId, userId, step, maxAttempts);
++    return step === null
++      ? false
++      : this.repository.completeChallengeWithTotp(challengeId, userId, step, maxAttempts);
+   }
+ 
+   private async getEnabledAuthentication(userId: string) {

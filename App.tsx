@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
-import { Linking, StatusBar } from 'react-native';
+import { AppState, Linking, StatusBar } from 'react-native';
+import { restoreBrandTheme } from './components/Ui/theme';
 import {
   handleURLCallback,
   resetPaymentSheetCustomer,
@@ -25,15 +26,27 @@ import SecurityScreen from './feature/dashboard/shared/screens/SecurityScreen';
 import SettingsScreen from './feature/dashboard/shared/screens/SettingsScreen';
 import { useAppNavigation } from './utils/navigation/appNavigation';
 import { store } from './store';
-import SplashScreen from './components/SplashScreen';
+import {
+  openInvitation,
+  refreshMarketplace,
+} from './feature/dashboard/shared/store/navigationSlice';
+import { invitationIdFromLink } from './utils/navigation/invitationLinks';
 import PublicThemeControls from './components/Ui/PublicThemeControls';
 import { useConversationSocket } from './feature/dashboard/shared/hooks/useConversationSocket';
 
-const SPLASH_DURATION_MS = 2500;
-
 export default function App() {
   useConversationSocket();
-  const [isSplashVisible, setIsSplashVisible] = useState(true);
+  useEffect(() => {
+    restoreBrandTheme();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        restoreBrandTheme();
+        store.dispatch(refreshMarketplace());
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+  const [pendingInvitationId, setPendingInvitationId] = useState('');
   const {
     screen,
     restoreError,
@@ -60,6 +73,8 @@ export default function App() {
 
   useEffect(() => {
     function handleLink(url: string | null | undefined) {
+      const invitationId = url ? invitationIdFromLink(url) : '';
+      if (invitationId) setPendingInvitationId(invitationId);
       if (url?.startsWith('supplyed://stripe-redirect'))
         handleURLCallback(url).catch(() => {
           console.warn(
@@ -91,12 +106,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsSplashVisible(false);
-    }, SPLASH_DURATION_MS);
-
-    return () => clearTimeout(timer);
-  }, []);
+    if (screen !== 'dashboard' || !pendingInvitationId) return;
+    store.dispatch(openInvitation(pendingInvitationId));
+    setPendingInvitationId('');
+  }, [screen, pendingInvitationId]);
 
   const authActions = {
     onVerification: showVerification,
@@ -108,10 +121,6 @@ export default function App() {
   return (
     <Provider store={store}>
       <SafeAreaProvider>
-        {isSplashVisible ? (
-          <SplashScreen />
-        ) : (
-          <>
             <StatusBar
               hidden={false}
               barStyle={
@@ -196,6 +205,7 @@ export default function App() {
                 type={profileType}
                 onDashboard={showDashboard}
                 onDocuments={() => showDocuments(profileType)}
+                onEditProfile={showWorkspaceProfile}
                 onExit={showLanding}
               />
             )}
@@ -242,8 +252,6 @@ export default function App() {
               'documents',
               'reviewStatus',
             ].includes(screen) && <PublicThemeControls />}
-          </>
-        )}
       </SafeAreaProvider>
     </Provider>
   );

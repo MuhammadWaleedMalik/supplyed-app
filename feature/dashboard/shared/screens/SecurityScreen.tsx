@@ -53,6 +53,18 @@ export default function SecurityScreen({ onBack }: Props) {
             {security.error ? (
               <Text style={securityStyles.error}>{security.error}</Text>
             ) : null}
+            {!security.status ? (
+              <Button
+                title={
+                  security.busy
+                    ? 'Loading security...'
+                    : 'Retry security settings'
+                }
+                onPress={security.retry}
+                disabled={security.busy}
+                variant="link"
+              />
+            ) : null}
           </View>
           <View
             style={[securityStyles.aside, wide && securityStyles.wideAside]}
