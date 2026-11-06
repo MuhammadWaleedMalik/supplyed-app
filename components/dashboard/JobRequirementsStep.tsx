@@ -6,7 +6,6 @@ import type { JobForm } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import DynamicSelect from '../Ui/DynamicSelect';
-import ChoiceField from './ChoiceField';
 import { useJobStyles } from './jobStyles';
 
 type Props = {
@@ -44,18 +43,6 @@ export default function JobRequirementsStep({
         onChangeText={value => onChange('minExperienceYears', value)}
       />
 
-      <ChoiceField
-        label="QTS required"
-        value={form.qts}
-        options={['yes', 'no']}
-        onChange={value => onChange('qts', value)}
-      />
-      <ChoiceField
-        label="Urgent role"
-        value={form.urgent}
-        options={['yes', 'no']}
-        onChange={value => onChange('urgent', value)}
-      />
       <Input
         label="PARKING AND ARRIVAL NOTES"
         required={false}

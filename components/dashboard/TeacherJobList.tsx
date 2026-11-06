@@ -22,6 +22,10 @@ import LimitedProfileCard from './LimitedProfileCard';
 import { useLimitedProfile } from '../../feature/dashboard/shared/hooks/useLimitedProfile';
 import MatchExplanation from './MatchExplanation';
 import { useStyles } from './dashboardStyles';
+import {
+  checkJobAvailability,
+  JobAvailability,
+} from '../../feature/dashboard/teacher/apis/availabilityApi';
 
 type Props = {
   jobs: Job[];
@@ -50,6 +54,8 @@ function JobCard({
   const [match, setMatch] = useState(initialMatch);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [availability, setAvailability] = useState<JobAvailability>();
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
   const unavailable = Boolean(listingStatus(job) !== 'LIVE');
   async function checkMatch() {
     const version = getSessionVersion();
@@ -65,6 +71,24 @@ function JobCard({
         );
     } finally {
       setLoading(false);
+    }
+  }
+  async function checkAvailability() {
+    const version = getSessionVersion();
+    setCheckingAvailability(true);
+    setError('');
+    try {
+      const result = await checkJobAvailability(job.id);
+      if (version === getSessionVersion()) setAvailability(result);
+    } catch (problem) {
+      if (version === getSessionVersion())
+        setError(
+          problem instanceof Error
+            ? problem.message
+            : 'Unable to check availability.',
+        );
+    } finally {
+      if (version === getSessionVersion()) setCheckingAvailability(false);
     }
   }
   return (
@@ -121,6 +145,23 @@ function JobCard({
           </Text>
           <ContentPreview title="Parking information" text={job.parkingInfo || 'Parking information not provided'} style={styles.cardBody} />
           {job.institution?.id ? <Button title="View school profile" variant="outline" onPress={() => profile.openSchool(job.institution!.id)} /> : null}
+          <Button
+            title={
+              checkingAvailability
+                ? 'Checking availability...'
+                : 'Check my availability'
+            }
+            variant="social"
+            disabled={checkingAvailability}
+            onPress={checkAvailability}
+          />
+          {availability ? (
+            <Text style={styles.teacherMeta}>
+              {availability.available
+                ? 'No availability clash found for this role.'
+                : 'This role conflicts with your availability or a confirmed booking.'}
+            </Text>
+          ) : null}
           {!match ? (
             <Button
               title={loading ? 'Checking match...' : 'Check my match'}
@@ -150,7 +191,7 @@ function JobCard({
             ? 'Job unavailable'
             : 'Apply for this role'
         }
-        disabled={applied || unavailable}
+        disabled={applied || unavailable || availability?.available === false}
         onPress={() => onApply(job)}
       />
     </View>

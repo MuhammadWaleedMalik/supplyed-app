@@ -80,8 +80,10 @@ export function onboardingErrors(
       errors.push('Enter a school domain such as school.org.uk.');
     if (!data.address.trim() || data.address.trim().length > 250)
       errors.push('Enter the school address, up to 250 characters.');
+    if (!['PRIMARY', 'SECONDARY'].includes(data.schoolType))
+      errors.push('Choose whether this is a primary or secondary school.');
     if (!['SINGLE_SCHOOL', 'MAT_SCHOOL'].includes(data.institutionType))
-      errors.push('Choose the school type.');
+      errors.push('Choose the school organisation structure.');
     if (!readChoices(data.coverTypes).length)
       errors.push('Choose at least one cover type.');
     number(data.pupilCount, 'Pupil count', true);

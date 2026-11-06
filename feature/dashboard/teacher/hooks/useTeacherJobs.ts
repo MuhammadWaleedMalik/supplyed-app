@@ -7,12 +7,11 @@ import {
   getJobsPage,
   type Job,
 } from '../../shared/apis/jobsApi';
-import {
-  sendTeacherApplication,
-} from '../apis/teacherDashboardApi';
+import { sendTeacherApplication } from '../apis/teacherDashboardApi';
 import { setTeacherApplications } from '../store/teacherSlice';
 import { getMyApplicationForJob } from '../../shared/apis/applicationsApi';
 import { refreshMarketplace } from '../../shared/store/navigationSlice';
+import { applicationWithJob } from './useTeacherApplications';
 
 function messageFromError(problem: unknown) {
   return problem instanceof Error
@@ -23,6 +22,9 @@ function messageFromError(problem: unknown) {
 export function useTeacherJobs() {
   const dispatch = useAppDispatch();
   const dashboardJobs = useAppSelector(state => state.teacherDashboard.jobs);
+  const revision = useAppSelector(
+    state => state.dashboardNavigation.dataRevision,
+  );
   const applications = useAppSelector(
     state => state.teacherDashboard.applications,
   );
@@ -87,7 +89,7 @@ export function useTeacherJobs() {
     return () => {
       active = false;
     };
-  }, [notificationJobId, attempt]);
+  }, [notificationJobId, attempt, revision]);
 
   useEffect(() => {
     if (notificationJobId) return;
@@ -140,7 +142,15 @@ export function useTeacherJobs() {
       jobsRequest.current += 1;
       loadingJobs.current = false;
     };
-  }, [roleType, keyStage, subject, search, attempt, notificationJobId]);
+  }, [
+    roleType,
+    keyStage,
+    subject,
+    search,
+    attempt,
+    notificationJobId,
+    revision,
+  ]);
 
   async function loadMoreJobs() {
     if (notificationJobId || loadingJobs.current || !jobsHasMore) return;
@@ -182,6 +192,13 @@ export function useTeacherJobs() {
 
   async function startApplication(job: Job) {
     if (sending.current) return;
+    if (job.status !== 'ACTIVE') {
+      setFormError(
+        'This job is no longer accepting applications. Refresh the list.',
+      );
+      dispatch(refreshMarketplace());
+      return;
+    }
     sending.current = true;
     const version = getSessionVersion();
     setFormError('');
@@ -189,14 +206,26 @@ export function useTeacherJobs() {
       const existing = await getMyApplicationForJob(job.id);
       if (version !== getSessionVersion()) return;
       if (existing) {
-        dispatch(setTeacherApplications([...applications.filter(item => item.id !== existing.id), { ...existing, job }]));
-        setFormError('You have already applied for this role. Open My applications to review it.');
+        dispatch(
+          setTeacherApplications([
+            ...applications.filter(item => item.id !== existing.id),
+            applicationWithJob(existing),
+          ]),
+        );
+        setFormError(
+          'You have already applied for this role. Open My applications to review it.',
+        );
         return;
       }
-      setSelectedJob(job); setApplyStep(1); setCoverLetter('');
+      setSelectedJob(job);
+      setApplyStep(1);
+      setCoverLetter('');
     } catch (problem) {
-      if (version === getSessionVersion()) setFormError(messageFromError(problem));
-    } finally { sending.current = false; }
+      if (version === getSessionVersion())
+        setFormError(messageFromError(problem));
+    } finally {
+      sending.current = false;
+    }
   }
 
   function closeApplication() {
@@ -228,12 +257,11 @@ export function useTeacherJobs() {
       dispatch(
         setTeacherApplications([
           ...applications.filter(item => item.id !== created.id),
-          { ...created, job: selectedJob },
+          applicationWithJob(created),
         ]),
       );
       setSelectedJob(undefined);
       setApplyStep(0);
-
     } catch (problem) {
       if (getSessionVersion() === version)
         setFormError(messageFromError(problem));

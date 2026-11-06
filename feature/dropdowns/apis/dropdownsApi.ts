@@ -1,8 +1,5 @@
 import { apiRequest, ApiError } from '../../../utils/api/request';
-import {
-  onDropdownRefresh,
-  refreshDropdowns,
-} from '../../../utils/api/dropdownEvents';
+import { refreshDropdowns } from '../../../utils/api/dropdownEvents';
 
 export const DROPDOWN_NAMES = [
   'subject',
@@ -13,6 +10,7 @@ export const DROPDOWN_NAMES = [
   'region',
   'currency',
   'institutionType',
+  'schoolType',
   'coverType',
   'payType',
   'timezone',
@@ -76,21 +74,14 @@ export type Dropdown = {
   options: DropdownOption[];
 };
 
-// All callers share each public collection, including the large city list.
-const cache = new Map<string, { data: Dropdown; time: number }>();
+// Only coalesce identical requests that are currently in flight. Completed
+// responses are not cached, so every later read reflects the backend.
 const requests = new Map<string, Promise<Dropdown>>();
-onDropdownRefresh(() => cache.clear());
 
 export function getDropdown(
   name: DropdownName,
-  fresh = false,
+  _fresh = false,
 ): Promise<Dropdown> {
-  for (const [key, entry] of cache) {
-    if (Date.now() - entry.time > 300000) cache.delete(key);
-  }
-  const saved = cache.get(name);
-  if (!fresh && saved && Date.now() - saved.time < 30000)
-    return Promise.resolve(saved.data);
   const pending = requests.get(name);
   if (pending) return pending;
   const request = apiRequest<Dropdown>('/dropdowns/' + encodeURIComponent(name))
@@ -102,7 +93,6 @@ export function getDropdown(
     .then(data => {
       if (!data || !Array.isArray(data.options) || !data.isActive)
         throw new Error('These choices are currently unavailable.');
-      cache.set(name, { data, time: Date.now() });
       return data;
     })
     .finally(() => requests.delete(name));

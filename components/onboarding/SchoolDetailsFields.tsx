@@ -59,9 +59,18 @@ export default function SchoolDetailsFields({
         />
       </View>
       <DynamicSelect
-        label="SCHOOL TYPE"
+        label="SCHOOL PHASE"
+        value={data.schoolType}
+        placeholder="Primary or secondary"
+        name="schoolType"
+        onChange={value => update('schoolType', value)}
+        required
+        error={requiredError(data.schoolType, attempted)}
+      />
+      <DynamicSelect
+        label="ORGANISATION STRUCTURE"
         value={data.institutionType}
-        placeholder="Select school type"
+        placeholder="Single school or MAT school"
         name="institutionType"
         onChange={value => update('institutionType', value)}
         required

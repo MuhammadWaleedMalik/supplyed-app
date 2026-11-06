@@ -7,6 +7,7 @@ export type SchoolApplication = Application & {
 };
 
 type SchoolDashboardState = {
+  profileStatus: string;
   jobs: Job[];
   applications: SchoolApplication[];
   selectedJobId: string;
@@ -16,6 +17,7 @@ type SchoolDashboardState = {
 };
 
 const initialState: SchoolDashboardState = {
+  profileStatus: '',
   jobs: [],
   applications: [],
   selectedJobId: '',
@@ -28,6 +30,9 @@ const schoolSlice = createSlice({
   name: 'schoolDashboard',
   initialState,
   reducers: {
+    setSchoolProfileStatus(state, action: PayloadAction<string>) {
+      state.profileStatus = action.payload;
+    },
     upsertSchoolApplication(state, action: PayloadAction<SchoolApplication>) {
       const index = state.applications.findIndex(
         item => item.id === action.payload.id,
@@ -78,6 +83,7 @@ const schoolSlice = createSlice({
 });
 
 export const {
+  setSchoolProfileStatus,
   upsertSchoolApplication,
   upsertSchoolJob,
   startSchoolLoading,

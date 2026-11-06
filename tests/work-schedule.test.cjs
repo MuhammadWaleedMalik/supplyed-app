@@ -5,11 +5,8 @@ const {
   changeSchedule,
   listingInstant,
 } = require('../utils/jobs/workSchedule');
-const { londonToIso } = require('../utils/jobs/londonTime');
-const {
-  jobAddress,
-  sameJobAddress,
-} = require('../utils/jobs/jobAddress');
+const { londonToIso, listingStatus } = require('../utils/jobs/londonTime');
+const { jobAddress, sameJobAddress } = require('../utils/jobs/jobAddress');
 
 function hourly(extra = {}) {
   return {
@@ -21,6 +18,19 @@ function hourly(extra = {}) {
     ...extra,
   };
 }
+
+test('reserved and filled states are not mislabeled by old listing dates', () => {
+  for (const status of ['RESERVED', 'FILLED', 'CLOSED', 'SUSPENDED']) {
+    assert.equal(
+      listingStatus({
+        status,
+        liveFrom: '2030-01-01',
+        expiresAt: '2020-01-01',
+      }),
+      status,
+    );
+  }
+});
 
 test('computes inclusive hourly units and redistributes edited totals', () => {
   const calculated = changeSchedule(hourly(), 'endDate', '2026-11-03T05:00');

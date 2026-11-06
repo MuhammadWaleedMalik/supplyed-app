@@ -1,4 +1,16 @@
 const messages: Record<string, string> = {
+  SCHOOL_INACTIVE:
+    'Your school must be active and approved to publish, invite or hire. Existing bookings and history remain available.',
+  JOB_RESERVED:
+    'This job is reserved for an invited teacher. New applications and other hires are unavailable until the invitation is resolved.',
+  JOB_TERMS_LOCKED:
+    'These terms are locked because this job has applications, invitations or bookings. Create a new job for different terms.',
+  JOB_TERMS_CHANGED:
+    'The saved offer differs from the job. The teacher must explicitly accept a new invitation.',
+  APPLICATION_TERMS_UNVERIFIED:
+    'This older application has no recorded offer. Send an invitation so the teacher can accept the terms before hiring.',
+  JOB_HISTORY_PROTECTED:
+    'This job has history and cannot be deleted. Close it to preserve its records.',
   PHONE_VERIFIED_LOCKED:
     'This number is verified and cannot be edited. Refresh settings to see the saved number.',
   INVALID_DROPDOWN_SELECTION:

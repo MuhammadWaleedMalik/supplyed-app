@@ -14,6 +14,8 @@ import {
 import {
   getApplication,
   getApplicationsPage,
+  hireApplication,
+  type HirePaymentTerms,
   updateApplicationStatus,
   Application,
 } from '../../shared/apis/applicationsApi';
@@ -76,7 +78,7 @@ export function useSchoolApplications(jobId = '') {
     return () => {
       active = false;
     };
-  }, [dispatch, attempt]);
+  }, [dispatch, attempt, revision]);
   const loader = useMemo(
     () =>
       createMergedPager(
@@ -130,7 +132,11 @@ export function useSchoolApplications(jobId = '') {
       active = false;
     };
   }, [selectedId, revision, attempt]);
-  async function updateStatus(id: string, nextStatus: string) {
+  async function updateStatus(
+    id: string,
+    nextStatus: string,
+    paymentTerms?: HirePaymentTerms,
+  ) {
     if (updating.current) return false;
     updating.current = true;
     setBusy(true);
@@ -138,7 +144,10 @@ export function useSchoolApplications(jobId = '') {
     setNotice('');
     const version = getSessionVersion();
     try {
-      const updated = await updateApplicationStatus(id, nextStatus);
+      const updated =
+        nextStatus === 'HIRED'
+          ? await hireApplication(id, paymentTerms)
+          : await updateApplicationStatus(id, nextStatus);
       if (version !== getSessionVersion()) return false;
       setDetail(current =>
         current?.id === id ? { ...current, ...updated } : current,

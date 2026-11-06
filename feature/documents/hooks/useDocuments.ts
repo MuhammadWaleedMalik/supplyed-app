@@ -4,7 +4,9 @@ import { assertUploadSession } from '../../../utils/api/upload';
 import { Linking } from 'react-native';
 import {
   getProfile,
+  getComplianceApproval,
   getSignatoryApproval,
+  ComplianceApproval,
   SignatoryApproval,
   submitProfileForReview,
 } from '../../onboarding/apis/profileApi';
@@ -44,7 +46,10 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   >({});
   const [previewingId, setPreviewingId] = useState('');
   const [needsTrustApproval, setNeedsTrustApproval] = useState(false);
+  const [needsComplianceApproval, setNeedsComplianceApproval] = useState(false);
   const [approval, setApproval] = useState<SignatoryApproval | null>(null);
+  const [complianceApproval, setComplianceApproval] =
+    useState<ComplianceApproval | null>(null);
   const [refreshingApproval, setRefreshingApproval] = useState(false);
   const uploading = useRef(new Set<string>());
   const submittingRef = useRef(false);
@@ -83,11 +88,21 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
         setRequirements(required);
         setDocuments(uploaded);
         setNeedsTrustApproval(isMatSchool);
+        setNeedsComplianceApproval(
+          type === 'school' && profile.institutionType === 'SINGLE_SCHOOL',
+        );
 
         if (isMatSchool) {
           const latest = await getSignatoryApproval();
           if (!active || version !== getSessionVersion()) return;
           setApproval(latest);
+        } else if (
+          type === 'school' &&
+          profile.institutionType === 'SINGLE_SCHOOL'
+        ) {
+          const latest = await getComplianceApproval();
+          if (!active || version !== getSessionVersion()) return;
+          setComplianceApproval(latest);
         }
 
         setLoaded(true);
@@ -113,14 +128,23 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   }
 
   async function refreshApprovalStatus() {
-    if (!needsTrustApproval || refreshingApprovalRef.current) return;
+    if (
+      (!needsTrustApproval && !needsComplianceApproval) ||
+      refreshingApprovalRef.current
+    )
+      return;
     refreshingApprovalRef.current = true;
     const version = getSessionVersion();
     setRefreshingApproval(true);
     setError('');
     try {
-      const latest = await getSignatoryApproval();
-      if (isCurrent(version)) setApproval(latest);
+      if (needsTrustApproval) {
+        const latest = await getSignatoryApproval();
+        if (isCurrent(version)) setApproval(latest);
+      } else {
+        const latest = await getComplianceApproval();
+        if (isCurrent(version)) setComplianceApproval(latest);
+      }
     } catch (problem) {
       if (!isCurrent(version)) return;
       setError(
@@ -242,6 +266,16 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
           onReviewStatus();
           return;
         }
+      } else if (needsComplianceApproval) {
+        const latestApproval = await getComplianceApproval();
+        assertUploadSession(version);
+        if (!isCurrent(version)) return;
+        setComplianceApproval(latestApproval);
+        if (latestApproval?.status !== 'APPROVED') {
+          setSubmitting(false);
+          onReviewStatus();
+          return;
+        }
       }
       await submitProfileForReview(type);
       assertUploadSession(version);
@@ -252,9 +286,10 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
       if (!isCurrent(version)) return;
       const message = errorMessage(problem);
       const waitingForSignatory =
-        needsTrustApproval &&
+        (needsTrustApproval || needsComplianceApproval) &&
         (message.toLowerCase().includes('signatory') ||
-          message.toLowerCase().includes('trust'));
+          message.toLowerCase().includes('trust') ||
+          message.toLowerCase().includes('compliance'));
 
       if (isCurrent(version)) setSubmitting(false);
       if (waitingForSignatory) {
@@ -278,8 +313,11 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
     uploadErrors,
     previewingId,
     needsTrustApproval,
+    needsComplianceApproval,
     approval,
     updateApproval: setApproval,
+    complianceApproval,
+    updateComplianceApproval: setComplianceApproval,
     refreshingApproval,
     loaded,
     retryLoad,

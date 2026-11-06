@@ -12,6 +12,7 @@ import {
 } from '../../../../components/Ui/RecordLayout';
 import InvoiceCard from '../../../../components/dashboard/InvoiceCard';
 import AdminInvoiceCreate from '../../../../components/dashboard/AdminInvoiceCreate';
+import SchoolBillingCard from '../../../../components/dashboard/SchoolBillingCard';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import { usePagedResource } from '../hooks/usePagedResource';
 import { useForegroundRefresh } from '../hooks/useForegroundRefresh';
@@ -61,6 +62,7 @@ export default function BillingScreen({
   const heading = (
     <View style={styles.section}>
       {header}
+      {role === 'INSTITUTION' ? <SchoolBillingCard /> : null}
       <Text style={styles.title}>
         {role === 'ADMIN'
           ? 'Payments & invoices'

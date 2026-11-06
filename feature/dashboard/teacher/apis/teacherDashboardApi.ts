@@ -3,7 +3,7 @@ import {
   createApplication,
   getMyApplications,
 } from '../../shared/apis/applicationsApi';
-import { getJobsPage, getJob, Job } from '../../shared/apis/jobsApi';
+import { getJobsPage, Job } from '../../shared/apis/jobsApi';
 import type { TeacherApplication } from '../store/teacherSlice';
 
 export type TeacherDashboardData = {
@@ -16,24 +16,18 @@ export async function getTeacherApplications(): Promise<TeacherApplication[]> {
 
   return Promise.all(
     applications.map(async application => {
-      const historical = application.jobDetails
+      const historical = application.agreedTerms
         ? ({
-            ...application.jobDetails,
+            ...application.agreedTerms,
             id: application.jobId,
             postedByUserId: '',
             title:
               application.jobName ||
-              application.jobDetails.title ||
+              application.agreedTerms.title ||
               'Job title unavailable',
           } as Job)
         : undefined;
-      try {
-        const job = await getJob(application.jobId);
-        return { ...application, job };
-      } catch {
-        // Embedded history remains usable after the public listing is hidden.
-        return historical ? { ...application, job: historical } : application;
-      }
+      return historical ? { ...application, job: historical } : application;
     }),
   );
 }

@@ -18,13 +18,18 @@ export type Invitation = {
   id: string;
   status: string;
   job: Job;
+  jobType: 'INSTANT' | 'BRIEF';
   jobStatus: string;
+  isExclusive: boolean;
   instructor: { id: string; fullName: string };
   institution: { id: string; name: string };
   message: string | null;
   expiresAt: string;
   publishOnDecline: boolean;
   bookingId: string | null;
+  decidedAt?: string | null;
+  invitationPath?: string;
+  invitationUrl?: string | null;
 };
 export type InvitationRequest = {
   requestId: string;

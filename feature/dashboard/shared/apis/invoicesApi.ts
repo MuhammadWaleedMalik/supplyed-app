@@ -18,6 +18,14 @@ export type BookingInvoice = {
   hostedInvoiceUrl: string | null;
   dueAt: string | null;
   paidAt: string | null;
+  billingPeriodKey?: string | null;
+  billingPeriodLabel?: string | null;
+  collectionMethod?: 'send_invoice' | 'charge_automatically';
+  lastPaymentFailureCode?: string | null;
+  lastPaymentFailureMessage?: string | null;
+  nextPaymentAttemptAt?: string | null;
+  paymentAttemptCount?: number;
+  teacherAmountPence?: number;
 };
 
 export type Invoice = BookingInvoice & {
@@ -38,6 +46,13 @@ export type Invoice = BookingInvoice & {
   poNumber: string | null;
   invoiceNumber: string | null;
   invoicePdfUrl: string | null;
+  collectionMethod: 'send_invoice' | 'charge_automatically';
+  billingPeriodKey: string | null;
+  billingPeriodLabel: string | null;
+  lastPaymentFailureCode: string | null;
+  lastPaymentFailureMessage: string | null;
+  nextPaymentAttemptAt: string | null;
+  paymentAttemptCount: number;
   voidedAt: string | null;
   amountRefundedPence: number;
   disputeStatus: string | null;

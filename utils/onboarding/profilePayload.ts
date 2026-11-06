@@ -27,6 +27,7 @@ export async function profilePayload(type: AccountType, data: OnboardingData) {
     await checkDropdown('keyStage', readChoices(data.keyStages));
     await checkDropdown('currency', [data.currency]);
   } else {
+    await checkDropdown('schoolType', [data.schoolType]);
     await checkDropdown('institutionType', [data.institutionType]);
     await checkDropdown('coverType', readChoices(data.coverTypes));
   }
@@ -62,6 +63,7 @@ export async function profilePayload(type: AccountType, data: OnboardingData) {
     postalCode: data.postcode.trim(),
     registrationId: data.registrationId.trim(),
     userRole: data.schoolRole.trim(),
+    schoolType: data.schoolType,
     institutionType: data.institutionType,
     trust: trustPayload(data),
     complianceContact: data.complianceLead.trim(),

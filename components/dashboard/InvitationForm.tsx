@@ -1,6 +1,10 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import { changeSchedule, listingInstant, validateDateWindow } from '../../utils/jobs/workSchedule';
+import {
+  changeSchedule,
+  listingInstant,
+  validateDateWindow,
+} from '../../utils/jobs/workSchedule';
 import { richTextToPlainText } from '../../utils/ui/richText';
 import { zonedToIso } from '../../utils/jobs/londonTime';
 import { getSessionVersion } from '../../utils/api/session';
@@ -11,6 +15,7 @@ import {
   getMyJobs,
   Job,
   JobForm,
+  validateBookableJob,
 } from '../../feature/dashboard/shared/apis/jobsApi';
 import {
   InvitationRequest,
@@ -19,7 +24,7 @@ import {
   readPendingInvitation,
   sendInvitation,
 } from '../../feature/dashboard/shared/apis/invitationsApi';
-import { useAppDispatch } from '../../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
   openConversation,
   refreshMarketplace,
@@ -42,7 +47,18 @@ const emptyJob: JobForm = {
   addressMode: 'different',
   hours: '',
   days: '',
-  mode: 'brief',
+  mode: 'instant',
+  timeZone: 'Europe/London',
+  paymentFrequency: 'daily',
+  periodAnchor: 'ASSIGNMENT_START',
+  workersRequired: '1',
+  schedule: JSON.stringify({
+    weekdays: [1, 2, 3, 4, 5].map(day => ({
+      day,
+      slots: [{ start: '09:00', end: '17:00' }],
+    })),
+    exceptions: [],
+  }),
   title: '',
   description: '',
   subject: '',
@@ -72,11 +88,17 @@ type Review = {
 };
 
 function jobCanBeInvited(job: Job) {
+  try {
+    validateBookableJob(job);
+  } catch {
+    return false;
+  }
   return (
-    ['DRAFT', 'ACTIVE'].includes(job.status || '') &&
+    job.jobType === 'INSTANT' &&
+    job.status === 'ACTIVE' &&
     (!job.expiresAt || listingInstant(job.expiresAt, true) > Date.now()) &&
     Date.parse(job.startDate || '') > Date.now() &&
-    Date.parse(job.endDate || '') > Date.parse(job.startDate || '') &&
+    Date.parse(job.endDate || '') >= Date.parse(job.startDate || '') &&
     (job.payAmount || 0) > 0 &&
     ['daily', 'hourly', 'fixed'].includes(job.payType || '')
   );
@@ -100,6 +122,9 @@ export default function InvitationForm({
   const styles = useStyles();
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const schoolActive = useAppSelector(
+    state => state.schoolDashboard.profileStatus === 'ACTIVE',
+  );
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState(initialJobId);
   const [mode, setMode] = useState('Existing job');
@@ -147,6 +172,10 @@ export default function InvitationForm({
   }, [attempt, retryOnly]);
 
   async function reviewInvitation() {
+    if (!schoolActive) {
+      setError('An active, approved school is required to invite teachers.');
+      return;
+    }
     if (busy) return;
     setBusy(true);
     setError('');
@@ -158,6 +187,7 @@ export default function InvitationForm({
       let request: Omit<InvitationRequest, 'requestId'>;
       if (mode === 'New job') {
         const newJob = await cleanJob(form, timezone);
+        newJob.jobType = 'INSTANT';
         newJob.description = form.description;
         if (
           !newJob.title ||
@@ -173,6 +203,7 @@ export default function InvitationForm({
             'Add a title, description, subjects, future work dates and a positive pay amount.',
           );
         }
+        validateBookableJob(newJob);
         job = newJob;
         request = { instructorId, newJob };
       } else {
@@ -190,7 +221,7 @@ export default function InvitationForm({
       validateDateWindow(job, timezone);
       if (
         Date.parse(job.startDate || '') <= Date.now() ||
-        Date.parse(job.endDate || '') <= Date.parse(job.startDate || '')
+        Date.parse(job.endDate || '') < Date.parse(job.startDate || '')
       ) {
         throw new Error(
           'Choose future work dates with the end after the start.',
@@ -200,7 +231,7 @@ export default function InvitationForm({
       if (
         expiresAt &&
         (Date.parse(expiresAt) <= Date.now() ||
-          Date.parse(expiresAt) >= Date.parse(job.startDate || '') ||
+          Date.parse(expiresAt) > Date.parse(job.startDate || '') ||
           (job.expiresAt &&
             Date.parse(expiresAt) > listingInstant(job.expiresAt, true)))
       ) {
@@ -231,6 +262,10 @@ export default function InvitationForm({
   }
 
   async function submit() {
+    if (!schoolActive) {
+      setError('Your school is not active. No new invitation has been sent.');
+      return;
+    }
     if (busy || !ready || (!pending && !review)) return;
     setBusy(true);
     setError('');
@@ -360,7 +395,7 @@ export default function InvitationForm({
           )}
           <Button
             title={busy ? 'Finishing…' : 'Retry invitation'}
-            disabled={busy}
+            disabled={busy || !schoolActive}
             onPress={submit}
           />
         </>
@@ -380,20 +415,19 @@ export default function InvitationForm({
           <View style={styles.notice}>
             <Text style={styles.body}>
               Sending opens a conversation and asks the teacher to accept these
-              terms. A booking is confirmed after they accept. Until then, the
-              teacher and job remain available.
+              terms. A booking is confirmed after they accept. Until then, this
+              job is reserved exclusively and hidden from other teachers.
             </Text>
             {review.request.newJob ? (
               <Text style={styles.hint}>
-                This job is shared with this teacher first. If they decline, it
-                becomes open to other teachers while still eligible. Cancelling
-                or expiry does not publish it.
+                Decline, cancellation or expiry will make the job public again
+                if its dates, terms and school are still eligible.
               </Text>
             ) : null}
           </View>
           <Button
             title={busy ? 'Sending…' : 'Send invitation'}
-            disabled={busy}
+            disabled={busy || !schoolActive}
             onPress={submit}
           />
           <Button
@@ -420,9 +454,15 @@ export default function InvitationForm({
             value={timezone}
             onChange={value => {
               setTimezone(value);
-              setForm(current =>
-                changeSchedule(current, 'payType', current.payType, value),
-              );
+              setForm(current => ({
+                ...changeSchedule(
+                  current,
+                  'payType',
+                  current.payType,
+                  value,
+                ),
+                timeZone: value,
+              }));
               setError('');
             }}
           />
@@ -456,7 +496,7 @@ export default function InvitationForm({
                   {extras}
                   <Button
                     title={busy ? 'Checking details…' : 'Review invitation'}
-                    disabled={busy || !selected}
+                    disabled={busy || !selected || !schoolActive}
                     onPress={reviewInvitation}
                   />
                 </>

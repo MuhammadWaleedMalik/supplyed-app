@@ -49,6 +49,7 @@ export type ProfileFields = {
   maxTravelDistance: string;
   registrationId: string;
   domain: string;
+  schoolType: string;
   institutionType: string;
   trustName: string;
   trustCompanyNumber: string;
@@ -159,6 +160,7 @@ function rolePayload(type: AccountType, fields: ProfileFields) {
     county: fields.county.trim() || undefined,
     postalCode: fields.postalCode.trim().toUpperCase() || undefined,
     countryCode: fields.countryCode || 'GB',
+    schoolType: fields.schoolType,
     institutionType: backendSchoolType(fields.institutionType),
     trust: trustPayload(fields),
     staffingNeeds: list(fields.staffingNeeds),
@@ -214,7 +216,8 @@ export async function saveProfileSettings(
   const teachingChanged =
     type === 'teacher'
       ? fields.subjects !== before.subjects || fields.skills !== before.skills
-      : fields.staffingNeeds !== before.staffingNeeds;
+      : fields.staffingNeeds !== before.staffingNeeds ||
+        fields.schoolType !== before.schoolType;
   if (teachingChanged) {
     const teaching = await teachingPayload(
       type === 'teacher' ? fields.subjects : fields.staffingNeeds,
@@ -234,6 +237,7 @@ export async function saveProfileSettings(
     currency: 'currency',
     keyStages: 'keyStage',
     coverTypes: 'coverType',
+    schoolType: 'schoolType',
     institutionType: 'institutionType',
   };
   for (const key of Object.keys(dropdowns)) {
@@ -327,6 +331,7 @@ export function fieldsFromSettings(settings?: ProfileSnapshot): ProfileFields {
     maxTravelDistance: numberText(profile.maxTravelDistance),
     registrationId: text(profile.registrationId),
     domain: text(profile.domain),
+    schoolType: text(profile.schoolType),
     institutionType: settingSchoolType(profile.institutionType),
     trustName: text(trustRecord.name),
     trustCompanyNumber: text(trustRecord.companyNumber),

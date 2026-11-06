@@ -17,6 +17,7 @@ import Button from '../../../../components/Ui/Button';
 import Input from '../../../../components/Ui/Input';
 import ChoiceField from '../../../../components/dashboard/ChoiceField';
 import BookingInvoiceCard from '../../../../components/dashboard/BookingInvoiceCard';
+import AttendancePanel from '../../../../components/dashboard/AttendancePanel';
 import LimitedProfileCard from '../../../../components/dashboard/LimitedProfileCard';
 import { useStyles } from '../../../../components/dashboard/dashboardStyles';
 import { useJobStyles } from '../../../../components/dashboard/jobStyles';
@@ -271,6 +272,15 @@ export default function PaginatedBookingsScreen({ type }: Props) {
               compact
             />
           </View>
+        ) : null}
+
+        {type === 'school' &&
+        (booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') ? (
+          <AttendancePanel
+            booking={booking}
+            disabled={busy}
+            onRun={updateBooking}
+          />
         ) : null}
 
         {showCancel ? (

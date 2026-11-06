@@ -91,8 +91,10 @@ export default function SchoolJobsScreen() {
         jobs={jobs.jobs}
         search={jobs.search}
         status={jobs.statusFilter}
+        jobType={jobs.jobTypeFilter}
         onSearch={jobs.setSearch}
         onStatus={jobs.setStatusFilter}
+        onJobType={jobs.setJobTypeFilter}
         onPost={jobs.startPosting}
         onSelect={jobs.openApplications}
       />
@@ -116,13 +118,73 @@ export default function SchoolJobsScreen() {
         >
           <SafeAreaProvider>
             <SafeAreaView style={styles.safeArea}>
-              <DetailHeader title="Job details" subtitle="Placement and candidates" onBack={jobs.closeJob} backLabel="Return to jobs" />
-              <SchoolApplicationsScreen key={jobs.selectedJob.id} jobId={jobs.selectedJob.id} header={<JobRecordDetails job={jobs.selectedJob} actions={<>
-                {['DRAFT', 'ACTIVE'].includes(jobs.selectedJob.status || '') ? <Button title={jobs.selectedJob.status === 'ACTIVE' ? 'Edit job' : 'Edit draft'} variant="outline" disabled={jobs.openingEditor} onPress={() => jobs.selectedJob && jobs.openEditor(jobs.selectedJob)} /> : null}
-                <Button title="Duplicate as draft" variant="outline" disabled={jobs.openingEditor} onPress={() => jobs.selectedJob && jobs.openEditor(jobs.selectedJob, true)} />
-                <JobActions job={jobs.selectedJob} onChanged={jobs.refreshJobs} />
-                {jobs.error ? <Text accessibilityRole="alert" style={styles.cardBody}>{jobs.error}</Text> : null}
-              </>} />} />
+              <DetailHeader
+                title="Job details"
+                subtitle="Placement and candidates"
+                onBack={jobs.closeJob}
+                backLabel="Return to jobs"
+              />
+              <SchoolApplicationsScreen
+                key={jobs.selectedJob.id}
+                jobId={jobs.selectedJob.id}
+                header={
+                  <JobRecordDetails
+                    job={jobs.selectedJob}
+                    actions={
+                      <>
+                        {jobs.selectedJob.termsLocked ? (
+                          <Text style={styles.cardBody}>
+                            Offer terms are locked because this job has
+                            activity. Duplicate it for different terms.
+                          </Text>
+                        ) : null}
+                        {['DRAFT', 'ACTIVE'].includes(
+                          jobs.selectedJob.status || '',
+                        ) ? (
+                          <Button
+                            title={
+                              jobs.selectedJob.status === 'ACTIVE'
+                                ? 'Edit job'
+                                : 'Edit draft'
+                            }
+                            variant="outline"
+                            disabled={
+                              jobs.openingEditor ||
+                              !jobs.schoolActive ||
+                              jobs.selectedJob.termsLocked
+                            }
+                            onPress={() =>
+                              jobs.selectedJob &&
+                              jobs.openEditor(jobs.selectedJob)
+                            }
+                          />
+                        ) : null}
+                        <Button
+                          title="Duplicate as draft"
+                          variant="outline"
+                          disabled={jobs.openingEditor}
+                          onPress={() =>
+                            jobs.selectedJob &&
+                            jobs.openEditor(jobs.selectedJob, true)
+                          }
+                        />
+                        <JobActions
+                          job={jobs.selectedJob}
+                          onChanged={jobs.refreshJobs}
+                        />
+                        {jobs.error ? (
+                          <Text
+                            accessibilityRole="alert"
+                            style={styles.cardBody}
+                          >
+                            {jobs.error}
+                          </Text>
+                        ) : null}
+                      </>
+                    }
+                  />
+                }
+              />
             </SafeAreaView>
           </SafeAreaProvider>
         </Modal>

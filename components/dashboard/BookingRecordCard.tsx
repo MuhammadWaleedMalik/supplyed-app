@@ -12,6 +12,7 @@ import { displayDate, displayPay } from '../../utils/ui/marketplaceLabels';
 import { plannedLabel } from '../../utils/jobs/workSchedule';
 import { StatusBadge, Notice } from '../Ui/RecordLayout';
 import ContentPreview from '../Ui/ContentPreview';
+import RichText from '../Ui/RichText';
 import { createThemedStyles, useTheme } from '../Ui/theme';
 
 export default function BookingRecordCard({
@@ -48,16 +49,34 @@ export default function BookingRecordCard({
         <Text style={styles.eyebrow}>
           BOOKING ·{' '}
           {booking.source === 'DIRECT_HIRE'
-            ? 'DIRECT INVITATION'
+            ? 'JOB INVITATION'
             : 'APPLICATION'}
         </Text>
         <StatusBadge status={booking.status} />
       </View>
+      <Notice
+        text={
+          booking.termsStatus !== 'RECORDED'
+            ? 'Historical booking: the original pay and dates are shown. A complete agreed location and role snapshot was not recorded; confirm missing details with the school.'
+            : 'These are the agreed booking terms saved at confirmation.'
+        }
+      />
       <View style={[styles.columns, wide && styles.wide]}>
         <View style={[styles.main, wide && styles.mainWide]}>
           <Text accessibilityRole="header" style={styles.title}>
             {booking.job.title}
           </Text>
+          {booking.job.description ? (
+            <RichText value={booking.job.description} />
+          ) : null}
+          {booking.job.subjects?.length || booking.job.keyStages?.length ? (
+            <Text style={styles.subtle}>
+              {[
+                ...(booking.job.subjects || []),
+                ...(booking.job.keyStages || []),
+              ].join(' · ')}
+            </Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`View ${partyName} profile`}

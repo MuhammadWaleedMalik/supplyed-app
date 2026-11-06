@@ -44,7 +44,11 @@ export function listingStatus(job: {
   liveFrom?: string | null;
   expiresAt?: string | null;
 }) {
-  if (['SUSPENDED', 'CLOSED', 'DRAFT'].includes(job.status || ''))
+  if (
+    ['SUSPENDED', 'CLOSED', 'DRAFT', 'RESERVED', 'FILLED'].includes(
+      job.status || '',
+    )
+  )
     return job.status || '';
   const today = londonDate();
   if (

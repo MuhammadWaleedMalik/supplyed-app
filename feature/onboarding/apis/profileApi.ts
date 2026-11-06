@@ -41,6 +41,18 @@ export type SignatoryFields = {
   signatoryJobTitle: string;
 };
 
+export type ComplianceApproval = {
+  id: string;
+  status: string;
+  complianceName: string;
+  complianceEmail: string;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt?: string | null;
+  declineReason?: string | null;
+  termsVersion?: string;
+};
+
 export function profilePath(type: AccountType) {
   return type === 'teacher'
     ? endpoints.teacherProfile
@@ -123,5 +135,18 @@ export function requestSignatoryApproval(fields: SignatoryFields) {
       signatoryEmail: fields.signatoryEmail.trim().toLowerCase(),
       signatoryJobTitle: fields.signatoryJobTitle.trim(),
     },
+  );
+}
+
+export function getComplianceApproval() {
+  return protectedRequest<ComplianceApproval | null>(
+    endpoints.schoolComplianceApproval,
+  );
+}
+
+export function requestComplianceApproval() {
+  return protectedRequest<ComplianceApproval>(
+    endpoints.schoolComplianceApproval,
+    'POST',
   );
 }

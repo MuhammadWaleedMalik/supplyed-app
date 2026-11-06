@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import type { Invitation } from '../../feature/dashboard/shared/apis/invitationsApi';
 import { invitationStatus } from '../../feature/dashboard/shared/apis/invitationsApi';
@@ -13,6 +13,11 @@ import { useStyles } from './dashboardStyles';
 import TeacherProfileSummary from './TeacherProfileSummary';
 import LimitedProfileCard from './LimitedProfileCard';
 import { useLimitedProfile } from '../../feature/dashboard/shared/hooks/useLimitedProfile';
+import {
+  checkJobAvailability,
+  JobAvailability,
+} from '../../feature/dashboard/teacher/apis/availabilityApi';
+import { getSessionVersion } from '../../utils/api/session';
 
 type Props = {
   invitation: Invitation;
@@ -32,6 +37,35 @@ export default function InvitationDetails({
   const profile = useLimitedProfile();
   const job = invitation.job;
   const state = invitationStatus(invitation);
+  const offerAvailable = invitation.isExclusive
+    ? invitation.jobStatus === 'RESERVED'
+    : invitation.jobType === 'INSTANT' && invitation.jobStatus === 'ACTIVE';
+  const canAccept =
+    state === 'PENDING' &&
+    offerAvailable &&
+    Boolean(job.startDate) &&
+    Date.parse(job.startDate || '') > Date.now();
+  const [availability, setAvailability] = useState<JobAvailability>();
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
+  async function checkAvailability() {
+    const version = getSessionVersion();
+    setCheckingAvailability(true);
+    setAvailabilityError('');
+    try {
+      const result = await checkJobAvailability(invitation.job.id);
+      if (version === getSessionVersion()) setAvailability(result);
+    } catch (problem) {
+      if (version === getSessionVersion())
+        setAvailabilityError(
+          problem instanceof Error
+            ? problem.message
+            : 'Unable to check availability.',
+        );
+    } finally {
+      if (version === getSessionVersion()) setCheckingAvailability(false);
+    }
+  }
   return (
     <View style={styles.section}>
       <LimitedProfileCard
@@ -41,7 +75,13 @@ export default function InvitationDetails({
         onClose={profile.closeProfile}
       />
       <RecordSection title={job.title} action={<StatusBadge status={state} />}>
-        <Text style={styles.teacherMeta}>DIRECT INVITATION</Text>
+        <Text style={styles.teacherMeta}>JOB INVITATION</Text>
+        <Text style={styles.cardBody}>
+          Job status: {invitation.jobStatus}.{' '}
+          {invitation.isExclusive
+            ? 'This legacy invitation reserves the job exclusively until it is decided.'
+            : 'The position remains open. The first valid acceptance or school hire fills it.'}
+        </Text>
         {role === 'school' ? (
           <TeacherProfileSummary compact teacherId={invitation.instructor.id} />
         ) : (
@@ -125,8 +165,32 @@ export default function InvitationDetails({
           {role === 'teacher' ? (
             <>
               <Button
+                title={
+                  checkingAvailability
+                    ? 'Checking availability...'
+                    : 'Check availability for this offer'
+                }
+                variant="social"
+                disabled={busy || checkingAvailability}
+                onPress={checkAvailability}
+              />
+              {availability ? (
+                <Text style={styles.teacherMeta}>
+                  {availability.available
+                    ? 'No availability clash found for this offer.'
+                    : 'This offer conflicts with your availability or a confirmed booking.'}
+                </Text>
+              ) : null}
+              {availabilityError ? (
+                <Text accessibilityRole="alert" style={styles.cardBody}>
+                  {availabilityError}
+                </Text>
+              ) : null}
+              <Button
                 title="Accept invitation"
-                disabled={busy}
+                disabled={
+                  busy || !canAccept || availability?.available === false
+                }
                 onPress={() => onDecision('accept')}
               />
               <Button

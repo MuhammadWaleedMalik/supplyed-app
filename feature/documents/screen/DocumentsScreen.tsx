@@ -12,6 +12,7 @@ import Button from '../../../components/Ui/Button';
 import DocumentsIntro from '../../../components/documents/DocumentsIntro';
 import DocumentsUpload from '../../../components/documents/DocumentsUpload';
 import SignatoryApprovalPanel from '../../../components/documents/SignatoryApprovalPanel';
+import ComplianceApprovalPanel from '../../../components/documents/ComplianceApprovalPanel';
 import OptionalPhoneVerification from '../../../components/documents/OptionalPhoneVerification';
 import { useStyles } from './documentStyles';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
@@ -73,6 +74,13 @@ export default function DocumentsScreen({
                     refreshing={form.refreshingApproval}
                     onRefresh={form.refreshApprovalStatus}
                     onUpdated={form.updateApproval}
+                  />
+                  <ComplianceApprovalPanel
+                    visible={form.needsComplianceApproval}
+                    approval={form.complianceApproval}
+                    refreshing={form.refreshingApproval}
+                    onRefresh={form.refreshApprovalStatus}
+                    onUpdated={form.updateComplianceApproval}
                   />
                 </>
               }

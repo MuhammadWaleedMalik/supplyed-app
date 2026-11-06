@@ -28,9 +28,7 @@ import {
   JobForm,
   type Job,
 } from '../../shared/apis/jobsApi';
-import {
-  createSchoolJob,
-} from '../apis/schoolDashboardApi';
+import { createSchoolJob } from '../apis/schoolDashboardApi';
 import {
   clearSchoolJobSelection,
   selectSchoolJob,
@@ -42,6 +40,17 @@ const emptyForm: JobForm = {
   hours: '',
   days: '',
   mode: '',
+  timeZone: 'Europe/London',
+  paymentFrequency: 'daily',
+  periodAnchor: 'ASSIGNMENT_START',
+  workersRequired: '1',
+  schedule: JSON.stringify({
+    weekdays: [1, 2, 3, 4, 5].map(day => ({
+      day,
+      slots: [{ start: '09:00', end: '17:00' }],
+    })),
+    exceptions: [],
+  }),
   title: '',
   description: '',
   subject: '',
@@ -71,6 +80,12 @@ function messageFromError(problem: unknown) {
 
 export function useSchoolJobs() {
   const dispatch = useAppDispatch();
+  const schoolActive = useAppSelector(
+    state => state.schoolDashboard.profileStatus === 'ACTIVE',
+  );
+  const revision = useAppSelector(
+    state => state.dashboardNavigation.dataRevision,
+  );
   const dashboardJobs = useAppSelector(state => state.schoolDashboard.jobs);
   const selectedJobId = useAppSelector(
     state => state.schoolDashboard.selectedJobId,
@@ -100,6 +115,10 @@ export function useSchoolJobs() {
   const [postingStep, setPostingStep] = useState(0);
   const [statusFilter, setStatusFilter] = useSessionState(
     'school.jobs.statusFilter',
+    'ALL',
+  );
+  const [jobTypeFilter, setJobTypeFilter] = useSessionState(
+    'school.jobs.jobTypeFilter',
     'ALL',
   );
   const [search, setSearch] = useSessionState('school.jobs.search', '');
@@ -179,6 +198,10 @@ export function useSchoolJobs() {
         getMyJobsByStatusesPage(1, CURRENT_JOB_STATUSES, {
           search,
           status: statusFilter,
+          jobType:
+            jobTypeFilter === 'INSTANT' || jobTypeFilter === 'BRIEF'
+              ? jobTypeFilter
+              : undefined,
         })
           .then(result => {
             if (
@@ -215,7 +238,7 @@ export function useSchoolJobs() {
       jobsRequest.current += 1;
       loadingJobs.current = false;
     };
-  }, [search, statusFilter, jobsRevision]);
+  }, [search, statusFilter, jobTypeFilter, jobsRevision, revision]);
 
   async function loadMoreJobs() {
     if (loadingJobs.current || !jobsHasMore) return;
@@ -227,7 +250,14 @@ export function useSchoolJobs() {
       const result = await getMyJobsByStatusesPage(
         jobsPage.current + 1,
         CURRENT_JOB_STATUSES,
-        { search, status: statusFilter },
+        {
+          search,
+          status: statusFilter,
+          jobType:
+            jobTypeFilter === 'INSTANT' || jobTypeFilter === 'BRIEF'
+              ? jobTypeFilter
+              : undefined,
+        },
       );
       if (request !== jobsRequest.current || version !== getSessionVersion())
         return;
@@ -312,6 +342,10 @@ export function useSchoolJobs() {
   }
 
   async function startPosting() {
+    if (!schoolActive) {
+      setFormError('An active, approved school is required to post jobs.');
+      return;
+    }
     if (openingEditor) return;
     setOpeningEditor(true);
     const version = getSessionVersion();
@@ -389,6 +423,10 @@ export function useSchoolJobs() {
   }
 
   async function saveJob() {
+    if (!schoolActive) {
+      setFormError('Your school is not active. Changes have not been sent.');
+      return;
+    }
     if (savingRef.current || creationUncertain) return;
     let dateError = '';
 
@@ -419,6 +457,7 @@ export function useSchoolJobs() {
       dispatch(refreshMarketplace());
       setSearch('');
       setStatusFilter('ALL');
+      setJobTypeFilter('ALL');
       setJobs(current => [
         created,
         ...current.filter(job => job.id !== created.id),
@@ -457,6 +496,16 @@ export function useSchoolJobs() {
   }
 
   async function openEditor(job: Job, duplicate = false) {
+    if (!schoolActive) {
+      setFormError('An active, approved school is required to edit jobs.');
+      return;
+    }
+    if (!duplicate && job.termsLocked) {
+      setFormError(
+        'These offered terms are locked. Duplicate the job for a different offer.',
+      );
+      return;
+    }
     if (openingEditor || savingRef.current) return;
     const request = ++editorRequest.current;
     const version = getSessionVersion();
@@ -494,6 +543,7 @@ export function useSchoolJobs() {
   }
 
   return {
+    schoolActive,
     refreshJobs: () => {
       dispatch(clearSchoolJobSelection());
       setJobsRevision(value => value + 1);
@@ -518,10 +568,12 @@ export function useSchoolJobs() {
     form,
     postingStep,
     statusFilter,
+    jobTypeFilter,
     search,
     saving,
     error: formError || dashboardError,
     setStatusFilter,
+    setJobTypeFilter,
     setSearch,
     change,
     changeAddressMode,

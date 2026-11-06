@@ -14,6 +14,7 @@ import {
   StatusBadge,
 } from '../Ui/RecordLayout';
 import { displayDate, displayPay } from '../../utils/ui/marketplaceLabels';
+import { plannedLabel } from '../../utils/jobs/workSchedule';
 import { useStyles } from './dashboardStyles';
 import ApplicationTimeline from './ApplicationTimeline';
 import { useAppDispatch } from '../../store/hooks';
@@ -157,6 +158,11 @@ export default function MyApplicationsList({
             />
             {selected ? (
               <ScrollView contentContainerStyle={styles.page}>
+                <Text style={styles.cardBody}>
+                  {selected.termsStatus === 'LEGACY_UNVERIFIED'
+                    ? 'Historical application: the original offer was not recorded. A new invitation must be accepted before hiring.'
+                    : 'The offer terms below were saved when you applied.'}
+                </Text>
                 <RecordSection
                   title={
                     selected.jobName || selected.job?.title || 'Application'
@@ -166,6 +172,24 @@ export default function MyApplicationsList({
                   <Text style={styles.cardBody}>{selected.school?.name}</Text>
                   <InfoGrid
                     items={[
+                      {
+                        label: 'Ends',
+                        value: displayDate(selected.job?.endDate),
+                      },
+                      {
+                        label: 'Planned work',
+                        value: selected.job
+                          ? plannedLabel(selected.job)
+                          : 'Not recorded',
+                      },
+                      {
+                        label: 'Subjects / key stages',
+                        value:
+                          [
+                            ...(selected.job?.subjects || []),
+                            ...(selected.job?.keyStages || []),
+                          ].join(' · ') || 'Not recorded',
+                      },
                       {
                         label: 'Applied',
                         value: displayDate(selected.createdAt),
@@ -205,6 +229,11 @@ export default function MyApplicationsList({
                     title="Application proposal"
                   />
                 </RecordSection>
+                {selected.job?.description ? (
+                  <RecordSection title="Saved role description">
+                    <RichText value={selected.job.description} />
+                  </RecordSection>
+                ) : null}
                 <RecordSection title="Application activity">
                   <ApplicationTimeline
                     applicationId={selected.id}

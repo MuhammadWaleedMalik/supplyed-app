@@ -59,6 +59,9 @@ export default function InvitationsScreen({
   const scrollStarted = useRef(false);
   const working = useRef(false);
   const dispatch = useAppDispatch();
+  const schoolActive = useAppSelector(
+    state => state.schoolDashboard.profileStatus === 'ACTIVE',
+  );
   const linkedId = useAppSelector(
     state => state.dashboardNavigation.invitationId,
   );
@@ -95,6 +98,20 @@ export default function InvitationsScreen({
       setAttempt(value => value + 1);
     }
   });
+  useEffect(() => {
+    // Refresh after a visible deadline so listings and invitation decisions stay in sync.
+    const deadlines = pages.items
+      .filter(item => item.status === 'PENDING')
+      .map(item => Date.parse(item.expiresAt));
+    if (!deadlines.length) return;
+    const next = Math.min(...deadlines);
+    if (next <= Date.now() - 30000) return;
+    const timer = setTimeout(
+      () => dispatch(refreshMarketplace()),
+      Math.min(2147483647, Math.max(1000, next - Date.now() + 30000)),
+    );
+    return () => clearTimeout(timer);
+  }, [pages.items, dispatch]);
   useEffect(() => {
     let active = true;
     const version = getSessionVersion();
@@ -190,11 +207,13 @@ export default function InvitationsScreen({
               <>
                 <Button
                   title="Invite a teacher"
+                  disabled={!schoolActive}
                   onPress={() => dispatch(showPage('Teachers'))}
                 />
                 {hasPending ? (
                   <Button
                     title="Resume saved invitation"
+                    disabled={!schoolActive}
                     variant="outline"
                     onPress={() => setResume(true)}
                   />
@@ -333,7 +352,7 @@ export default function InvitationsScreen({
                 description={
                   confirmation === 'accept'
                     ? 'This confirms a booking for the offered dates and pay. Please check the terms before continuing.'
-                    : 'The offer will no longer be available to accept. This action does not cancel any existing booking.'
+                    : 'The offer will no longer be available to accept. The job becomes public again only if its dates, terms and school remain eligible. Existing bookings are not cancelled.'
                 }
                 confirmLabel={
                   confirmation === 'accept'

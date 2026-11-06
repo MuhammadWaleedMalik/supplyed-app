@@ -7,6 +7,7 @@ import { statusLabel } from '../../utils/ui/marketplaceLabels';
 import { useStyles } from './dashboardStyles';
 
 import DynamicSelect from '../Ui/DynamicSelect';
+import Select from '../Ui/Select';
 
 type Props = {
   search: string;
@@ -14,6 +15,8 @@ type Props = {
   status: string;
   onStatus: (value: string) => void;
   statuses?: readonly string[];
+  jobType?: string;
+  onJobType?: (value: string) => void;
 };
 
 export default function JobFilterBar({
@@ -21,11 +24,14 @@ export default function JobFilterBar({
   onSearch,
   status,
   onStatus,
+  jobType = 'ALL',
+  onJobType,
   statuses = ['ALL', 'ACTIVE', 'DRAFT', 'CLOSED', 'EXPIRED', 'SUSPENDED'],
 }: Props) {
   const styles = useStyles();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(status);
+  const [draftType, setDraftType] = useState(jobType);
 
   return (
     <View style={styles.section}>
@@ -39,9 +45,10 @@ export default function JobFilterBar({
           {status === 'ALL' ? 'All jobs' : statusLabel(status)}
         </Text>
         <FilterButton
-          count={status === 'ALL' ? 0 : 1}
+          count={(status === 'ALL' ? 0 : 1) + (jobType === 'ALL' ? 0 : 1)}
           onPress={() => {
             setDraft(status);
+            setDraftType(jobType);
             setOpen(true);
           }}
         />
@@ -50,9 +57,13 @@ export default function JobFilterBar({
         visible={open}
         title="Filter jobs"
         onClose={() => setOpen(false)}
-        onReset={() => setDraft('ALL')}
+        onReset={() => {
+          setDraft('ALL');
+          setDraftType('ALL');
+        }}
         onApply={() => {
           onStatus(draft);
+          onJobType?.(draftType);
           setOpen(false);
         }}
       >
@@ -64,6 +75,18 @@ export default function JobFilterBar({
           onChange={value => setDraft(value || 'ALL')}
           allowed={statuses.filter(value => value !== 'ALL') as string[]}
         />
+        {onJobType ? (
+          <Select
+            label="HIRING ROUTE"
+            value={draftType === 'ALL' ? '' : draftType}
+            placeholder="All job types"
+            options={[
+              { value: 'BRIEF', label: 'Open applications' },
+              { value: 'INSTANT', label: 'Targeted matching' },
+            ]}
+            onChange={value => setDraftType(value || 'ALL')}
+          />
+        ) : null}
       </FilterSheet>
     </View>
   );

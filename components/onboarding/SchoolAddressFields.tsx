@@ -72,6 +72,7 @@ export default function SchoolAddressFields({
       />
       <TeachingFields
         label="Staffing needs"
+        schoolType={data.schoolType}
         subjects={data.staffingNeeds}
         onSubjects={value => update('staffingNeeds', value)}
       />

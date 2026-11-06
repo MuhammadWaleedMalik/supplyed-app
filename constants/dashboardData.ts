@@ -9,12 +9,16 @@ export type DashboardTabItem = {
 
 export function dashboardTabs(role: 'teacher' | 'school'): DashboardTabItem[] {
   return [
-    { page: 'Dashboard', label: 'Home', icon: 'dashboard' },
-    { page: 'Jobs', label: 'Jobs', icon: 'jobs' },
+    { page: 'Dashboard', label: 'Dashboard', icon: 'dashboard' },
+    {
+      page: 'Jobs',
+      label: role === 'school' ? 'My Jobs' : 'Jobs',
+      icon: 'jobs',
+    },
     role === 'school'
       ? { page: 'Teachers', label: 'Teachers', icon: 'teachers' }
       : { page: 'Applications', label: 'Applications', icon: 'applications' },
     { page: 'Bookings', label: 'Bookings', icon: 'bookings' },
-    { page: 'Messages', label: 'Inbox', icon: 'messages' },
+    { page: 'Messages', label: 'Messages', icon: 'messages' },
   ];
 }

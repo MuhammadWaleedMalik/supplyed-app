@@ -20,11 +20,13 @@ import ProfileHistory from './ProfileHistory';
 import SettingsStatusCard from './SettingsStatusCard';
 import PayoutAccountCard from './PayoutAccountCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
+import AvailabilityCard from './AvailabilityCard';
+import ProfileDocumentsCard from './ProfileDocumentsCard';
 import { useStyles } from './dashboardStyles';
 import { useSettingsStyles } from './settingsStyles';
 
 type Props = { type: AccountType; title: string; onBack: () => void };
-type Section = 'account' | 'profile' | 'preferences' | 'history';
+type Section = 'account' | 'profile' | 'preferences' | 'history' | 'availability';
 
 export default function ProfileSettingsPage({ type, title, onBack }: Props) {
   const styles = useStyles();
@@ -45,6 +47,9 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
       ]
     : [
         { value: 'profile', label: type === 'teacher' ? 'Teaching' : 'School' },
+        ...(type === 'teacher'
+          ? [{ value: 'availability' as const, label: 'Availability' }]
+          : []),
         { value: 'account', label: 'Account' },
         { value: 'history', label: 'History' },
       ];
@@ -56,6 +61,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
         : 'Keep your school details, staffing needs and compliance contacts current.',
     preferences: 'Appearance, notifications and payment preferences.',
     history: 'Your work, applications, reviews and verification status.',
+    availability: 'Choose when schools can match you with teaching work.',
   };
 
   useEffect(() => {
@@ -160,6 +166,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
           {section === 'history' && form.settings ? (
             <>
               <SettingsStatusCard settings={form.settings} />
+              <ProfileDocumentsCard role={type} />
               {typeof form.settings.profile.id === 'string' ? (
                 <ProfileHistory
                   role={type}
@@ -167,6 +174,9 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
                 />
               ) : null}
             </>
+          ) : null}
+          {section === 'availability' && type === 'teacher' ? (
+            <AvailabilityCard />
           ) : null}
         </ScrollView>
         {editable ? (

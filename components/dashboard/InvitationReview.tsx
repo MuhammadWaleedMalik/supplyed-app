@@ -79,7 +79,11 @@ export default function InvitationReview({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>{isNew ? 'New job' : 'Existing job'}</Text>
+      <Text style={styles.eyebrow}>
+        {isNew
+          ? 'New targeted-matching role'
+          : 'Existing targeted-matching role'}
+      </Text>
       <Text style={styles.title}>{job.title}</Text>
       <Text style={styles.pay}>
         GBP {job.payAmount?.toLocaleString('en-GB')} {payBasis}

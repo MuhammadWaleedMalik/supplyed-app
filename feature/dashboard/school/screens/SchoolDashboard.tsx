@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Text } from 'react-native';
+import { protectedRequest } from '../../../../utils/api/request';
+import { endpoints } from '../../../../constants/endpoints';
 import InvitationsScreen from '../../shared/screens/InvitationsScreen';
 import TeachersScreen from './TeachersScreen';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
@@ -8,7 +11,10 @@ import BillingScreen from '../../shared/screens/BillingScreen';
 import MessagesScreen from '../../shared/screens/MessagesScreen';
 import { DashboardPage, showPage } from '../../shared/store/navigationSlice';
 import SchoolApplicationsScreen from './SchoolApplicationsScreen';
-import { clearSchoolJobSelection } from '../store/schoolSlice';
+import {
+  clearSchoolJobSelection,
+  setSchoolProfileStatus,
+} from '../store/schoolSlice';
 import SchoolJobsScreen from './SchoolJobsScreen';
 import SchoolDashboardScreen from './SchoolDashboardScreen';
 import SchoolJobHistoryScreen from './SchoolJobHistoryScreen';
@@ -25,10 +31,34 @@ type Props = {
 export default function SchoolDashboard(props: Props) {
   const dispatch = useAppDispatch();
   const page = useAppSelector(state => state.dashboardNavigation.page);
+  const profileStatus = useAppSelector(
+    state => state.schoolDashboard.profileStatus,
+  );
+  const revision = useAppSelector(
+    state => state.dashboardNavigation.dataRevision,
+  );
+  useEffect(() => {
+    let active = true;
+    async function checkSchool() {
+      try {
+        const profile = await protectedRequest<{ status: string }>(
+          endpoints.schoolMe,
+        );
+        if (active) dispatch(setSchoolProfileStatus(profile.status));
+      } catch {
+        if (active) dispatch(setSchoolProfileStatus('UNAVAILABLE'));
+      }
+    }
+    checkSchool();
+    const timer = setInterval(checkSchool, 30000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [dispatch, revision]);
   const applicationJobId = useAppSelector(
     state => state.dashboardNavigation.notificationApplicationJobId,
   );
-
 
   function changePage(nextPage: DashboardPage) {
     dispatch(clearSchoolJobSelection());
@@ -76,6 +106,13 @@ export default function SchoolDashboard(props: Props) {
       onSecurity={props.onSecurity}
       onSettings={props.onSettings}
     >
+      {profileStatus !== 'ACTIVE' ? (
+        <Text accessibilityRole="alert">
+          School status: {profileStatus || 'Checking'}. Posting, invitations and
+          hiring are disabled until the school is active. Existing bookings and
+          history remain available.
+        </Text>
+      ) : null}
       {pageContent()}
     </DashboardLayout>
   );

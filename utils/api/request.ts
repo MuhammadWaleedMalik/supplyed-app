@@ -23,6 +23,7 @@ export class ApiError extends Error {
   code: string;
   requestId: string;
   fieldErrors?: FieldErrors;
+  retryAfter?: number;
 
   constructor(
     message: string,
@@ -30,6 +31,7 @@ export class ApiError extends Error {
     code = '',
     requestId = '',
     fieldErrors?: FieldErrors,
+    retryAfter?: number,
   ) {
     super(userFacingError(message, status, code));
     this.name = 'ApiError';
@@ -37,6 +39,12 @@ export class ApiError extends Error {
     this.code = code;
     this.requestId = requestId;
     this.fieldErrors = fieldErrors;
+    this.retryAfter = retryAfter;
+    if (status === 429 && retryAfter && retryAfter > 0) {
+      this.message = `Too many attempts. Try again in ${Math.ceil(
+        retryAfter / 60,
+      )} minute(s).`;
+    }
   }
 }
 
@@ -92,6 +100,10 @@ export async function apiRequest<T>(
         response.ok ? 0 : response.status,
         'INVALID_RESPONSE',
         headerRequestId,
+        undefined,
+        response.status === 429
+          ? Number(response.headers?.get('Retry-After')) || undefined
+          : undefined,
       );
     }
   } catch (problem) {
@@ -131,6 +143,9 @@ export async function apiRequest<T>(
       reply.code,
       reply.requestId || headerRequestId,
       reply.fieldErrors,
+      response.status === 429
+        ? Number(response.headers?.get('Retry-After')) || reply.retryAfter
+        : undefined,
     );
   }
   if (reply.envelope && !reply.hasData) {

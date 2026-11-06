@@ -32,7 +32,8 @@ export function schoolReview(data: OnboardingData) {
     ['YOUR ROLE', shown(data.schoolRole)],
     ['DOMAIN', shown(data.domain)],
     ['REGISTRATION ID', shown(data.registrationId)],
-    ['SCHOOL TYPE', data.institutionType],
+    ['SCHOOL PHASE', data.schoolType],
+    ['ORGANISATION STRUCTURE', data.institutionType],
   ];
 
   if (data.institutionType === 'MAT_SCHOOL') {

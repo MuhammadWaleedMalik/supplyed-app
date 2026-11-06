@@ -43,9 +43,16 @@ export default function SchoolSettingsFields({
         </View>
       </View>
       <DynamicSelect
-        label="SCHOOL TYPE"
+        label="SCHOOL PHASE"
+        value={fields.schoolType}
+        placeholder="Primary or secondary"
+        name="schoolType"
+        onChange={value => onChange('schoolType', value)}
+      />
+      <DynamicSelect
+        label="ORGANISATION STRUCTURE"
         value={fields.institutionType}
-        placeholder="School type"
+        placeholder="Single school or MAT school"
         name="institutionType"
         onChange={value => onChange('institutionType', value)}
       />
@@ -89,6 +96,7 @@ export default function SchoolSettingsFields({
       </View>
       <TeachingFields
         label="Staffing needs"
+        schoolType={fields.schoolType}
         subjects={fields.staffingNeeds}
         onSubjects={value => onChange('staffingNeeds', value)}
       />

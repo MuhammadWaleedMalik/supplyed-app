@@ -1,12 +1,14 @@
 import DateField from '../Ui/DateField';
-import { dateWindowErrors, hourlySummary, listingInput } from '../../utils/jobs/workSchedule';
+import {
+  dateWindowErrors,
+  listingInput,
+} from '../../utils/jobs/workSchedule';
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { JobForm } from '../../feature/dashboard/shared/apis/jobsApi';
 import { todayInputValue } from '../../utils/jobs/dateUtils';
 import Button from '../Ui/Button';
-import WorkDateField from '../Ui/WorkDateField';
 import ProposalEditor from '../Ui/ProposalEditor';
 import TeachingFields from '../onboarding/TeachingFields';
 import Input from '../Ui/Input';
@@ -18,6 +20,8 @@ import { protectedRequest } from '../../utils/api/request';
 import { getSessionVersion } from '../../utils/api/session';
 import Checkbox from '../Ui/Checkbox';
 import AutoUpdatedField from '../Ui/AutoUpdatedField';
+import ChoiceField from './ChoiceField';
+import JobScheduleEditor from './JobScheduleEditor';
 
 type Props = {
   form: JobForm;
@@ -58,18 +62,37 @@ export default function JobDetailsStep({
     let active = true;
     const version = getSessionVersion();
     setAddressLoading(true);
-    protectedRequest<Partial<JobAddress>>('/institutions/me').then(profile => {
-      if (!active || version !== getSessionVersion()) return;
-      if (hasSchoolAddress(profile)) setLoadedAddress(jobAddress(profile));
-      else setAddressError('Add your school address in Profile settings, or enter a job location below.');
-    }).catch(() => { if (active) setAddressError('School address unavailable. Enter the job location below.'); })
-      .finally(() => { if (active) setAddressLoading(false); });
-    return () => { active = false; };
+    protectedRequest<Partial<JobAddress>>('/institutions/me')
+      .then(profile => {
+        if (!active || version !== getSessionVersion()) return;
+        if (hasSchoolAddress(profile)) setLoadedAddress(jobAddress(profile));
+        else
+          setAddressError(
+            'Add your school address in Profile settings, or enter a job location below.',
+          );
+      })
+      .catch(() => {
+        if (active)
+          setAddressError(
+            'School address unavailable. Enter the job location below.',
+          );
+      })
+      .finally(() => {
+        if (active) setAddressLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [onAddressMode]);
   useEffect(() => {
     const fields = ['startDate', 'endDate', 'hours', 'days'] as const;
-    const changed = edit.current && fields.includes(edit.current as typeof fields[number])
-      ? fields.filter(field => field !== edit.current && form[field] !== previous.current[field]) : [];
+    const changed =
+      edit.current && fields.includes(edit.current as (typeof fields)[number])
+        ? fields.filter(
+            field =>
+              field !== edit.current && form[field] !== previous.current[field],
+          )
+        : [];
     previous.current = form;
     edit.current = undefined;
     if (!changed.length) return;
@@ -83,13 +106,32 @@ export default function JobDetailsStep({
   function onChange(name: keyof JobForm, value: string) {
     edit.current = name;
     onFieldChange(name, value);
+    if (name === 'payType') {
+      const allowed =
+        value === 'fixed'
+          ? ['completion', 'milestone']
+          : value === 'daily'
+          ? ['daily', 'weekly', 'monthly']
+          : ['hourly', 'daily', 'weekly', 'monthly'];
+      if (!allowed.includes(form.paymentFrequency))
+        onFieldChange('paymentFrequency', allowed[0]);
+    }
   }
   function chooseAddress(useSchool: boolean) {
-    if (onAddressMode) { onAddressMode(useSchool ? 'school' : 'different'); return; }
+    if (onAddressMode) {
+      onAddressMode(useSchool ? 'school' : 'different');
+      return;
+    }
     if (useSchool && !effectiveAddress) return;
     if (useSchool) alternate.current = jobAddress(form);
     const address = useSchool ? effectiveAddress! : alternate.current;
-    for (const field of ['address', 'city', 'county', 'postalCode', 'countryCode'] as const)
+    for (const field of [
+      'address',
+      'city',
+      'county',
+      'postalCode',
+      'countryCode',
+    ] as const)
       onFieldChange(field, address[field]);
     onFieldChange('addressMode', useSchool ? 'school' : 'different');
   }
@@ -102,9 +144,21 @@ export default function JobDetailsStep({
   return (
     <View style={jobStyles.formSection}>
       <Text style={jobStyles.sectionTitle}>Role location</Text>
-      <Checkbox label="Use School Address as Job Location" checked={form.addressMode === 'school'} onChange={() => chooseAddress(form.addressMode !== 'school')} disabled={!effectiveAddress || addressLoading} />
-      {addressError || (!effectiveAddress && !addressLoading) ? <Text style={jobStyles.error}>{addressError || 'No saved school address is available. Enter the job location below.'}</Text> : null}
-      {addressLoading ? <Text style={jobStyles.modeBody}>Loading school address…</Text> : null}
+      <Checkbox
+        label="Use School Address as Job Location"
+        checked={form.addressMode === 'school'}
+        onChange={() => chooseAddress(form.addressMode !== 'school')}
+        disabled={!effectiveAddress || addressLoading}
+      />
+      {addressError || (!effectiveAddress && !addressLoading) ? (
+        <Text style={jobStyles.error}>
+          {addressError ||
+            'No saved school address is available. Enter the job location below.'}
+        </Text>
+      ) : null}
+      {addressLoading ? (
+        <Text style={jobStyles.modeBody}>Loading school address…</Text>
+      ) : null}
       {form.addressMode === 'school' && effectiveAddress ? (
         <Text style={jobStyles.modeBody}>
           Teachers will see this school address on the role and booking.
@@ -159,51 +213,70 @@ export default function JobDetailsStep({
         value={form.payAmount}
         onChangeText={value => onChange('payAmount', value)}
       />
+      <ChoiceField
+        label="PAYMENT FREQUENCY"
+        value={form.paymentFrequency}
+        options={
+          form.payType === 'fixed'
+            ? ['completion', 'milestone']
+            : form.payType === 'daily'
+            ? ['daily', 'weekly', 'monthly']
+            : ['hourly', 'daily', 'weekly', 'monthly']
+        }
+        onChange={value => onChange('paymentFrequency', value)}
+      />
+      {['weekly', 'monthly'].includes(form.paymentFrequency) ? (
+        <ChoiceField
+          label="PAYMENT PERIOD BOUNDARY"
+          value={form.periodAnchor}
+          options={['ASSIGNMENT_START', 'CALENDAR']}
+          onChange={value => onChange('periodAnchor', value)}
+        />
+      ) : null}
       <Text style={jobStyles.sectionTitle}>Work schedule</Text>
-      <AutoUpdatedField active={updated.includes('startDate')}><WorkDateField
-        timezone={timezone}
-        label="START DATE"
-        value={form.startDate}
-        error={dateErrors.startDate}
-        minimum={today}
-        onChange={value => onChange('startDate', value)}
-      /></AutoUpdatedField>
-      <AutoUpdatedField active={updated.includes('endDate')}><WorkDateField
-        timezone={timezone}
-        label="END DATE"
-        value={form.endDate}
-        error={dateErrors.endDate}
-        minimum={form.startDate || today}
-        onChange={value => onChange('endDate', value)}
-      /></AutoUpdatedField>
+      <AutoUpdatedField active={updated.includes('startDate')}>
+        <DateField
+          label="START DATE"
+          value={form.startDate}
+          error={dateErrors.startDate}
+          minimum={today}
+          onChange={value => onChange('startDate', value)}
+        />
+      </AutoUpdatedField>
+      <AutoUpdatedField active={updated.includes('endDate')}>
+        <DateField
+          label="END DATE"
+          value={form.endDate}
+          error={dateErrors.endDate}
+          minimum={form.startDate || today}
+          onChange={value => onChange('endDate', value)}
+        />
+      </AutoUpdatedField>
       {workError ? (
         <Text accessibilityRole="alert" style={jobStyles.error}>
           {workError}
         </Text>
-      ) : null}
-      {form.payType === 'hourly' || form.payType === 'daily' ? (
-        <AutoUpdatedField active={updated.includes(form.payType === 'hourly' ? 'hours' : 'days')}><Input
-          label={
-            form.payType === 'hourly'
-              ? 'TOTAL PLANNED HOURS'
-              : 'TOTAL PLANNED DAYS'
-          }
-          required={false}
-          number
-          value={form.payType === 'hourly' ? form.hours : form.days}
-          onChangeText={value =>
-            onChange(form.payType === 'hourly' ? 'hours' : 'days', value)
-          }
-        /></AutoUpdatedField>
       ) : null}
       {form.scheduleError ? (
         <Text accessibilityRole="alert" style={jobStyles.error}>
           {form.scheduleError}
         </Text>
       ) : null}
-      {hourlySummary(form) ? (
-        <Text style={jobStyles.modeBody}>{hourlySummary(form)}</Text>
-      ) : null}
+      <Input
+        label="JOB TIME ZONE"
+        value={form.timeZone}
+        onChangeText={value => onChange('timeZone', value)}
+      />
+      <Input
+        label="NUMBER OF WORKERS"
+        number
+        value={form.workersRequired}
+        onChangeText={value => onChange('workersRequired', value)}
+      />
+      <JobScheduleEditor
+        value={form.schedule}
+        onChange={value => onChange('schedule', value)}
+      />
       <DateField
         label="LIVE FROM"
         value={listingInput(form.liveFrom)}
@@ -232,7 +305,8 @@ export default function JobDetailsStep({
       ) : null}
       <Text style={jobStyles.modeBody}>
         Listing days use UK time. Expiry includes the whole selected day and
-        must close before work starts. Live date → listing expiry → work start → work end.
+        must close before work starts. Live date → listing expiry → work start →
+        work end.
       </Text>
       {form.liveFrom.includes('T') || form.expiresAt.includes('T') ? (
         <Text style={jobStyles.modeBody}>
@@ -258,6 +332,7 @@ export default function JobDetailsStep({
         onChangeText={value => onChange('title', value)}
       />
       <TeachingFields
+        schoolScoped
         subjects={form.subject}
         skills={form.requiredSkills}
         onSubjects={value => onChange('subject', value)}
@@ -280,7 +355,11 @@ export default function JobDetailsStep({
       {footer}
       {error ? <Text style={jobStyles.error}>{error}</Text> : null}
       <View style={jobStyles.actions}>
-        <Button title="Continue" disabled={Object.keys(dateErrors).length > 0 || !!form.scheduleError} onPress={onNext} />
+        <Button
+          title="Continue"
+          disabled={Object.keys(dateErrors).length > 0 || !!form.scheduleError}
+          onPress={onNext}
+        />
         <Button title="Back" variant="link" onPress={onBack} compact />
       </View>
     </View>

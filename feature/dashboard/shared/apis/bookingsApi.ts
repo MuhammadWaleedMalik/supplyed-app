@@ -1,4 +1,5 @@
 import type { PlannedWorkUnits } from '../../../../utils/jobs/workSchedule';
+import type { Job } from './jobsApi';
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
 import { getAllPages } from '../../../../utils/api/pagination';
@@ -6,6 +7,36 @@ import type { Review } from './reviewsApi';
 import type { BookingInvoice } from './invoicesApi';
 
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export type AttendanceStatus =
+  | 'AWAITING_CONFIRMATION'
+  | 'PRESENT'
+  | 'ABSENT';
+
+export type AttendanceCorrectionRequest = {
+  id: string;
+  requestedById: string;
+  requestedStatus: AttendanceStatus;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
+
+export type AttendanceShift = {
+  id: string;
+  workDate: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+  timeZone: string;
+  status: AttendanceStatus;
+  decisionSource: string | null;
+  reason: string | null;
+  responseDeadline: string | null;
+  decidedAt: string | null;
+  correctionRequests: AttendanceCorrectionRequest[];
+};
 
 export type BookingInvoiceFilter = 'none' | 'unpaid' | 'paid';
 
@@ -18,6 +49,8 @@ export type BookingPagination = {
 };
 
 export type Booking = PlannedWorkUnits & {
+  agreedTerms?: Partial<Job> | null;
+  termsStatus?: 'RECORDED' | 'LEGACY_PARTIAL';
   id: string;
   applicationId: string;
   source: 'APPLICATION' | 'DIRECT_HIRE';
@@ -41,6 +74,26 @@ export type Booking = PlannedWorkUnits & {
   endDate?: string | null;
   payAmount?: number | null;
   payType?: string | null;
+  currency?: string;
+  paymentFrequency?: string | null;
+  periodAnchor?: 'ASSIGNMENT_START' | 'CALENDAR';
+  timeZone?: string;
+  schedule?: unknown;
+  scheduledMinutes?: number | null;
+  attendancePolicyEffectiveAt?: string | null;
+  attendanceShifts?: AttendanceShift[];
+  attendancePayroll?: {
+    scheduledMinutes?: number;
+    payableMinutes?: number;
+    payableAmountPence?: number;
+  } | null;
+  attendanceAdjustments?: {
+    id: string;
+    shiftId: string;
+    amountPence: number;
+    reason: string;
+    status: string;
+  }[];
   completedAt?: string | null;
   cancelledAt?: string | null;
   cancelledById?: string | null;
@@ -134,5 +187,68 @@ export function cancelBooking(id: string, reason: string) {
     {
       reason: reason.trim(),
     },
+  );
+}
+
+export function activateAttendance(bookingId: string) {
+  return protectedRequest<Booking>(
+    endpoints.bookings + '/' + encodeURIComponent(bookingId) + '/attendance/activate',
+    'POST',
+  );
+}
+
+export function recordAttendance(
+  bookingId: string,
+  shiftId: string,
+  status: 'PRESENT' | 'ABSENT',
+  reason?: string,
+) {
+  return protectedRequest<Booking>(
+    endpoints.bookings +
+      '/' +
+      encodeURIComponent(bookingId) +
+      '/attendance/' +
+      encodeURIComponent(shiftId),
+    'PATCH',
+    { status, ...(reason?.trim() ? { reason: reason.trim() } : {}) },
+  );
+}
+
+export function correctAttendance(
+  bookingId: string,
+  shiftId: string,
+  status: 'PRESENT' | 'ABSENT',
+  reason: string,
+) {
+  if (reason.trim().length < 3)
+    throw new Error('Enter at least 3 characters explaining the correction.');
+  return protectedRequest<Booking>(
+    endpoints.bookings +
+      '/' +
+      encodeURIComponent(bookingId) +
+      '/attendance/' +
+      encodeURIComponent(shiftId) +
+      '/correct',
+    'PATCH',
+    { status, reason: reason.trim() },
+  );
+}
+
+export function reviewAttendanceCorrection(
+  bookingId: string,
+  requestId: string,
+  decision: 'APPROVED' | 'REJECTED',
+  reason: string,
+) {
+  if (reason.trim().length < 3)
+    throw new Error('Enter at least 3 characters explaining the decision.');
+  return protectedRequest<Booking>(
+    endpoints.bookings +
+      '/' +
+      encodeURIComponent(bookingId) +
+      '/attendance/correction-requests/' +
+      encodeURIComponent(requestId),
+    'PATCH',
+    { decision, reason: reason.trim() },
   );
 }

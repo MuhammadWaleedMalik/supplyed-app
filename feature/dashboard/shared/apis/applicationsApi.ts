@@ -34,6 +34,19 @@ export async function getApplicationHistory(id: string, page = 1) {
 }
 
 export type Application = {
+  agreedTerms?: Partial<Job> | null;
+  bookingTerms?: Partial<Job> | null;
+  termsStatus?: 'RECORDED' | 'LEGACY_UNVERIFIED';
+  automaticallyRejectedCount?: number;
+  scheduleConflict?: {
+    available: false;
+    conflicts: {
+      date: string;
+      start: string;
+      end: string;
+      type: 'OUTSIDE_AVAILABILITY' | 'BOOKING_CONFLICT';
+    }[];
+  } | null;
   id: string;
   jobId: string;
   jobName?: string;
@@ -98,23 +111,45 @@ export async function getMyApplications(status = '') {
 }
 
 export function getApplication(id: string) {
-  return protectedRequest<Application>(endpoints.applications + '/' + encodeURIComponent(id));
+  return protectedRequest<Application>(
+    endpoints.applications + '/' + encodeURIComponent(id),
+  );
 }
 export async function getMyApplicationForJob(jobId: string) {
   const query = new URLSearchParams({ jobId, page: '1', limit: '1' });
-  const result = await protectedRequest<{ applications: Application[] }>(endpoints.applicationsMine + '?' + query.toString());
-  if (!Array.isArray(result.applications)) throw new Error('Unable to check application status.');
+  const result = await protectedRequest<{ applications: Application[] }>(
+    endpoints.applicationsMine + '?' + query.toString(),
+  );
+  if (!Array.isArray(result.applications))
+    throw new Error('Unable to check application status.');
   return result.applications[0];
 }
 
 export async function getApplicationsPage(page = 1, status = '', jobId = '') {
-  const query = new URLSearchParams({ page: String(page), limit: jobId ? '10' : '20' });
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: jobId ? '10' : '20',
+  });
   if (status && status !== 'ALL') query.set('status', status);
-  const path = jobId ? endpoints.applicationsByJob + '/' + encodeURIComponent(jobId) : endpoints.applicationsMine;
-  const result = await protectedRequest<{ applications: Application[]; pagination: BookingPagination }>(path + '?' + query.toString());
-  if (!Array.isArray(result.applications) || !result.pagination || result.pagination.page !== page)
+  const path = jobId
+    ? endpoints.applicationsByJob + '/' + encodeURIComponent(jobId)
+    : endpoints.applicationsMine;
+  const result = await protectedRequest<{
+    applications: Application[];
+    pagination: BookingPagination;
+  }>(path + '?' + query.toString());
+  if (
+    !Array.isArray(result.applications) ||
+    !result.pagination ||
+    result.pagination.page !== page
+  )
     throw new Error('Unable to read applications. Please refresh.');
-  return { items: result.applications, page, hasMore: result.pagination.hasNextPage, total: result.pagination.total };
+  return {
+    items: result.applications,
+    page,
+    hasMore: result.pagination.hasNextPage,
+    total: result.pagination.total,
+  };
 }
 
 export async function getApplicationsForJob(jobId: string, status = '') {
@@ -127,6 +162,7 @@ export async function getApplicationsForJob(jobId: string, status = '') {
 }
 
 export async function updateApplicationStatus(id: string, status: string) {
+  if (status === 'HIRED') return hireApplication(id);
   const version = getSessionVersion();
   const path = endpoints.applications + '/' + encodeURIComponent(id);
   try {
@@ -149,4 +185,27 @@ export async function updateApplicationStatus(id: string, status: string) {
     }
     throw error;
   }
+}
+
+export type HirePaymentTerms = {
+  days?: number;
+  hours?: number;
+  payAmount?: number;
+  payType?: 'hourly' | 'daily' | 'fixed';
+  paymentFrequency?:
+    | 'hourly'
+    | 'daily'
+    | 'weekly'
+    | 'monthly'
+    | 'completion'
+    | 'milestone';
+  periodAnchor?: 'ASSIGNMENT_START' | 'CALENDAR';
+};
+
+export function hireApplication(id: string, terms: HirePaymentTerms = {}) {
+  return protectedRequest<Application>(
+    endpoints.applications + '/' + encodeURIComponent(id) + '/hire',
+    'POST',
+    terms,
+  );
 }

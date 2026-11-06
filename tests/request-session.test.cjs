@@ -70,6 +70,154 @@ async function session() {
 
 test.beforeEach(session);
 
+test('429 shows retry guidance without refreshing tokens or repeating the request', async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    const limited = response(429, {
+      success: false,
+      code: 'RATE_LIMITED',
+      message: 'Too many attempts',
+      retryAfter: 120,
+      data: null,
+    });
+    limited.headers.get = name => (name === 'Retry-After' ? '120' : null);
+    return limited;
+  };
+  await assert.rejects(
+    protectedRequest('/auth/login', 'POST', {}),
+    error =>
+      error.status === 429 &&
+      error.retryAfter === 120 &&
+      /2 minute/.test(error.message),
+  );
+  assert.equal(calls, 1);
+  assert.equal(getAccessToken(), 'access-old');
+  assert.equal(getRefreshToken(), 'refresh-old');
+});
+
+test('429 from a proxy retains Retry-After even without JSON', async () => {
+  global.fetch = async () => ({
+    ok: false,
+    status: 429,
+    headers: { get: name => (name === 'Retry-After' ? '60' : null) },
+    json: async () => {
+      throw new Error('HTML');
+    },
+  });
+  await assert.rejects(
+    apiRequest('/auth/login', 'POST', {}),
+    error =>
+      error.status === 429 &&
+      error.retryAfter === 60 &&
+      /1 minute/.test(error.message),
+  );
+});
+
+test('publish and invitation validation require a complete future offer with payable units', () => {
+  const {
+    validateBookableJob,
+    CURRENT_JOB_STATUSES,
+  } = require('../feature/dashboard/shared/apis/jobsApi');
+  const job = {
+    title: 'Maths cover',
+    description: 'Teach mathematics',
+    subjects: ['Mathematics'],
+    keyStages: ['KS3'],
+    startDate: '2030-11-02T08:00:00Z',
+    endDate: '2030-11-02T15:00:00Z',
+    payAmount: 200,
+    payType: 'daily',
+    days: 1,
+    hours: null,
+    address: '1 School Lane',
+    city: 'London',
+    postalCode: 'SW1A 1AA',
+    countryCode: 'GB',
+  };
+  assert.doesNotThrow(() => validateBookableJob(job));
+  assert.ok(CURRENT_JOB_STATUSES.includes('RESERVED'));
+  for (const change of [
+    { payAmount: 0 },
+    { days: null },
+    { days: 2 },
+    { address: '' },
+    { title: '' },
+    { subjects: [] },
+    { keyStages: [] },
+    { startDate: '2020-01-01T08:00:00Z' },
+    { hours: 2 },
+  ]) {
+    assert.throws(
+      () => validateBookableJob({ ...job, ...change }),
+      JSON.stringify(change),
+    );
+  }
+  assert.doesNotThrow(() =>
+    validateBookableJob({ ...job, payType: 'hourly', hours: 7, days: null }),
+  );
+  assert.doesNotThrow(() =>
+    validateBookableJob({ ...job, payType: 'fixed', days: null }),
+  );
+});
+
+test('booking and application responses retain the saved contract and legacy marker', async () => {
+  const terms = {
+    title: 'Agreed maths cover',
+    payAmount: 200,
+    payType: 'daily',
+    days: 1,
+    hours: null,
+    address: 'Original address',
+  };
+  global.fetch = async () =>
+    response(200, {
+      success: true,
+      data: {
+        id: 'booking',
+        termsStatus: 'RECORDED',
+        agreedTerms: terms,
+        job: terms,
+        payAmount: 200,
+      },
+    });
+  const booking = await apiRequest('/bookings/booking');
+  assert.equal(booking.job.address, 'Original address');
+  assert.deepEqual(booking.agreedTerms, terms);
+  global.fetch = async () =>
+    response(200, {
+      success: true,
+      data: {
+        id: 'application',
+        agreedTerms: null,
+        jobDetails: null,
+        termsStatus: 'LEGACY_UNVERIFIED',
+      },
+    });
+  const application = await apiRequest('/applications/application');
+  assert.equal(application.agreedTerms, null);
+  assert.equal(application.jobDetails, null);
+  assert.equal(application.termsStatus, 'LEGACY_UNVERIFIED');
+});
+
+test('429 uses the response retry time when a proxy hides the header', async () => {
+  global.fetch = async () =>
+    response(429, {
+      success: false,
+      code: 'RATE_LIMITED',
+      message: 'Too many attempts',
+      retryAfter: 180,
+      data: null,
+    });
+  await assert.rejects(
+    apiRequest('/auth/login', 'POST', {}),
+    error =>
+      error.status === 429 &&
+      error.retryAfter === 180 &&
+      /3 minute/.test(error.message),
+  );
+});
+
 test('accepts a successful raw backend payload', async () => {
   global.fetch = async () => response(200, { id: 'raw-job' });
   assert.deepEqual(await apiRequest('/jobs/raw'), {

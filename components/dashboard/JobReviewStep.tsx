@@ -25,6 +25,9 @@ export default function JobReviewStep({
     <View style={styles.formSection}>
       <Text style={styles.sectionTitle}>Review your job</Text>
       <Text style={styles.sectionTitle}>{form.title}</Text>
+      <Text style={styles.modeBody}>
+        {form.mode === 'instant' ? 'Targeted matching' : 'Open applications'}
+      </Text>
       <RichText value={form.description} />
       <Text style={styles.modeBody}>Subjects: {choiceText(form.subject)}</Text>
       <Text style={styles.modeBody}>
@@ -48,6 +51,14 @@ export default function JobReviewStep({
           : form.payType === 'daily' && form.days
           ? ` | ${form.days} planned days`
           : ''}
+      </Text>
+      <Text style={styles.modeBody}>
+        Paid {form.paymentFrequency}
+        {['weekly', 'monthly'].includes(form.paymentFrequency)
+          ? ` · ${form.periodAnchor === 'CALENDAR' ? 'calendar periods' : 'from assignment start'}`
+          : ''}
+        {' · '}
+        {form.workersRequired} worker(s)
       </Text>
       <Text style={styles.modeBody}>
         Opens: {form.liveFrom || 'Immediately when published'} · Closes:{' '}

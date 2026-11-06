@@ -302,3 +302,283 @@ Backend deployment prerequisites remain outside this mobile implementation:
 
 Independent invitation-only message histories would require a different backend
 contract; this app deliberately uses the current shared job conversation history.
+
+## P0 marketplace and security implementation — 23 October 2026
+
+This section supersedes the older backend-read-only handoff above for P0-01 through
+P0-10. The shared backend source was changed in `../../supplyed-backend` and the
+existing mobile files were updated in place. No mobile files, custom hooks,
+dependencies, navigation routes or native project structure were added. The
+website was not edited; its existing `next-env.d.ts` change was preserved.
+
+### Verification status
+
+“VERIFIED FIXED” below means verified in the local automated checks described here,
+not deployed, device-tested, or verified against live external providers.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| P0-01 Signing secrets | VERIFIED FIXED | Missing/empty/placeholder/reused secrets rejected; built production entry point exits before database connection for invalid secrets. |
+| P0-02 Private account access | VERIFIED FIXED | HTTP guard tests: unauthenticated 401, other-account 403 without PII, self `/users/me` and admin reads succeed. Existing separate public instructor/institution DTOs retained. |
+| P0-03 Rate limiting | VERIFIED FIXED | Concurrent HTTP requests across two API instances share PostgreSQL limits; spoofed forwarding headers do not change the budget; email-send operations share a budget; expiry resets it. Mobile 429 retry tests pass. |
+| P0-04 School eligibility | VERIFIED FIXED | Suspended school jobs disappear from public queries; create/publish/apply/invite/hire fail; confirmed booking remains intact. |
+| P0-05 Bookable terms | VERIFIED FIXED | Shared policy unit tests and HTTP publish/hire checks reject incomplete, invalid or past terms. Mobile validation tests cover matching requirements. |
+| P0-06 Application consent | VERIFIED FIXED | Application records the offered terms; pay/location edits fail; missing or changed consent blocks hiring. |
+| P0-07 Booking contract | VERIFIED FIXED | Booking details keep the agreed description/location/pay even after an out-of-band change to the job. Legacy unknowns stay unknown. |
+| P0-08 Safe deletion/closure | VERIFIED FIXED | Only empty never-published drafts delete; closure rejects active applicants, cancels invitations and preserves histories/conversations. |
+| P0-09 Exclusive reservation | VERIFIED FIXED | Concurrent invitation/application/hire cases serialize; one pending invitation and one occupied booking are protected by partial unique indexes; reserved applications receive 409. |
+| P0-10 Invitation failure | VERIFIED FIXED | Decline/cancel/expiry release eligible jobs; invalid or suspended jobs stay non-public; 105 expiries drain; repeated workers and acceptance/expiry races do not reopen accepted jobs. |
+
+### Actual checks and limits
+
+- Backend: **384 tests passed in 19 suites**, including real PostgreSQL HTTP,
+  transaction, concurrency and forward-migration tests. Test authentication uses
+  a local identity harness; mail/Google/SMS/Stripe/S3 delivery is not contacted.
+  Existing payment, messaging and notification unit/regression tests passed.
+- Backend TypeScript, Nest build and lint of **all changed TypeScript files** passed.
+  Whole-repository lint remains blocked by **45 pre-existing errors** in five
+  unchanged conversation files (formatting and three unsafe test-member accesses).
+- Mobile: **43 tests passed**, TypeScript passed, and whole-project ESLint passed.
+  Android release-mode Metro JavaScript bundling passed (82 assets), with an
+  existing React Native private-export dependency warning. No Android APK build,
+  emulator, physical-device, iOS or visual/UI automation test was run.
+- Prisma client generation and schema validation passed. All **22 migrations**
+  applied successfully to a new disposable PostgreSQL 16 database, including the
+  three new migrations below. No existing database was migrated or reset.
+- The disposable `supplyed_p0_audit_20261023` container and its own generated test
+  data were removed after verification. The existing `supplyed_local_db` container
+  was left running. Test-data removal is not reversible; the fixtures recreate it.
+- A startup smoke check initially inherited `.env` because Windows PowerShell
+  removes empty environment variables. That process briefly connected to the
+  existing **local** `localhost:5440/supplyed-local-db` and was stopped. Follow-up
+  READ ONLY queries found zero subsequent job changes, invitation changes,
+  notification-email activity or message-reminder activity. The corrected check
+  set invalid secrets inside Node and an unusable test DB URL; it exited safely
+  before Nest/database startup. No production deployment or real-secret edit occurred.
+
+### Current business rules
+
+- A school must be ACTIVE. Profile checks happen again inside the transaction,
+  not just in the screen or before a database lock.
+- Normal publication is `DRAFT -> ACTIVE`. Sending an invitation is
+  `DRAFT/ACTIVE -> RESERVED`; acceptance is `RESERVED -> FILLED` with exactly one
+  booking and rejection/history entries for other active applications.
+- Decline, school withdrawal or expiry returns a valid reserved job to ACTIVE.
+  Scheduled listing windows still apply. Past work/listings become EXPIRED;
+  suspended schools or incomplete legacy terms leave a private DRAFT. An already
+  CLOSED/SUSPENDED/FILLED job is not reopened by the expiry worker.
+- **Withdrawing an invitation may publish its job.** To withdraw the role itself,
+  close the job instead; closure cancels its pending invitation.
+- Title, description, subjects, skills, experience, key stages, dates, pay, payable
+  units, address, postcode, country, coordinates and parking are offer terms.
+  Any application/invitation/booking locks material edits, including after that
+  activity ends. Create a new job for different terms. Listing state is separate.
+- Publication/invitation/apply/hire require title, non-empty role description,
+  a subject and key stage, address/city/postcode/country, future start, end on or
+  after start, positive pay, and hourly/daily/fixed pay type. Hourly jobs require
+  positive whole hours within the work period; daily jobs require positive whole
+  days within the inclusive UK calendar-day span; fixed jobs have no hours/days.
+  Listing opening must precede work; expiry must follow opening, be in the future,
+  and be no later than work start. Drafts may remain incomplete.
+- Historical applications with no snapshot have `LEGACY_UNVERIFIED` terms and
+  cannot be silently hired. An eligible teacher can explicitly accept a new
+  invitation. Rejected applications or previous booking history may require a
+  new job, as the existing invitation eligibility rules still apply.
+- Historical bookings have `LEGACY_PARTIAL`: known original booking pay/dates/units
+  remain available, while unknown original description/location are not guessed
+  from the current job. There is no new contract-amendment workflow.
+
+### Changed API contracts
+
+All paths below use the existing `/api` prefix and success/error envelopes.
+
+| Endpoint / operation | Contract change |
+| --- | --- |
+| `GET /users/me` | Authenticated private account response; mobile current-user reads use this path. |
+| `GET /users/:id` | ADMIN only; other authenticated users receive 403. Public profile screens continue using public profile endpoints, not account DTOs. |
+| Auth, phone OTP, 2FA, signatory approval, contact/waitlist routes | Shared PostgreSQL rate limits; 429 `RATE_LIMITED`, `Retry-After` header and `retryAfter` seconds. |
+| `GET /jobs`, institution job lists, job discovery/detail and recommendations | Exclude inactive schools, reserved jobs, pending invitations, occupied bookings and past starts. Owner/history routes remain accessible under existing authorization. |
+| `POST /jobs` | Creates a draft only for an eligible school. Mobile publishes with the existing follow-up PATCH after validation. |
+| `PATCH /jobs/:id` | Locked validation/eligibility; material offer edits blocked after activity; protected state transitions; status CLOSED resolves applicants/invitations without deleting history. |
+| Job responses / school status counts | Add RESERVED plus `hasBeenPublished`, `canDelete`, `termsLocked`. UI trusts `canDelete`, not DRAFT alone. |
+| `DELETE /jobs/:id` | Only unused, never-published drafts. Otherwise 409 `JOB_HISTORY_PROTECTED`. |
+| `POST /applications` | Locks/rechecks availability and profiles; saves full `agreedTerms`; reserved jobs return 409 `JOB_RESERVED`. |
+| Application reads/status responses | Add nullable `agreedTerms` and `termsStatus: RECORDED / LEGACY_UNVERIFIED`; `jobDetails` is saved terms or null, never a reconstructed live offer. |
+| `PATCH /applications/:id/status` with HIRED | Requires matching recorded terms, active profiles, valid public job and no overlapping/occupied booking; rejects competitors atomically. |
+| `POST /job-invitations` and `/bookings/direct-hire` alias | Existing request shape (`requestId`, `instructorId`, exactly one of `jobId`/`newJob`, optional message/expiry); now reserves exclusively. Retry the same requestId with the same payload. |
+| `/job-invitations/:id/accept`, `/decline`, `/cancel` | Atomic acceptance or release. Existing read/list/status pagination remains; `jobStatus` can be RESERVED. `publishOnDecline` remains for compatibility, but all three failure decisions release eligible reservations. |
+| Booking list/detail/accept responses | Add nullable `agreedTerms`, `termsStatus: RECORDED / LEGACY_PARTIAL`; nested `job` uses agreed terms, not mutable current job fields. |
+
+Additional domain errors include 403 `SCHOOL_INACTIVE`, 409 `JOB_UNAVAILABLE`,
+`JOB_TERMS_LOCKED`, `JOB_TERMS_CHANGED`, `APPLICATION_TERMS_UNVERIFIED`, and 422
+`INVALID_JOB_TERMS` with `fieldErrors`. Existing 400 validation/window errors and
+401/403/404 authorization responses remain. Mobile renders friendly messages,
+preserves field errors, and does not retry or refresh authentication on 429.
+Swagger descriptions, status enums and affected response DTOs were updated.
+
+Rate limits use 15-minute windows: security routes share a 150/IP budget;
+registration/resend/forgot-password share 5/IP and 3/normalized-email; other
+mutating operations allow 10/IP and 10/email or presented credential; reads allow
+60/IP. Bearer, signatory and body-token identities are hashed, never stored as
+plaintext counter keys. Expired buckets are cleaned hourly. Database errors fail
+closed. Trust forwarding headers only from explicitly configured proxy IP/CIDRs;
+the default trusts none. Tune limits only after checking real shared-network usage.
+
+### Database and deployment handoff
+
+New model fields: `JobStatus.RESERVED`, `Job.hasBeenPublished`, nullable JSON
+`Application.agreedTerms` and `Booking.agreedTerms`, and `RateLimitBucket`.
+The Application-to-Job foreign key now restricts deletion. Partial unique indexes
+allow only one PENDING invitation and one CONFIRMED/COMPLETED booking per job.
+
+Migrations, in order:
+
+1. `20261023010000_reserved_status`: additive enum value, committed separately.
+2. `20261023020000_marketplace_safety`: preflight checks, snapshots, publication
+   marker, restrict FK, unique indexes, existing pending-offer reservation and
+   shared rate-limit table. ALL existing jobs are conservatively marked as having
+   publication history, including old drafts. Existing snapshots stay null.
+3. `20261023030000_reserved_dropdown`: adds Reserved to an existing job-status
+   dropdown and bumps its revision without replacing administrator labels. Fresh
+   unseeded databases get it through the existing dropdown seed.
+
+Before any staging/production rollout:
+
+1. Back up and inspect the target database. Run these read-only preflight queries:
+
+   ```sql
+   SELECT "jobId", COUNT(*) FROM "JobInvitation"
+   WHERE status = 'PENDING' GROUP BY "jobId" HAVING COUNT(*) > 1;
+   SELECT "jobId", COUNT(*) FROM "Booking"
+   WHERE status IN ('CONFIRMED', 'COMPLETED')
+   GROUP BY "jobId" HAVING COUNT(*) > 1;
+   ```
+
+2. If either returns rows, STOP. The migration deliberately refuses to choose a
+   winner, cancel contracts or delete offers. Obtain the school's/business owner's
+   explicit reconciliation decision. A previously failed migration also requires
+   Prisma migration-history inspection and an approved recovery after confirming
+   its transaction rolled back; do not edit applied migration files.
+3. Stop old API/worker instances during the coordinated schema/API rollout; do not
+   mix old code with the new RESERVED state. Use a maintenance window for index/FK
+   locks. Install the existing lockfile dependencies and configure three distinct
+   random signing secrets of at least 32 characters plus the real trusted proxy
+   IPs. Keep all credentials outside source control. Rotate known compromised or
+   placeholder keys; rotation invalidates old sessions/challenges.
+4. With the explicitly selected target database, run from the backend:
+
+   ```powershell
+   pnpm.cmd exec prisma migrate deploy
+   pnpm.cmd exec prisma generate
+   pnpm.cmd exec prisma validate
+   pnpm.cmd run build
+   ```
+
+5. Start the updated API and ensure at least one worker instance has
+   `NOTIFICATION_WORKERS_ENABLED` enabled. The invitation worker runs every 30
+   seconds, up to 20 batches of 100 jobs per tick, with row locks and idempotent
+   decisions. Do not disable all workers and expect reservations to reopen on time.
+6. Verify public/owner/teacher reads, private-user access, all three invitation
+   failure paths, concurrent hire protection, snapshot history and 429 guidance in
+   staging. Update the website against these same contracts before release. Do not
+   roll back schema by dropping saved history; use a reviewed forward fix.
+
+No rollout was performed by this implementation. Browser/device flows, live
+provider delivery, production proxy configuration, operational rate-limit tuning
+and reconciliation of actual legacy conflicts remain deployment checks.
+
+### Changed source files
+
+Backend root: `C:\Users\Usman Cheema\Desktop\Waleed\SupplyEd\supplyed-backend`.
+
+```text
+.env.example
+prisma/schema.prisma
+prisma/migrations/20261023010000_reserved_status/migration.sql
+prisma/migrations/20261023020000_marketplace_safety/migration.sql
+prisma/migrations/20261023030000_reserved_dropdown/migration.sql
+src/app.module.ts
+src/main.ts
+src/common/filters/api-exception.filter.ts
+src/common/guards/rate-limit.guard.ts
+src/common/http/response-metadata.ts
+src/common/logging/redact-sensitive.ts
+src/common/middleware/request-logger.middleware.ts
+src/modules/auth/auth-config.ts
+src/modules/auth/auth-config.spec.ts
+src/modules/auth/auth-token.constants.ts
+src/modules/auth/auth.module.ts
+src/modules/auth/auth.service.ts
+src/modules/auth/auth.strategy.ts
+src/modules/users/users.controller.ts
+src/modules/users/swagger.config.ts
+src/modules/jobs/job-policy.ts
+src/modules/jobs/job-policy.spec.ts
+src/modules/jobs/job-listing-window.ts
+src/modules/jobs/job-listing-window.spec.ts
+src/modules/jobs/job-status.machine.ts
+src/modules/jobs/job-work-units.spec.ts
+src/modules/jobs/jobs.module.ts
+src/modules/jobs/jobs.repository.ts
+src/modules/jobs/jobs.service.ts
+src/modules/jobs/swagger.config.ts
+src/modules/jobs/dto/job-response.dto.ts
+src/modules/jobs/dto/paginated-jobs-response.dto.ts
+src/modules/applications/applications.repository.ts
+src/modules/applications/swagger.config.ts
+src/modules/applications/dto/application-response.dto.ts
+src/modules/bookings/bookings.repository.ts
+src/modules/bookings/direct-hire.service.ts
+src/modules/bookings/hiring-transaction.ts
+src/modules/bookings/invitation-availability.spec.ts
+src/modules/bookings/job-invitations.controller.ts
+src/modules/bookings/swagger.config.ts
+src/modules/bookings/dto/booking-response.dto.ts
+src/modules/bookings/dto/direct-hire.dto.ts
+src/modules/bookings/dto/job-invitation-response.dto.ts
+src/modules/dropdowns/dropdown-seed.data.ts
+src/modules/teaching-catalogue/teaching-catalogue.spec.ts
+src/school-chat-direct-hire.integration.spec.ts
+src/security.integration.spec.ts
+```
+
+Mobile root: this README's directory. Screens covered: school dashboard/jobs,
+teacher jobs/applications, school applicant review, invitation creation/decisions,
+shared booking details and shared auth/API errors.
+
+```text
+README.md
+components/dashboard/BookingRecordCard.tsx
+components/dashboard/InvitationDetails.tsx
+components/dashboard/InvitationForm.tsx
+components/dashboard/JobActions.tsx
+components/dashboard/JobDetailsStep.tsx
+components/dashboard/MyApplicationsList.tsx
+components/dashboard/PostedJobsPanel.tsx
+components/dashboard/SchoolApplicationDetail.tsx
+constants/endpoints.ts
+feature/dashboard/school/hooks/useSchoolApplications.ts
+feature/dashboard/school/hooks/useSchoolJobs.ts
+feature/dashboard/school/screens/SchoolDashboard.tsx
+feature/dashboard/school/screens/SchoolJobsScreen.tsx
+feature/dashboard/school/store/schoolSlice.ts
+feature/dashboard/shared/apis/applicationsApi.ts
+feature/dashboard/shared/apis/bookingsApi.ts
+feature/dashboard/shared/apis/jobsApi.ts
+feature/dashboard/shared/screens/InvitationsScreen.tsx
+feature/dashboard/teacher/apis/teacherDashboardApi.ts
+feature/dashboard/teacher/hooks/useTeacherApplications.ts
+feature/dashboard/teacher/hooks/useTeacherJobs.ts
+tests/request-session.test.cjs
+tests/ux-regressions.test.cjs
+tests/work-schedule.test.cjs
+utils/api/request.ts
+utils/api/response.ts
+utils/api/userFacingError.ts
+utils/jobs/londonTime.ts
+utils/jobs/workSchedule.ts
+```
+
+No intended native configuration changes: `constants/env.ts` and
+`ios/supplyed/Info.plist` may appear dirty due to existing line-ending/index state;
+their content diffs were empty and they were not edited for this task.

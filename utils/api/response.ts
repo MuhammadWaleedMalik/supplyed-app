@@ -9,6 +9,7 @@ export type ParsedApiReply = {
   success?: boolean;
   requestId?: string;
   fieldErrors?: FieldErrors;
+  retryAfter?: number;
 };
 
 function stringArray(value: unknown): string[] | undefined {
@@ -54,7 +55,9 @@ export function parseApiReply(value: unknown): ParsedApiReply {
         Array.isArray(record.message) ||
         'meta' in record));
   const meta =
-    record.meta && typeof record.meta === 'object' && !Array.isArray(record.meta)
+    record.meta &&
+    typeof record.meta === 'object' &&
+    !Array.isArray(record.meta)
       ? (record.meta as Record<string, unknown>)
       : undefined;
 
@@ -62,8 +65,7 @@ export function parseApiReply(value: unknown): ParsedApiReply {
     envelope,
     hasData: envelope ? 'data' in record : true,
     data: envelope ? record.data : value,
-    success:
-      typeof record.success === 'boolean' ? record.success : undefined,
+    success: typeof record.success === 'boolean' ? record.success : undefined,
     message:
       typeof record.message === 'string'
         ? record.message
@@ -76,6 +78,9 @@ export function parseApiReply(value: unknown): ParsedApiReply {
         ? record.requestId
         : undefined,
     fieldErrors: parseFieldErrors(record.fieldErrors),
+    ...(typeof record.retryAfter === 'number' && record.retryAfter > 0
+      ? { retryAfter: record.retryAfter }
+      : {}),
   };
 }
 

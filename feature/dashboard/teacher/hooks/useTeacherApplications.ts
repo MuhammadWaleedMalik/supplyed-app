@@ -21,13 +21,13 @@ export function applicationWithJob(
 ): TeacherApplication {
   return {
     ...application,
-    job: application.jobDetails
+    job: application.agreedTerms
       ? ({
-          ...application.jobDetails,
+          ...application.agreedTerms,
           id: application.jobId,
           title:
             application.jobName ||
-            application.jobDetails.title ||
+            application.agreedTerms.title ||
             'Teaching role',
           postedByUserId: '',
         } as Job)

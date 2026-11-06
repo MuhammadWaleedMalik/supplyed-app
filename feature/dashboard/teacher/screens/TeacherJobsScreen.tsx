@@ -69,7 +69,7 @@ export default function TeacherJobsScreen() {
     >
       <View style={styles.section}>
         <Text style={styles.title}>
-          {jobs.notificationJobId ? 'Job details' : 'Find your next role'}
+          {jobs.notificationJobId ? 'Job details' : 'Find jobs'}
         </Text>
 
         {!jobs.notificationJobId ? (

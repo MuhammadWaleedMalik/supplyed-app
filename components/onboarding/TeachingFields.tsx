@@ -1,5 +1,5 @@
 /* eslint-disable no-control-regex -- Reject invisible control characters in user input. */
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useDropdown } from '../../feature/dropdowns/hooks/useDropdown';
 import {
@@ -12,6 +12,11 @@ import Button from '../Ui/Button';
 import Input from '../Ui/Input';
 import Select from '../Ui/Select';
 import { useCommonStyles } from '../Ui/theme';
+import {
+  getSchoolTeachingCatalogue,
+  getTeachingCatalogue,
+  TeachingCatalogue,
+} from '../../feature/dropdowns/apis/teachingCatalogueApi';
 
 type Props = {
   subjects: string;
@@ -19,6 +24,8 @@ type Props = {
   onSubjects: (value: string) => void;
   onSkills?: (value: string) => void;
   label?: string;
+  schoolType?: string;
+  schoolScoped?: boolean;
 };
 
 export default function TeachingFields({
@@ -27,6 +34,8 @@ export default function TeachingFields({
   onSubjects,
   onSkills,
   label = 'Subjects',
+  schoolType,
+  schoolScoped,
 }: Props) {
   const subjectMenu = useDropdown('subject');
   const skillMenu = useDropdown('skill');
@@ -34,12 +43,68 @@ export default function TeachingFields({
   const [subjectName, setSubjectName] = useState('');
   const [skillName, setSkillName] = useState('');
   const [notice, setNotice] = useState('');
+  const [catalogue, setCatalogue] = useState<TeachingCatalogue>();
+  const [catalogueError, setCatalogueError] = useState('');
+  const [catalogueAttempt, setCatalogueAttempt] = useState(0);
   const subjectValues = readChoices(subjects);
   const skillValues = readChoices(skills || '');
+  useEffect(() => {
+    if (!schoolScoped && !schoolType) {
+      setCatalogue(undefined);
+      setCatalogueError('');
+      return;
+    }
+    let active = true;
+    setCatalogueError('');
+    const request = schoolScoped
+      ? getSchoolTeachingCatalogue()
+      : getTeachingCatalogue(schoolType);
+    request
+      .then(result => {
+        if (active) setCatalogue(result);
+      })
+      .catch(problem => {
+        if (active)
+          setCatalogueError(
+            problem instanceof Error
+              ? problem.message
+              : 'Teaching choices are unavailable.',
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [schoolScoped, schoolType, catalogueAttempt]);
+
+  const catalogueValues = useMemo(() => {
+    const catalogueSubjects =
+      catalogue?.categories.flatMap(category => category.subjects) || [];
+    return {
+      subjects: new Set(
+        catalogueSubjects
+          .flatMap(subject => [subject.name, ...subject.aliases])
+          .map(teachingChoiceKey),
+      ),
+      skills: new Set(
+        [
+          ...catalogueSubjects.flatMap(subject => subject.skills),
+          ...(catalogue?.sharedSkills || []),
+        ].map(teachingChoiceKey),
+      ),
+    };
+  }, [catalogue]);
+  const subjectOptions = catalogue
+    ? subjectMenu.options.filter(option =>
+        catalogueValues.subjects.has(teachingChoiceKey(option.value)),
+      )
+    : subjectMenu.options;
   const allowedSkills = supportedSkills(
     subjectValues,
-    subjectMenu.options,
+    subjectOptions,
     skillMenu.options,
+  ).filter(
+    option =>
+      !catalogue || catalogueValues.skills.has(teachingChoiceKey(option.value)),
   );
 
   function changeSubjects(value: string) {
@@ -48,7 +113,7 @@ export default function TeachingFields({
     if (onSkills && skillMenu.data && subjectMenu.data) {
       const allowed = supportedSkills(
         readChoices(value),
-        subjectMenu.options,
+        subjectOptions,
         skillMenu.options,
       );
       const kept = skillValues.filter(
@@ -81,7 +146,7 @@ export default function TeachingFields({
       return;
     }
     const options =
-      kind === 'subject' ? subjectMenu.options : skillMenu.options;
+      kind === 'subject' ? subjectOptions : skillMenu.options;
     const known = knownChoice(name, options);
     if (known?.value === 'Other') {
       setNotice('Enter the actual subject or skill name.');
@@ -132,16 +197,20 @@ export default function TeachingFields({
         label={label}
         value={writeChoices(
           subjectValues.map(
-            value => knownChoice(value, subjectMenu.options)?.value || value,
+            value => knownChoice(value, subjectOptions)?.value || value,
           ),
         )}
         multiple
         maxSelections={50}
         placeholder="Choose subjects"
-        disabled={!subjectMenu.data || !!subjectMenu.error}
+        disabled={
+          !subjectMenu.data ||
+          !!subjectMenu.error ||
+          (!!schoolType || !!schoolScoped) && !catalogue
+        }
         options={[
-          ...subjectMenu.options.filter(option => option.value !== 'Other'),
-          ...customOptions(subjectValues, subjectMenu.options),
+          ...subjectOptions.filter(option => option.value !== 'Other'),
+          ...customOptions(subjectValues, subjectOptions),
         ]}
         onChange={changeSubjects}
       />
@@ -157,7 +226,11 @@ export default function TeachingFields({
           <Button
             title="Add subject"
             onPress={() => addName('subject')}
-            disabled={!subjectMenu.data || !!subjectMenu.error}
+            disabled={
+              !subjectMenu.data ||
+              !!subjectMenu.error ||
+              ((!!schoolType || !!schoolScoped) && !catalogue)
+            }
             variant="link"
           />
         </>
@@ -178,7 +251,8 @@ export default function TeachingFields({
               !skillMenu.data ||
               !subjectMenu.data ||
               !!skillMenu.error ||
-              !!subjectMenu.error
+              !!subjectMenu.error ||
+              ((!!schoolType || !!schoolScoped) && !catalogue)
             }
             options={[
               ...allowedSkills.filter(option => option.value !== 'Other'),
@@ -219,6 +293,17 @@ export default function TeachingFields({
               subjectMenu.retry();
               skillMenu.retry();
             }}
+          />
+        </>
+      ) : null}
+      {catalogueError ? (
+        <>
+          <Text accessibilityRole="alert" style={common.body}>
+            {catalogueError}
+          </Text>
+          <Button
+            title="Retry school teaching catalogue"
+            onPress={() => setCatalogueAttempt(value => value + 1)}
           />
         </>
       ) : null}

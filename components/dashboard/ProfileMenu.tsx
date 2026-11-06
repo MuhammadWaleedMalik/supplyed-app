@@ -48,7 +48,7 @@ export default function ProfileMenu({
     { title: 'Applications', icon: 'applications', onPress: onApplications },
     { title: 'Invitations', icon: 'invitations', onPress: onInvitations },
     {
-      title: role === 'teacher' ? 'Earnings & payouts' : 'Billing',
+      title: role === 'teacher' ? 'Earnings' : 'Billing',
       icon: 'billing',
       onPress: onBilling,
     },

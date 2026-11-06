@@ -76,6 +76,19 @@ export function changeSchedule<T extends Schedule>(
   if (next.payType !== 'daily') next.days = '';
   if (next.payType === 'fixed') return next;
   try {
+    const dateOnly = [next.startDate, next.endDate]
+      .filter(Boolean)
+      .every(item => /^\d{4}-\d{2}-\d{2}$/.test(item));
+    if (dateOnly) {
+      if (
+        next.startDate &&
+        next.endDate &&
+        calendarDay(next.endDate) < calendarDay(next.startDate)
+      )
+        throw new Error('Work end must be on or after work start.');
+      plannedPayload(next);
+      return next;
+    }
     const unit = next.payType === 'hourly' ? 'hours' : 'days';
     if (!next.payType) return next;
     const manual =
@@ -154,6 +167,11 @@ export function hourlySummary(form: Schedule) {
   )
     return '';
   try {
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(form.startDate) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(form.endDate)
+    )
+      return `${form.hours} total planned hours across the assignment schedule.`;
     const count =
       calendarDay(form.endDate.slice(0, 10)) -
       calendarDay(form.startDate.slice(0, 10)) +
@@ -208,33 +226,50 @@ export function dateWindowErrors(
   },
   timezone = 'Europe/London',
 ) {
-  const errors: Partial<Record<'liveFrom' | 'expiresAt' | 'startDate' | 'endDate', string>> = {};
+  const errors: Partial<
+    Record<'liveFrom' | 'expiresAt' | 'startDate' | 'endDate', string>
+  > = {};
   const work = (date?: string | null) =>
     date
-      ? Date.parse(
-          /(?:Z|[+-]\d{2}:\d{2})$/.test(date)
-            ? date
-            : zonedToIso(date, timezone),
-        )
+      ? /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? calendarDay(date) * 86400000
+        : Date.parse(
+            /(?:Z|[+-]\d{2}:\d{2})$/.test(date)
+              ? date
+              : zonedToIso(date, timezone),
+          )
       : undefined;
   function parse(field: keyof typeof errors, read: () => number | undefined) {
-    try { const result = read(); if (result !== undefined && !Number.isFinite(result)) throw new Error('Enter a valid date and time.'); return result; } catch (problem) {
-      errors[field] = problem instanceof Error ? problem.message : 'Enter a valid date and time.';
+    try {
+      const result = read();
+      if (result !== undefined && !Number.isFinite(result))
+        throw new Error('Enter a valid date and time.');
+      return result;
+    } catch (problem) {
+      errors[field] =
+        problem instanceof Error
+          ? problem.message
+          : 'Enter a valid date and time.';
       return undefined;
     }
   }
   const start = parse('startDate', () => work(value.startDate));
   const end = parse('endDate', () => work(value.endDate));
-  const open = parse('liveFrom', () => value.liveFrom ? listingInstant(value.liveFrom) : undefined);
-  const close = parse('expiresAt', () => value.expiresAt ? listingInstant(value.expiresAt, true) : undefined);
-  if (start !== undefined && end !== undefined && end <= start)
-    errors.endDate = 'Job end date must be later than the job start date.';
+  const open = parse('liveFrom', () =>
+    value.liveFrom ? listingInstant(value.liveFrom) : undefined,
+  );
+  const close = parse('expiresAt', () =>
+    value.expiresAt ? listingInstant(value.expiresAt, true) : undefined,
+  );
+  if (start !== undefined && end !== undefined && end < start)
+    errors.endDate = 'Job end date must be on or after the job start date.';
   if (open !== undefined && start !== undefined && open >= start)
     errors.startDate = 'Job start date must be later than the job live date.';
   if (open !== undefined && close !== undefined && close <= open)
     errors.expiresAt = 'Listing expiry must be later than the job live date.';
-  if (close !== undefined && start !== undefined && close >= start)
-    errors.startDate = 'Job start date must be later than the listing expiry date.';
+  if (close !== undefined && start !== undefined && close > start)
+    errors.startDate =
+      'Job start date must be on or after the listing expiry date.';
   return errors;
 }
 

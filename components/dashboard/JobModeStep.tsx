@@ -20,9 +20,9 @@ export default function JobModeStep({ onSelect }: Props) {
           <BriefcaseBusiness color={colors.brand} size={25} />
         </View>
         <View>
-          <Text style={jobStyles.modeTitle}>Open brief</Text>
+          <Text style={jobStyles.modeTitle}>Open applications</Text>
           <Text style={jobStyles.modeBody}>
-            Publish a role for teachers to discover, review, and apply to.
+            Publish a role for teachers to discover and apply to.
           </Text>
         </View>
         <ArrowRight color={colors.brand} size={22} />
@@ -32,10 +32,9 @@ export default function JobModeStep({ onSelect }: Props) {
           <Zap color={colors.ink} size={25} />
         </View>
         <View>
-          <Text style={jobStyles.modeTitle}>Instant match</Text>
+          <Text style={jobStyles.modeTitle}>Targeted matching</Text>
           <Text style={jobStyles.modeBody}>
-            Create the role and immediately surface teachers ranked for your
-            needs.
+            Create the role, review ranked teachers, and send invitations.
           </Text>
         </View>
         <ArrowRight color={colors.ink} size={22} />

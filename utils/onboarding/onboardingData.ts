@@ -10,6 +10,7 @@ export type OnboardingData = {
   schoolRole: string;
   domain: string;
   registrationId: string;
+  schoolType: string;
   institutionType: string;
   trustName: string;
   trustCompanyNumber: string;
@@ -45,6 +46,7 @@ export const initialData: OnboardingData = {
   schoolRole: '',
   domain: '',
   registrationId: '',
+  schoolType: '',
   institutionType: '',
   trustName: '',
   trustCompanyNumber: '',

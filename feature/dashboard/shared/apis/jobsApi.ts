@@ -9,9 +9,8 @@ import { teachingPayload } from '../../../../utils/onboarding/teachingChoices';
 import { checkDropdown } from '../../../dropdowns/apis/dropdownsApi';
 import { richTextToPlainText } from '../../../../utils/ui/richText';
 import {
-  londonInput,
+  londonDate,
   londonToIso,
-  zonedToIso,
 } from '../../../../utils/jobs/londonTime';
 import { endpoints } from '../../../../constants/endpoints';
 import { ApiError, protectedRequest } from '../../../../utils/api/request';
@@ -27,8 +26,12 @@ import {
 import { jobDateError } from '../../../../utils/jobs/dateUtils';
 
 export type Job = PlannedWorkUnits & {
+  canDelete?: boolean;
+  termsLocked?: boolean;
+  hasBeenPublished?: boolean;
   institution?: { id: string; name: string; imageUrl?: string | null } | null;
   id: string;
+  jobType?: 'INSTANT' | 'BRIEF';
   postedByUserId: string;
   title: string;
   description?: string;
@@ -46,6 +49,13 @@ export type Job = PlannedWorkUnits & {
   parkingInfo?: string | null;
   payAmount?: number | null;
   payType?: string | null;
+  currency?: string;
+  paymentFrequency?: string;
+  periodAnchor?: 'ASSIGNMENT_START' | 'CALENDAR';
+  timeZone?: string;
+  schedule?: JobSchedule | null;
+  workersRequired?: number;
+  scheduledMinutes?: number | null;
   startDate?: string | null;
   endDate?: string | null;
   status?: string;
@@ -55,7 +65,17 @@ export type Job = PlannedWorkUnits & {
   applicationCount?: number;
 };
 
-export const CURRENT_JOB_STATUSES = ['ACTIVE', 'DRAFT'] as const;
+export type JobSlot = { start: string; end: string };
+export type JobSchedule = {
+  weekdays: { day: number; slots: JobSlot[] }[];
+  exceptions?: {
+    date: string;
+    kind: 'add' | 'exclude' | 'replace';
+    slots?: JobSlot[];
+  }[];
+};
+
+export const CURRENT_JOB_STATUSES = ['ACTIVE', 'DRAFT', 'RESERVED'] as const;
 export const HISTORY_JOB_STATUSES = [
   'FILLED',
   'CLOSED',
@@ -69,6 +89,11 @@ export type JobForm = {
   days: string;
   scheduleError?: string;
   mode: string;
+  timeZone: string;
+  paymentFrequency: string;
+  periodAnchor: string;
+  workersRequired: string;
+  schedule: string;
   title: string;
   description: string;
   subject: string;
@@ -98,6 +123,7 @@ export type JobFilters = {
   subject?: string;
   keyStage?: string;
   urgent?: boolean;
+  jobType?: 'INSTANT' | 'BRIEF';
 };
 
 export type JobPage = {
@@ -112,7 +138,13 @@ function words(value: string) {
 
 function isoDate(value: string) {
   if (!value.trim()) return undefined;
-  return londonToIso(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(
+    /T\d{2}:\d{2}$/.test(value) ? londonToIso(value) : value,
+  );
+  if (!Number.isFinite(parsed.getTime()))
+    throw new Error('Enter a valid work date.');
+  return londonDate(parsed);
 }
 
 function listingIso(value: string, closing = false) {
@@ -133,26 +165,69 @@ export function editableDescription(value: string) {
     .trim();
 }
 function descriptionWithNotes(data: JobForm) {
-  const lines = [
-    data.description
-      .replace(/\n\nPosting route: (?:Open brief|Instant matching)\./g, '')
-      .replace(/\n\nQTS requested\./g, '')
-      .replace(/\n\nMarked urgent by the hiring account\./g, '')
-      .trim(),
-  ];
-  lines.push(
-    'Posting route: ' +
-      (data.mode === 'brief' ? 'Open brief.' : 'Instant matching.'),
-  );
+  return editableDescription(data.description);
+}
 
-  if (data.qts === 'yes') {
-    lines.push('QTS requested.');
+function schedulePayload(value: string): JobSchedule | undefined {
+  if (!value.trim()) return undefined;
+  let schedule: JobSchedule;
+  try {
+    schedule = JSON.parse(value) as JobSchedule;
+  } catch {
+    throw new Error('The work schedule could not be read. Re-enter its hours.');
   }
-  if (data.urgent === 'yes') {
-    lines.push('Marked urgent by the hiring account.');
+  if (!Array.isArray(schedule.weekdays) || !schedule.weekdays.length)
+    throw new Error('Choose at least one working weekday.');
+  const time = /^(?:[01]\d|2[0-3]):00$/;
+  const days = new Set<number>();
+  for (const weekday of schedule.weekdays) {
+    if (
+      !Number.isInteger(weekday.day) ||
+      weekday.day < 0 ||
+      weekday.day > 6 ||
+      days.has(weekday.day)
+    )
+      throw new Error('Choose each working weekday once.');
+    days.add(weekday.day);
+    if (!Array.isArray(weekday.slots) || !weekday.slots.length)
+      throw new Error('Add at least one shift for every working weekday.');
+    for (const slot of weekday.slots) {
+      if (
+        !time.test(slot.start) ||
+        !time.test(slot.end) ||
+        slot.start === slot.end
+      )
+        throw new Error(
+          'Use whole-hour, non-zero shift times such as 09:00 to 17:00.',
+        );
+    }
   }
-
-  return lines.filter(Boolean).join('\n\n');
+  const exceptionDates = new Set<string>();
+  for (const exception of schedule.exceptions || []) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(exception.date) ||
+      exceptionDates.has(exception.date) ||
+      !['add', 'exclude', 'replace'].includes(exception.kind)
+    )
+      throw new Error('Use one valid action for each schedule exception date.');
+    exceptionDates.add(exception.date);
+    if (exception.kind === 'exclude') continue;
+    if (!exception.slots?.length)
+      throw new Error('Add at least one shift for each schedule exception.');
+    if (
+      exception.slots.some(
+        slot =>
+          !time.test(slot.start) ||
+          !time.test(slot.end) ||
+          slot.start === slot.end,
+      )
+    )
+      throw new Error('Use whole-hour, non-zero exception shift times.');
+  }
+  return {
+    weekdays: schedule.weekdays,
+    exceptions: schedule.exceptions || [],
+  };
 }
 
 export function validateJobSchedule(
@@ -173,10 +248,11 @@ export function validateJobSchedule(
   }
   validateDateWindow(effective, timezone);
   plannedPayload(data);
+  schedulePayload(data.schedule);
   if (
     data.startDate &&
     (!before || data.startDate !== before.startDate) &&
-    Date.parse(zonedToIso(data.startDate, timezone)) < Date.now()
+    Date.parse(isoDate(data.startDate) + 'T23:59:59Z') < Date.now()
   )
     throw new Error('Choose a future work start.');
   if (
@@ -200,6 +276,9 @@ export async function cleanJob(data: JobForm, timezone = 'Europe/London') {
   if (data.payType) await checkDropdown('payType', [data.payType]);
   return {
     ...units,
+    jobType: (data.mode === 'instant' ? 'INSTANT' : 'BRIEF') as
+      | 'INSTANT'
+      | 'BRIEF',
     title: data.title.trim(),
     description: descriptionWithNotes(data),
     subjects: teaching.subjects,
@@ -215,17 +294,86 @@ export async function cleanJob(data: JobForm, timezone = 'Europe/London') {
     county: data.county.trim() || undefined,
     postalCode: data.postalCode.trim().toUpperCase() || undefined,
     countryCode: data.countryCode.trim().toUpperCase() || 'GB',
-    startDate: data.startDate
-      ? zonedToIso(data.startDate, timezone)
-      : undefined,
-    endDate: data.endDate ? zonedToIso(data.endDate, timezone) : undefined,
+    startDate: data.startDate ? isoDate(data.startDate) : undefined,
+    endDate: data.endDate ? isoDate(data.endDate) : undefined,
     keyStages: words(data.keyStages),
     parkingInfo: data.parkingInfo.trim() || undefined,
     payAmount: numberValue(data.payAmount),
     payType: data.payType || undefined,
+    currency: 'GBP',
+    paymentFrequency: data.paymentFrequency || undefined,
+    periodAnchor:
+      (data.periodAnchor === 'CALENDAR'
+        ? 'CALENDAR'
+        : 'ASSIGNMENT_START') as 'ASSIGNMENT_START' | 'CALENDAR',
+    timeZone: data.timeZone || timezone,
+    schedule: schedulePayload(data.schedule),
+    workersRequired:
+      optionalNonNegativeInteger(data.workersRequired, 'Number of workers') || 1,
     expiresAt: listingIso(data.expiresAt, true),
     liveFrom: listingIso(data.liveFrom),
   };
+}
+
+// The API checks these again. Drafts can stay incomplete; published jobs and invitations cannot.
+export function validateBookableJob(job: Partial<Job>) {
+  if (job.jobType && !['INSTANT', 'BRIEF'].includes(job.jobType))
+    throw new Error('Choose targeted matching or open applications.');
+  if (!job.title?.trim()) throw new Error('Enter the job title.');
+  if (!richTextToPlainText(job.description || ''))
+    throw new Error('Enter the role description.');
+  if (!job.subject?.trim() && !job.subjects?.length)
+    throw new Error('Choose at least one subject.');
+  if (!job.keyStages?.length) throw new Error('Choose at least one key stage.');
+  if (
+    !job.address?.trim() ||
+    !job.city?.trim() ||
+    !job.postalCode?.trim() ||
+    !job.countryCode?.trim()
+  )
+    throw new Error('Enter the work address, city, postcode and country.');
+  const start = Date.parse(job.startDate || '');
+  const end = Date.parse(job.endDate || '');
+  if (!Number.isFinite(start) || start <= Date.now())
+    throw new Error('Choose a future work start.');
+  if (!Number.isFinite(end) || end < start)
+    throw new Error('Choose an end on or after the start.');
+  if (!Number.isFinite(Number(job.payAmount)) || Number(job.payAmount) <= 0)
+    throw new Error('Enter a pay amount greater than zero.');
+  if (!['hourly', 'daily', 'fixed'].includes(job.payType || ''))
+    throw new Error('Choose hourly, daily or fixed pay.');
+  const day = (date: number) =>
+    Date.parse(
+      new Date(date).toLocaleDateString('en-CA', { timeZone: 'Europe/London' }),
+    );
+  const days = Math.round((day(end) - day(start)) / 86400000) + 1;
+  if (
+    !job.schedule &&
+    job.payType === 'hourly' &&
+    (!Number.isInteger(job.hours) ||
+      Number(job.hours) <= 0 ||
+      Number(job.hours) > days * 24)
+  )
+    throw new Error(
+      'Enter positive whole working hours within the work period.',
+    );
+  if (
+    !job.schedule &&
+    job.payType === 'daily' &&
+    (!Number.isInteger(job.days) ||
+      Number(job.days) <= 0 ||
+      Number(job.days) > days)
+  )
+    throw new Error(
+      'Enter positive whole working days within the work period.',
+    );
+  if (job.payType !== 'hourly' && job.hours != null)
+    throw new Error('Hours are only allowed for hourly pay.');
+  if (job.payType !== 'daily' && job.days != null)
+    throw new Error('Days are only allowed for daily pay.');
+  validateDateWindow(job);
+  if (job.expiresAt && listingInstant(job.expiresAt, true) <= Date.now())
+    throw new Error('Choose a future listing expiry.');
 }
 
 export async function getAllJobs() {
@@ -250,6 +398,7 @@ async function getJobsPageAt(
   if (filters.keyStage && filters.keyStage !== 'All stages')
     query.set('keyStage', filters.keyStage);
   if (filters.urgent !== undefined) query.set('urgent', String(filters.urgent));
+  if (filters.jobType) query.set('jobType', filters.jobType);
   const result = await protectedRequest<{
     jobs?: unknown;
     pagination?: { page?: unknown; hasNextPage?: unknown };
@@ -347,6 +496,7 @@ export async function createJob(data: JobForm) {
     );
   validateJobSchedule(data);
   const payload = await cleanJob(data);
+  if (data.status === 'ACTIVE') validateBookableJob(payload);
   await checkDropdown('jobStatus', [data.status]);
   if (payload.description.length > 10000)
     throw new Error(
@@ -411,9 +561,26 @@ export function jobToForm(job: Job, duplicate = false): JobForm {
     addressMode: 'different',
     hours: job.hours == null ? '' : String(job.hours),
     days: job.days == null ? '' : String(job.days),
-    mode: job.description?.includes('Posting route: Instant matching.')
-      ? 'instant'
-      : 'brief',
+    mode: job.jobType === 'INSTANT' ? 'instant' : 'brief',
+    timeZone: job.timeZone || 'Europe/London',
+    paymentFrequency:
+      job.paymentFrequency ||
+      (job.payType === 'fixed'
+        ? 'completion'
+        : job.payType === 'hourly'
+        ? 'hourly'
+        : 'daily'),
+    periodAnchor: job.periodAnchor || 'ASSIGNMENT_START',
+    workersRequired: String(job.workersRequired || 1),
+    schedule: JSON.stringify(
+      job.schedule || {
+        weekdays: [1, 2, 3, 4, 5].map(day => ({
+          day,
+          slots: [{ start: '09:00', end: '17:00' }],
+        })),
+        exceptions: [],
+      },
+    ),
     title: job.title,
     description: editableDescription(job.description || ''),
     subject: writeChoices(job.subjects || (job.subject ? [job.subject] : [])),
@@ -422,8 +589,10 @@ export function jobToForm(job: Job, duplicate = false): JobForm {
     county: job.county || '',
     postalCode: job.postalCode || '',
     countryCode: job.countryCode || 'GB',
-    startDate: duplicate ? '' : job.startDate ? londonInput(job.startDate) : '',
-    endDate: duplicate ? '' : job.endDate ? londonInput(job.endDate) : '',
+    startDate:
+      duplicate || !job.startDate ? '' : londonDate(new Date(job.startDate)),
+    endDate:
+      duplicate || !job.endDate ? '' : londonDate(new Date(job.endDate)),
     expiresAt: duplicate ? '' : job.expiresAt || '',
     liveFrom: duplicate ? '' : job.liveFrom || '',
     payAmount: job.payAmount == null ? '' : String(job.payAmount),
@@ -490,12 +659,11 @@ export async function updateDraftJob(original: Job, data: JobForm) {
     if (data[field] !== before[field]) changed[field] = data[field].trim();
   }
   if (
-    data.description !== before.description ||
-    data.qts !== before.qts ||
-    data.urgent !== before.urgent ||
-    data.mode !== before.mode
+    data.description !== before.description
   )
     changed.description = descriptionWithNotes(data);
+  if (data.mode !== before.mode)
+    changed.jobType = data.mode === 'instant' ? 'INSTANT' : 'BRIEF';
   if (
     data.subject !== before.subject ||
     data.requiredSkills !== before.requiredSkills
@@ -547,6 +715,18 @@ export async function updateDraftJob(original: Job, data: JobForm) {
     await checkDropdown('payType', [data.payType]);
     changed.payType = data.payType;
   }
+  for (const field of [
+    'paymentFrequency',
+    'periodAnchor',
+    'timeZone',
+  ] as const) {
+    if (data[field] !== before[field]) changed[field] = data[field];
+  }
+  if (data.workersRequired !== before.workersRequired)
+    changed.workersRequired =
+      optionalNonNegativeInteger(data.workersRequired, 'Number of workers') || 1;
+  if (data.schedule !== before.schedule)
+    changed.schedule = schedulePayload(data.schedule);
   if (data.minExperienceYears !== before.minExperienceYears)
     changed.minExperienceYears =
       optionalNonNegativeInteger(data.minExperienceYears, 'Experience') ?? null;
@@ -560,6 +740,16 @@ export async function updateDraftJob(original: Job, data: JobForm) {
   }
   if (data.status === 'ACTIVE' && original.status === 'DRAFT')
     changed.status = 'ACTIVE';
+  if (
+    latest.termsLocked &&
+    Object.keys(changed).some(
+      key => !['status', 'liveFrom', 'expiresAt'].includes(key),
+    )
+  )
+    throw new Error(
+      'This job has activity. Its agreed terms cannot be edited; duplicate it as a new draft instead.',
+    );
+  if (data.status === 'ACTIVE') validateBookableJob({ ...latest, ...changed });
   if (!Object.keys(changed).length) return latest;
   assertSessionVersion(version);
   return protectedRequest<Job>(

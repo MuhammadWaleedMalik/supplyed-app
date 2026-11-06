@@ -32,6 +32,41 @@ export type PayoutBalance = {
   recentPayouts: PayoutSummary[];
 };
 
+export type SchoolBilling = {
+  automaticPaymentsEnabled: boolean;
+  canEnableAutomaticPayments: boolean;
+  consentedAt: string | null;
+  consentTermsVersion: string | null;
+  currentPayment: {
+    bookingId: string;
+    jobTitle: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    id: string;
+    nextAttemptAt: string | null;
+    paymentAttemptCount: number;
+    status: string;
+    totalAmountPence: number;
+  } | null;
+  lastSetupError: string | null;
+  nextScheduledCollectionAt: string | null;
+  paymentMethod: {
+    label: string;
+    last4: string;
+    mandateStatus: string | null;
+    type: string;
+  } | null;
+  setupStatus: 'NOT_STARTED' | 'PENDING' | 'READY' | 'FAILED';
+  stripeSyncError: string | null;
+  stripeSyncStatus: string;
+};
+
+export type SchoolBillingSession = {
+  sessionId: string;
+  url: string;
+  expiresAt: number | string | null;
+};
+
 export function getPayoutAccount() {
   return protectedRequest<PayoutAccount>(endpoints.payoutAccount);
 }
@@ -59,5 +94,37 @@ export function getInstructorPayoutAccount(instructorId: string) {
     endpoints.instructorPayoutAccounts +
       '/' +
       encodeURIComponent(instructorId.trim()),
+  );
+}
+
+export function getSchoolBilling() {
+  return protectedRequest<SchoolBilling>(endpoints.schoolBilling);
+}
+
+export function createSchoolBillingSetup() {
+  return protectedRequest<SchoolBillingSession>(
+    endpoints.schoolBillingSetup,
+    'POST',
+    { consentToTerms: true },
+  );
+}
+
+export function syncSchoolBilling(sessionId: string) {
+  return protectedRequest<SchoolBilling>(endpoints.schoolBillingSync, 'POST', {
+    sessionId,
+  });
+}
+
+export function updateAutomaticPayments(enabled: boolean) {
+  return protectedRequest<SchoolBilling>(endpoints.schoolBilling, 'PATCH', {
+    automaticPaymentsEnabled: enabled,
+    ...(enabled ? { consentToTerms: true } : {}),
+  });
+}
+
+export function removeSchoolPaymentMethod() {
+  return protectedRequest<SchoolBilling>(
+    endpoints.schoolBillingPaymentMethod,
+    'DELETE',
   );
 }
