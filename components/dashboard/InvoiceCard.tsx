@@ -30,6 +30,7 @@ import {
   formatPence,
   openInvoicePdf,
   openStripeInvoice,
+  requiresCardAuthentication,
 } from '../../utils/payments/paymentUtils';
 import DynamicSelect from '../Ui/DynamicSelect';
 import { useStyles } from './dashboardStyles';
@@ -77,6 +78,17 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
   const returningFromPayment = useRef(false);
   const refreshAfterPaymentOpens = useRef(false);
   const current = details || invoice;
+  const unpaid =
+    current.status === 'OPEN' || current.status === 'UNCOLLECTIBLE';
+  const automatic = current.collectionMethod === 'charge_automatically';
+  const cardApproval = requiresCardAuthentication(
+    current.lastPaymentFailureCode,
+  );
+  const failedAutomaticPayment =
+    unpaid &&
+    automatic &&
+    Boolean(current.lastPaymentFailureMessage || cardApproval);
+  const canPay = role === 'INSTITUTION' && failedAutomaticPayment;
   const remainingPence = details
     ? Math.max(0, details.totalAmountPence - details.amountRefundedPence)
     : 0;
@@ -387,14 +399,20 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         <StatusBadge status={current.status} label={details?.amountRefundedPence ? details.amountRefundedPence >= details.totalAmountPence ? 'Fully refunded' : 'Partially refunded' : undefined} />
       </View>
       <View style={styles.quickButtons}>
-        {role === 'INSTITUTION' &&
-        (current.status === 'OPEN' || current.status === 'UNCOLLECTIBLE') ? (
+        {canPay ? (
           <>
             <Text style={styles.cardBody}>
-              Pay securely with Stripe. Your payment details stay with Stripe.
+              {cardApproval
+                ? "Your card's bank needs a security check before this payment can finish."
+                : current.lastPaymentFailureMessage ||
+                  'Automatic payment needs attention.'}
             </Text>
             <Button
-              title="Pay invoice"
+              title={
+                cardApproval
+                  ? 'Approve card payment'
+                  : 'Complete card payment'
+              }
               onPress={() => payInvoice()}
               disabled={busy || needsRefresh}
             />
@@ -436,7 +454,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
           compact
         />
       ) : null}
-      {expanded && role !== 'INSTRUCTOR' && current.status === 'OPEN' ? (
+      {expanded && role === 'ADMIN' && current.status === 'OPEN' ? (
         <Button
           title="Resend invoice email"
           variant="social"

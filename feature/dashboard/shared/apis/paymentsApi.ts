@@ -67,6 +67,22 @@ export type SchoolBillingSession = {
   expiresAt: number | string | null;
 };
 
+export type BookingTipCheckout = {
+  tipId: string;
+  sessionId: string;
+  url: string;
+  tipAmountPence: number;
+  feeAmountPence: number;
+  totalAmountPence: number;
+};
+
+export type BookingTipResult = {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+  tipAmountPence: number;
+  totalAmountPence: number;
+};
+
 export function getPayoutAccount() {
   return protectedRequest<PayoutAccount>(endpoints.payoutAccount);
 }
@@ -126,5 +142,21 @@ export function removeSchoolPaymentMethod() {
   return protectedRequest<SchoolBilling>(
     endpoints.schoolBillingPaymentMethod,
     'DELETE',
+  );
+}
+
+export function createBookingTip(bookingId: string, amountPence: number) {
+  return protectedRequest<BookingTipCheckout>(
+    endpoints.bookingTipCheckout,
+    'POST',
+    { bookingId, amountPence },
+  );
+}
+
+export function syncBookingTip(tipId: string, sessionId: string) {
+  return protectedRequest<BookingTipResult>(
+    endpoints.bookingTipSync(tipId),
+    'POST',
+    { sessionId },
   );
 }

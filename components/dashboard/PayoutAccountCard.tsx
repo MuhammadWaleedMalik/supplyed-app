@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { CreditCard } from 'lucide-react-native';
 import { usePayoutAccount } from '../../feature/dashboard/shared/hooks/usePayoutAccount';
 import Button from '../Ui/Button';
+import StripePage from '../payments/StripePage';
 import PayoutBalanceCard from './PayoutBalanceCard';
 import RecentPayoutsCard from './RecentPayoutsCard';
 import SettingsCardHeader from './SettingsCardHeader';
@@ -24,6 +25,24 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
 
   return (
     <View style={settingsStyles.section}>
+      {payouts.stripeUrl ? (
+        <StripePage
+          title="Bank account and payouts"
+          url={payouts.stripeUrl}
+          onClose={payouts.closeStripe}
+          onReturn={url => {
+            try {
+              const path = new URL(url).pathname;
+              if (path !== '/payouts/return' && path !== '/payouts/refresh')
+                return false;
+              payouts.closeStripe();
+              return true;
+            } catch {
+              return false;
+            }
+          }}
+        />
+      ) : null}
       <View style={settingsStyles.card}>
         <SettingsCardHeader
           icon={CreditCard}

@@ -30,13 +30,30 @@ export function isStripeInvoiceUrl(value?: string | null) {
   return hostname === 'invoice.stripe.com' || hostname === 'pay.stripe.com';
 }
 
-export function openStripeConnect(value?: string | null) {
-  if (!value || !isStripeConnectUrl(value)) {
-    throw new Error(
-      'Stripe did not return a valid payout link. Please try again.',
-    );
-  }
-  return Linking.openURL(value);
+export function isStripeCheckoutUrl(value?: string | null) {
+  return safeUrl(value)?.hostname === 'checkout.stripe.com';
+}
+
+export function requiresCardAuthentication(value?: string | null) {
+  return [
+    'authentication_required',
+    'invoice_payment_intent_requires_action',
+    'payment_intent_requires_action',
+  ].includes(value || '');
+}
+
+export function automaticPaymentPhase(payment: {
+  status: string;
+  failureMessage?: string | null;
+  nextAttemptAt?: string | null;
+  paymentAttemptCount?: number | null;
+}) {
+  if (payment.status === 'PAID') return 'paid';
+  if (payment.failureMessage) return 'failed';
+  if (payment.status === 'PENDING') return 'preparing';
+  if ((payment.paymentAttemptCount || 0) === 0 && payment.nextAttemptAt)
+    return 'scheduled';
+  return 'processing';
 }
 
 export function openStripeInvoice(value?: string | null) {

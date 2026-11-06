@@ -40,6 +40,35 @@ export type AttendanceShift = {
 
 export type BookingInvoiceFilter = 'none' | 'unpaid' | 'paid';
 
+export type BookingAutomaticPayment = {
+  state:
+    | 'DISABLED'
+    | 'BLOCKED'
+    | 'REVIEW_REQUIRED'
+    | 'WAITING_ATTENDANCE'
+    | 'NOT_DUE'
+    | 'NO_PAYMENT_DUE'
+    | 'PREPARING'
+    | 'SCHEDULED'
+    | 'PROCESSING'
+    | 'FAILED'
+    | 'PAID';
+  message: string;
+  nextCollectionAt: string | null;
+};
+
+export type BookingTip = {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
+  tipAmountPence: number;
+  feeAmountPence: number;
+  totalAmountPence: number;
+  amountRefundedPence: number;
+  paymentFailureMessage: string | null;
+  disputeStatus: string | null;
+  paidAt: string | null;
+};
+
 export type BookingPagination = {
   page: number;
   limit: number;
@@ -83,9 +112,17 @@ export type Booking = PlannedWorkUnits & {
   attendancePolicyEffectiveAt?: string | null;
   attendanceShifts?: AttendanceShift[];
   attendancePayroll?: {
+    covered?: boolean;
+    estimatedAmountPence?: number;
     scheduledMinutes?: number;
     payableMinutes?: number;
+    payableDays?: number;
     payableAmountPence?: number;
+    pendingAmountPence?: number;
+    excludedAmountPence?: number;
+    reviewAmountPence?: number;
+    paidAmountPence?: number;
+    adjustmentDuePence?: number;
   } | null;
   attendanceAdjustments?: {
     id: string;
@@ -100,6 +137,8 @@ export type Booking = PlannedWorkUnits & {
   cancelReason?: string | null;
   reviews?: Review[];
   invoice?: BookingInvoice | null;
+  automaticPayment?: BookingAutomaticPayment | null;
+  tip?: BookingTip | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -161,6 +200,10 @@ export function getBooking(id: string) {
   return protectedRequest<Booking>(
     endpoints.bookings + '/' + encodeURIComponent(id),
   );
+}
+
+export function syncBookingPayment(id: string) {
+  return protectedRequest<Booking>(endpoints.bookingPaymentSync(id), 'POST');
 }
 
 export function completeBooking(id: string) {

@@ -41,6 +41,8 @@ export const endpoints = {
   applicationsMine: '/applications/me',
   applicationsByJob: '/applications/job',
   bookings: '/bookings',
+  bookingPaymentSync: (id: string) =>
+    '/bookings/' + encodeURIComponent(id) + '/payment-sync',
   conversations: '/conversations',
   notifications: '/notifications',
   notificationUnread: '/notifications/unread-count',
@@ -76,6 +78,9 @@ export const endpoints = {
   schoolBillingSetup: '/payments/school-billing/setup-session',
   schoolBillingSync: '/payments/school-billing/sync',
   schoolBillingPaymentMethod: '/payments/school-billing/payment-method',
+  bookingTipCheckout: '/payments/booking-tips/checkout',
+  bookingTipSync: (id: string) =>
+    '/payments/booking-tips/' + encodeURIComponent(id) + '/sync',
   payoutOnboardingLink: '/payments/payout-account/onboarding-link',
   payoutDashboardLink: '/payments/payout-account/dashboard-link',
   payoutBalance: '/payments/payout-account/balance',

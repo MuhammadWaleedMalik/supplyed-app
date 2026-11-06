@@ -233,7 +233,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     const showReview = reviewWindowOpen(booking) && !hasMyReview(booking, type);
 
     return (
-      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} footer={booking.status === 'COMPLETED' || booking.invoice ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
+      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} footer={booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.invoice || booking.automaticPayment ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
         {type === 'teacher' && [
           booking.job.address,
           booking.job.city,
@@ -383,7 +383,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
 
   return (
     <>
-      {confirmation ? <ConfirmDialog key={confirmation.booking.id + confirmation.action} visible title={confirmation.action === 'complete' ? 'Complete this booking?' : 'Report a no-show?'} context={confirmation.booking.job.title + ' · ' + confirmation.booking.instructor.fullName} description={confirmation.action === 'complete' ? 'Confirm that the placement has finished. This records the final outcome and makes the booking available for invoicing and reviews.' : 'Confirm the teacher did not attend this placement. This records a final no-show outcome.'} confirmLabel={confirmation.action === 'complete' ? 'Confirm completion' : 'Confirm no-show'} destructive={confirmation.action === 'no-show'} onClose={() => setConfirmation(undefined)} onConfirm={() => updateBooking(() => confirmation.action === 'complete' ? completeBooking(confirmation.booking.id) : noShowBooking(confirmation.booking.id))} /> : null}
+      {confirmation ? <ConfirmDialog key={confirmation.booking.id + confirmation.action} visible title={confirmation.action === 'complete' ? 'Complete this booking?' : 'Report a no-show?'} context={confirmation.booking.job.title + ' · ' + confirmation.booking.instructor.fullName} description={confirmation.action === 'complete' ? 'Confirm that the placement has finished. Attendance and payment will follow the agreed schedule.' : 'Confirm the teacher did not attend this placement. This records a final no-show outcome.'} confirmLabel={confirmation.action === 'complete' ? 'Confirm completion' : 'Confirm no-show'} destructive={confirmation.action === 'no-show'} onClose={() => setConfirmation(undefined)} onConfirm={() => updateBooking(() => confirmation.action === 'complete' ? completeBooking(confirmation.booking.id) : noShowBooking(confirmation.booking.id))} /> : null}
       <LimitedProfileCard
         profile={profile.profile}
         error={profile.error}

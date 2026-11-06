@@ -1,6 +1,6 @@
 # SupplyED mobile API and user-journey reconciliation
 
-Audit date: 5 November 2026
+Audit date: 6 November 2026
 
 Sources checked:
 
@@ -47,9 +47,11 @@ copy the Next.js `/api/*` layer.
 | Booking list/detail, completion, no-show and cancellation | Integrated | booking screens and role/state guards |
 | Attendance activation and shift decisions | Added | school booking management uses supported attendance endpoints |
 | Attendance correction and pending-request review | Added for backend-supported actors | correction/review UI is school-side because the current controller authorizes institution/admin only |
-| Invoices, creation, payment session, sync, send, void and refund | Integrated | invoice APIs/cards and native Stripe payment flow |
-| School payment method and automatic payments | Added | Stripe setup session, manual return reconciliation, enable/disable, replace/remove |
-| Teacher payout account, balance and instant payout | Integrated | hosted mobile Connect links, readiness/balance/payout UI |
+| Automatic booking payment periods and reconciliation | Added | booking payment states, attendance-backed totals and `/bookings/:id/payment-sync` |
+| Invoices, creation, payment session, sync, send, void and refund | Integrated | native Stripe recovery is offered only when an automatic payment fails; manual creation remains admin-only |
+| School payment method and automatic payments | Added | in-app Stripe setup, return reconciliation, enable/disable, replace/remove |
+| Optional booking tips | Added | completed-booking tip Checkout, server sync and teacher/school status |
+| Teacher payout account, balance and instant payout | Integrated | app-contained hosted Connect page, readiness/balance/payout UI |
 | Mutual reviews and public profile reviews | Integrated | booking review actions and profile history |
 | Founding interest and dropdown/reference data | Integrated | landing form and dynamic dropdown APIs |
 
@@ -107,6 +109,12 @@ copy the Next.js `/api/*` layer.
 
 - Added school Stripe card setup, setup synchronization, automatic-payment
   toggle and payment-method removal.
+- Replaced the old school-created booking invoice UI with automatic-payment
+  states, booking-level reconciliation and native recovery for failed card
+  payments.
+- Added optional completed-booking tips with Checkout return reconciliation.
+- Kept hosted card setup, tips and Connect payout management inside a reusable
+  full-screen app page, with a browser fallback only when Stripe cannot load.
 - Added reusable profile document metadata create/update/delete and secure
   upload/replace/open workflows for teacher certificates and school
   achievements.
@@ -116,18 +124,16 @@ copy the Next.js `/api/*` layer.
 | Document item | Current backend evidence | Mobile decision |
 | --- | --- | --- |
 | Next.js `/api/*` routes | These belong to the web repository, not Nest controllers | Mobile calls backend routes directly |
-| `POST /bookings/:id/payment-sync` | No route in the supplied `BookingsController` | Invoice payment is reconciled through the existing `/invoices/:id/sync` route |
-| Booking tips checkout/sync | No `booking-tips` controller or service in the supplied backend | No fake tip UI or dead API calls added |
 | Teacher-created attendance correction request | A request DTO/model exists, but no controller route creates one; attendance mutations are institution/admin-only | Mobile exposes only the actions the backend actually authorizes |
 | Public compliance/signatory token decision pages | Backend emails web URLs intended for external recipients | Mobile manages the school's request/status; recipient decisions remain on the public web pages |
-| Stripe Connect embedded session | Backend describes it as a web embedded-component contract and separately provides hosted links for clients that cannot embed those components | React Native continues to use the supported hosted onboarding/dashboard links |
+| Stripe Connect embedded session | Backend returns a web-component session and separate hosted links for mobile clients | React Native uses the hosted link in a full-screen app page; a secure browser fallback appears only if the page cannot load |
 | Direct Postcodes.io browser call | The current backend geocoding service performs the authoritative Postcodes.io lookup on profile/job writes | Mobile keeps local format feedback and relies on backend validation/geocoding |
 
 ## Verification performed
 
 - `npm.cmd run typecheck`: passed.
 - `npm.cmd run lint`: passed without warnings.
-- `npm.cmd test`: 48/48 tests passed, including current web/backend contract checks.
+- `npm.cmd test`: 49/49 tests passed, including current web/backend contract checks.
 - `git ... diff --check`: passed before the final documentation update.
 - `gradlew.bat :app:assembleDebug --offline --console=plain`: passed; debug APK assembled.
 
@@ -137,10 +143,9 @@ copy the Next.js `/api/*` layer.
   presigned uploads, approval emails and booking attendance in an isolated test
   environment. These calls were not executed against real data.
 - Test the Android UI on a phone/emulator, especially long teaching lists,
-  availability times, document picking and browser return from Stripe.
+  availability times, document picking and in-app Stripe return handling.
 - Build and test iOS on macOS/Xcode.
 - Configure release HTTPS URLs, OAuth identifiers, app links, Stripe return
   URLs, signing keys and service credentials before release.
-- Add backend routes first if booking tips, teacher correction requests, or a
-  booking-level payment-sync workflow are required products; then add the
-  corresponding mobile UI against those real contracts.
+- Add a backend route first if teacher-created attendance correction requests
+  become a required product; then add the corresponding mobile UI.

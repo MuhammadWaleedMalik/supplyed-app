@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { CreditCard } from 'lucide-react-native';
 import {
   createSchoolBillingSetup,
@@ -10,8 +10,10 @@ import {
   updateAutomaticPayments,
 } from '../../feature/dashboard/shared/apis/paymentsApi';
 import { getSessionVersion } from '../../utils/api/session';
+import { isStripeCheckoutUrl } from '../../utils/payments/paymentUtils';
 import Button from '../Ui/Button';
 import ConfirmDialog from '../Ui/ConfirmDialog';
+import StripePage from '../payments/StripePage';
 import SettingsCardHeader from './SettingsCardHeader';
 import { useSettingsStyles } from './settingsStyles';
 
@@ -30,6 +32,7 @@ export default function SchoolBillingCard() {
   const [notice, setNotice] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [pendingSetup, setPendingSetup] = useState(false);
+  const [stripeUrl, setStripeUrl] = useState('');
   const mounted = useRef(true);
   const setupSession = useRef('');
 
@@ -51,28 +54,8 @@ export default function SchoolBillingCard() {
   useEffect(() => {
     mounted.current = true;
     refresh();
-    const subscription = Linking.addEventListener('url', event => {
-      if (!event.url.startsWith('supplyed://stripe-redirect')) return;
-      const sessionId = setupSession.current;
-      if (!sessionId) {
-        refresh();
-        return;
-      }
-      setBusy(true);
-      syncSchoolBilling(sessionId)
-        .then(result => {
-          if (!mounted.current) return;
-          setBilling(result);
-          setNotice('Your school payment method is connected.');
-          setupSession.current = '';
-          setPendingSetup(false);
-        })
-        .catch(problem => mounted.current && setError(message(problem)))
-        .finally(() => mounted.current && setBusy(false));
-    });
     return () => {
       mounted.current = false;
-      subscription.remove();
     };
   }, [refresh]);
 
@@ -102,12 +85,11 @@ export default function SchoolBillingCard() {
     setNotice('');
     try {
       const session = await createSchoolBillingSetup();
-      if (!session.url || !/^https:\/\//i.test(session.url))
+      if (!isStripeCheckoutUrl(session.url))
         throw new Error('Stripe did not return a valid setup page.');
       setupSession.current = session.sessionId;
       setPendingSetup(true);
-      await Linking.openURL(session.url);
-      setNotice('Complete card setup in Stripe, then return here.');
+      setStripeUrl(session.url);
     } catch (problem) {
       setError(message(problem));
     } finally {
@@ -129,8 +111,30 @@ export default function SchoolBillingCard() {
     }, 'Your school payment method is connected.');
   }
 
+  function handleStripeReturn(value: string) {
+    try {
+      const url = new URL(value);
+      const result = url.searchParams.get('setup');
+      if (result !== 'success' && result !== 'cancelled') return false;
+      setStripeUrl('');
+      if (result === 'success') finishSetup();
+      else setNotice('Card setup was cancelled. No payment method changed.');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <View style={styles.card}>
+      {stripeUrl ? (
+        <StripePage
+          title="Connect payment method"
+          url={stripeUrl}
+          onClose={() => setStripeUrl('')}
+          onReturn={handleStripeReturn}
+        />
+      ) : null}
       <ConfirmDialog
         visible={confirmRemove}
         title="Remove payment method?"

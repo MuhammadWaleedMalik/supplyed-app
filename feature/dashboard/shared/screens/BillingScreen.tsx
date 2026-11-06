@@ -71,8 +71,12 @@ export default function BillingScreen({
           : 'Billing'}
       </Text>
       <Text style={styles.cardBody}>
-        Track payments and open your invoice documents. Older invoices load as
-        you scroll.
+        {role === 'INSTRUCTOR'
+          ? 'Track automatically collected earnings, invoices and payouts.'
+          : role === 'INSTITUTION'
+          ? 'Manage your saved card, automatic booking payments and invoices.'
+          : 'Track payments and manage invoices.'}{' '}
+        Older records load as you scroll.
       </Text>
       <View style={styles.sectionHead}>
         <Text style={styles.teacherMeta}>

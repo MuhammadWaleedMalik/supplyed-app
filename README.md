@@ -63,12 +63,13 @@ keys, Twilio credentials, and webhook configuration belong in the backend.
 | ------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
 | Phone collection                                  | First onboarding step                                   | `feature/onboarding/apis/profileApi.ts`         |
 | SMS verification                                  | Created-profile screen, profile/settings, admin account | `feature/auth/apis/phoneApi.ts`                 |
-| Payout setup and management                       | Teacher Settings and Billing                            | `feature/dashboard/shared/apis/paymentsApi.ts`  |
+| Payout setup and management                       | Teacher Settings and Billing, in-app Stripe page        | `feature/dashboard/shared/apis/paymentsApi.ts`  |
 | Balance, instant withdrawal, recent payouts       | Teacher Billing                                         | `feature/dashboard/shared/apis/paymentsApi.ts`  |
-| Create an invoice                                 | School completed bookings, admin Payments               | `feature/dashboard/shared/apis/invoicesApi.ts`  |
-| Invoice lists, payment, PDF, resend               | School Billing and booking invoice cards                | `feature/dashboard/shared/apis/invoicesApi.ts`  |
+| Saved card and automatic booking payments         | School Billing and Bookings                             | Payment and booking API files                   |
+| Invoice lists, failed-payment recovery and PDF    | School Billing and booking payment cards                | `feature/dashboard/shared/apis/invoicesApi.ts`  |
+| Optional teacher tips                             | School and teacher completed bookings                   | `feature/dashboard/shared/apis/paymentsApi.ts`  |
 | Earnings invoices                                 | Teacher Billing                                         | `feature/dashboard/shared/apis/invoicesApi.ts`  |
-| Filters, void, full/partial refund, payout lookup | Admin Payments                                          | Invoice and payment API files above             |
+| Create/void/refund invoice and payout lookup      | Admin Payments                                          | Invoice and payment API files above             |
 | User phone fields and verification filters        | Admin Users                                             | `feature/dashboard/admin/apis/adminUsersApi.ts` |
 
 Admin accounts open the admin workspace after login. Teacher and school accounts
@@ -80,12 +81,13 @@ is optional. Review submission checks required uploads and MAT approval separate
 from phone verification. Backend-wide lock enforcement remains a deployment dependency.
 
 Pence amounts use `utils/payments/paymentUtils.ts`; booking rates are already in
-pounds. Daily/hourly invoices require worked units. Fixed invoices omit them.
-The backend calculates invoice amounts and validates booking eligibility.
+pounds. The backend creates attendance-backed payment periods, calculates
+invoice amounts and validates booking eligibility.
 
-Returning from Stripe refreshes backend state. Web return URLs are supported by
-manually returning to the app; native universal links require a backend/domain
-configuration. A payment becomes paid only when the backend returns `PAID`.
+Hosted card setup, tips and payout management open in a full-screen Stripe page
+inside the app. Their web return URLs are caught by that page and reconciled
+with the backend. Invoice recovery uses Stripe's native payment sheet. A payment
+becomes paid only when the backend returns `PAID`.
 
 Withdrawal, invoice, and refund buttons prevent repeated requests. An uncertain
 mutation result requires checking current backend state before retrying. API

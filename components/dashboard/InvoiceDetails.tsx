@@ -50,6 +50,27 @@ export default function InvoiceDetails({ invoice }: { invoice: Invoice }) {
         PO number: {invoice.poNumber || 'Not supplied'}
       </Text>
       <Text style={styles.cardBody}>Due: {dateText(invoice.dueAt)}</Text>
+      <Text style={styles.cardBody}>
+        Collection:{' '}
+        {invoice.collectionMethod === 'charge_automatically'
+          ? 'Automatic card payment'
+          : 'Manual invoice'}
+      </Text>
+      {invoice.billingPeriodLabel ? (
+        <Text style={styles.cardBody}>
+          Billing period: {invoice.billingPeriodLabel}
+        </Text>
+      ) : null}
+      {invoice.lastPaymentFailureMessage ? (
+        <Text style={styles.cardBody}>
+          Payment problem: {invoice.lastPaymentFailureMessage}
+        </Text>
+      ) : null}
+      {invoice.nextPaymentAttemptAt ? (
+        <Text style={styles.cardBody}>
+          Next attempt: {new Date(invoice.nextPaymentAttemptAt).toLocaleString('en-GB')}
+        </Text>
+      ) : null}
       {invoice.paidAt ? (
         <Text style={styles.cardBody}>Paid: {dateText(invoice.paidAt)}</Text>
       ) : null}

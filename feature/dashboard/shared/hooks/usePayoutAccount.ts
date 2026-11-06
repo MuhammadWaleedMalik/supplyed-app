@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { ApiError } from '../../../../utils/api/request';
-import { openStripeConnect } from '../../../../utils/payments/paymentUtils';
+import { isStripeConnectUrl } from '../../../../utils/payments/paymentUtils';
 import { payoutResultIsUncertain } from '../../../../utils/payments/payoutUtils';
 import { getSessionVersion } from '../../../../utils/api/session';
 import {
@@ -26,6 +26,7 @@ export function usePayoutAccount() {
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [stripeUrl, setStripeUrl] = useState('');
   // The ref also blocks two taps before React has rendered the disabled button.
   const actionRunning = useRef(false);
   const requestId = useRef(0);
@@ -102,13 +103,20 @@ export function usePayoutAccount() {
         }
       } else link = await createPayoutOnboardingLink();
       if (!isActive()) return;
-      await openStripeConnect(link.url);
+      if (!isStripeConnectUrl(link.url))
+        throw new Error('Stripe did not return a valid payout link.');
+      setStripeUrl(link.url);
     } catch (problem) {
       if (isActive()) setError(errorMessage(problem));
     } finally {
       actionRunning.current = false;
       if (isActive()) setBusy(false);
     }
+  }
+
+  function closeStripe() {
+    setStripeUrl('');
+    refresh();
   }
 
   async function withdraw(amountPence?: number) {
@@ -174,8 +182,10 @@ export function usePayoutAccount() {
     needsRefresh,
     error,
     notice,
+    stripeUrl,
     refresh,
     openPayouts,
+    closeStripe,
     withdraw,
   };
 }

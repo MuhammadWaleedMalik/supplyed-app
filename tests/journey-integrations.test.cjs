@@ -25,6 +25,7 @@ test('school phase is required and sent separately from organisation structure',
 test('documented school billing and teacher availability journeys have UI-backed APIs', () => {
   const payments = read('feature/dashboard/shared/apis/paymentsApi.ts');
   const billing = read('components/dashboard/SchoolBillingCard.tsx');
+  const stripePage = read('components/payments/StripePage.tsx');
   const availability = read('feature/dashboard/teacher/apis/availabilityApi.ts');
   const availabilityCard = read('components/dashboard/AvailabilityCard.tsx');
 
@@ -35,9 +36,33 @@ test('documented school billing and teacher availability journeys have UI-backed
   ]) assert.match(payments, new RegExp(`endpoints\\.${endpoint}`));
   assert.match(billing, /I completed Stripe setup/);
   assert.match(billing, /updateAutomaticPayments/);
+  assert.match(billing, /StripePage/);
+  assert.match(stripePage, /WebView/);
   assert.match(availability, /endpoints\.availabilityForJob/);
   assert.match(availability, /weeklySchedule: \{ weekdays \}/);
   assert.match(availabilityCard, /DATE EXCEPTIONS/);
+});
+
+test('current automatic booking payments, card recovery and tips are integrated', () => {
+  const endpoints = read('constants/endpoints.ts');
+  const bookings = read('feature/dashboard/shared/apis/bookingsApi.ts');
+  const payments = read('feature/dashboard/shared/apis/paymentsApi.ts');
+  const bookingPayment = read('components/dashboard/BookingInvoiceCard.tsx');
+  const invoice = read('components/dashboard/InvoiceCard.tsx');
+  const tip = read('components/dashboard/BookingTipCard.tsx');
+
+  assert.match(endpoints, /bookingPaymentSync/);
+  assert.match(endpoints, /bookingTipCheckout/);
+  assert.match(endpoints, /bookingTipSync/);
+  assert.match(bookings, /automaticPayment\?: BookingAutomaticPayment/);
+  assert.match(bookings, /syncBookingPayment/);
+  assert.match(payments, /createBookingTip/);
+  assert.match(payments, /syncBookingTip/);
+  assert.match(bookingPayment, /Refresh payment/);
+  assert.doesNotMatch(bookingPayment, /createInvoice/);
+  assert.match(invoice, /Approve card payment/);
+  assert.match(tip, /Continue to Stripe/);
+  assert.match(tip, /StripePage/);
 });
 
 test('attendance, compliance approval and reusable profile documents are actionable', () => {

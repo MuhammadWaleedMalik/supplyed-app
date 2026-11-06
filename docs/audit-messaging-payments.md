@@ -1,6 +1,6 @@
 # Teacher discovery, messaging and payments audit
 
-Audit date: 20 October 2026. Scope: the mobile repository plus the supplied
+Audit date: 6 November 2026. Scope: the mobile repository plus the supplied
 local `supplyed-web` and `supplyed-backend` source. No live messages, uploads,
 notifications, invoices, withdrawals, Stripe calls, user mutations or database
 migrations were performed. The backend contains real data.
@@ -14,8 +14,9 @@ migrations were performed. The backend contains real data.
 | Message composer | Text or picked file → signed upload → send | `POST /conversations/:id/attachments` reserves the attachment and returns a signed upload; raw bytes go to that URL, then `POST /conversations/:id/messages` links verified uploads. Download URLs come from the participant-authorized download endpoint. |
 | Live updates | Authenticated foreground app → new socket ticket → namespace connection → REST catch-up | `POST /conversations/socket-ticket`, `/conversations` Socket.IO namespace. The socket carries message, read, typing and notification events. HTTP remains the source for catch-up. |
 | Notifications | All/unread list → read/open → exact native destination | `GET /notifications`, unread count, `POST /:id/read`, `POST /read-all`; preferences use `GET/PATCH /notifications/preferences`. Unsafe or unknown web links stay in Notifications. |
-| School Billing | List → filter sheet → invoice details → native payment or hosted Stripe payment → backend sync | `GET /invoices/me`, `GET /invoices/:id`, `POST /:id/payment-session`, `POST /:id/sync`; resend via `POST /:id/send`. |
-| Booking invoice | Completed booking → review units/PO number → create → invoice | `POST /invoices`; school/admin role and owning school checked on server. Creation uncertainty is reconciled against the booking/invoice before another create is offered. |
+| School Billing | Saved card → automatic collection status → failed-card recovery → backend sync | School billing settings plus `GET /invoices/me`, `GET /invoices/:id`, `POST /:id/payment-session` and `POST /:id/sync`. |
+| Booking payment | Attendance-backed automatic periods → payment state → refresh → invoice details | `POST /bookings/:id/payment-sync`; automatic invoice state is returned on each booking. Manual invoice creation remains admin-only. |
+| Booking tip | Completed booking → optional amount → Stripe Checkout → backend sync | `POST /payments/booking-tips/checkout` and `POST /payments/booking-tips/:id/sync`. |
 | Teacher Earnings | Payouts / Invoices tabs | Account, balance, onboarding/dashboard links and instant withdrawal under `/payments/payout-account`; invoice list uses the same own-invoice endpoint. |
 | Admin Invoices | Paginated list/filter sheet → details → resend, void or refund; separate create form | Admin `GET /invoices`; create/send; admin-only `POST /:id/void` and `POST /:id/refund`. |
 | Admin Payouts | Teacher identifier → payout status | `GET /payments/payout-accounts/instructor/:instructorId`, admin-only. |
@@ -61,11 +62,12 @@ migrations were performed. The backend contains real data.
    paginated list completion check the mounted session. A late response from an
    earlier login cannot navigate, open a payment URL or populate another user's
    screen.
-9. **Billing shows useful information first.** Invoice filters live in a sheet,
-   create invoice is a separate action, and secondary invoice actions appear
-   with expanded details. Single-page lists omit redundant paging controls.
-   Teacher Earnings separates payouts and invoices. Admin separates Invoices,
-   Payouts, Users, Account and Settings.
+9. **Billing follows automatic collection.** School card setup, tips and payout
+   management use a reusable in-app Stripe page. Booking cards show scheduled,
+   processing, failed, action-required and paid states and can reconcile the
+   booking. Only a failed automatic payment offers the native recovery sheet.
+   Teacher Earnings separates payouts and invoices. Admin retains manual
+   invoice creation, resend, void and refund actions.
 10. **Admin forms are usable and match validation.** Create/edit opens a focused
     safe-area modal with keyboard avoidance and scrolling. List errors appear
     near the list. Passwords require eight characters, uppercase, a number and
