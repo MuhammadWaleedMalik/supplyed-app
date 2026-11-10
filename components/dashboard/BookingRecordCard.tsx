@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import {
   CalendarDays,
   MapPin,
@@ -21,16 +21,20 @@ export default function BookingRecordCard({
   onProfile,
   children,
   footer,
+  hideManage = false,
 }: {
   booking: Booking;
   partyName: string;
   onProfile: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  hideManage?: boolean;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const [wide, setWide] = useState(false);
+  const { fontScale } = useWindowDimensions();
+  const [cardWidth, setCardWidth] = useState(0);
+  const wide = cardWidth / Math.max(fontScale, 1) >= 540;
   const [open, setOpen] = useState(false);
   const location = [
     booking.job.address,
@@ -42,7 +46,7 @@ export default function BookingRecordCard({
     .join(', ');
   return (
     <View
-      onLayout={event => setWide(event.nativeEvent.layout.width >= 540)}
+      onLayout={event => setCardWidth(event.nativeEvent.layout.width)}
       style={styles.card}
     >
       <View style={styles.topLine}>
@@ -63,9 +67,7 @@ export default function BookingRecordCard({
       />
       <View style={[styles.columns, wide && styles.wide]}>
         <View style={[styles.main, wide && styles.mainWide]}>
-          <Text accessibilityRole="header" style={styles.title}>
-            {booking.job.title}
-          </Text>
+          <ContentPreview accessibilityRole="header" title="Booked role" text={booking.job.title} style={styles.title} lines={3} />
           {booking.job.description ? (
             <RichText value={booking.job.description} />
           ) : null}
@@ -135,7 +137,7 @@ export default function BookingRecordCard({
               <Text style={styles.subtle}>{plannedLabel(booking)}</Text>
             </View>
           </View>
-          <Pressable
+          {!hideManage ? <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: open }}
             onPress={() => setOpen(current => !current)}
@@ -149,8 +151,8 @@ export default function BookingRecordCard({
             ) : (
               <ChevronDown size={18} color={colors.brandDark} />
             )}
-          </Pressable>
-          {open ? <View style={styles.actions}>{children}</View> : null}
+          </Pressable> : null}
+          {hideManage || open ? <View style={styles.actions}>{children}</View> : null}
         </View>
       </View>
       {footer ? <View style={styles.footer}>{footer}</View> : null}

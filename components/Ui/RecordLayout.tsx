@@ -83,9 +83,7 @@ export function RecordSection({
     <View style={styles.section}>
       <View style={styles.sectionHeading}>
         <View style={styles.flex}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>
-            {title}
-          </Text>
+          <ContentPreview accessibilityRole="header" title="Section title" text={title} style={styles.sectionTitle} lines={3} />
           {subtitle ? <Text style={styles.body}>{subtitle}</Text> : null}
         </View>
         {action}
@@ -222,7 +220,7 @@ export function RecordSkeleton() {
   );
 }
 
-export const useRecordStyles = createThemedStyles(colors => ({
+export const useRecordStyles = createThemedStyles((colors, _common, layout) => ({
   section: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -241,11 +239,13 @@ export const useRecordStyles = createThemedStyles(colors => ({
   body: { color: colors.muted, fontSize: 14, lineHeight: 23 },
   flex: { flex: 1, gap: 5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
-  fact: { flexGrow: 1, flexBasis: '43%', minWidth: 110, gap: 6 },
+  fact: { flexGrow: 1, flexBasis: layout.stack ? '100%' : '43%', minWidth: 0, maxWidth: '100%', gap: 6 },
   factLabel: { flexDirection: 'row', gap: 7, alignItems: 'center' },
-  label: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  label: { flexShrink: 1, color: colors.muted, fontSize: 12, lineHeight: 18 },
   value: { color: colors.ink, fontSize: 14, lineHeight: 22, fontWeight: '600' },
   badge: {
+    maxWidth: '100%',
+    flexShrink: 1,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -254,7 +254,7 @@ export const useRecordStyles = createThemedStyles(colors => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
-  badgeText: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  badgeText: { flexShrink: 1, fontSize: 11, lineHeight: 16, fontWeight: '700' },
   badgeDanger: { backgroundColor: '#fff0ee' },
   badgeSuccess: { backgroundColor: '#eaf7f0' },
   badgeNeutral: { backgroundColor: colors.brandTint },
@@ -293,7 +293,7 @@ export const useRecordStyles = createThemedStyles(colors => ({
     borderLeftWidth: 3,
     borderLeftColor: '#b42318',
   },
-  noticeText: { color: '#18654f', fontSize: 14, lineHeight: 22 },
+  noticeText: { flexShrink: 1, color: '#18654f', fontSize: 14, lineHeight: 22 },
   skeletonTitle: {
     height: 24,
     width: '65%',

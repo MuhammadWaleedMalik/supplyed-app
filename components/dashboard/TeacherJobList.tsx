@@ -94,7 +94,7 @@ function JobCard({
   return (
     <View style={styles.card}>
       <LimitedProfileCard profile={profile.profile} loading={profile.loading} error={profile.error} onClose={profile.closeProfile} />
-      <Text style={styles.cardTitle}>{job.title}</Text>
+      <ContentPreview title="Job title" text={job.title} style={styles.cardTitle} lines={3} />
       {urgentBanner &&
       job.description?.includes('Marked urgent by the hiring account.') ? (
         <Text style={styles.teacherMeta}>Urgent cover requested</Text>

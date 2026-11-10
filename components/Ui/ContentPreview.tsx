@@ -7,10 +7,13 @@ import {
   View,
   StyleProp,
   TextStyle,
+  TextProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Expand } from 'lucide-react-native';
 import { createThemedStyles, useTheme } from './theme';
+import Button from './Button';
+import { textPage, textPreview, TEXT_PAGE_SIZE } from '../../utils/ui/textWindow';
 
 export default function ContentPreview({
   text,
@@ -19,6 +22,7 @@ export default function ContentPreview({
   threshold = 240,
   style,
   children,
+  accessibilityRole,
 }: {
   text: string;
   title?: string;
@@ -26,17 +30,21 @@ export default function ContentPreview({
   threshold?: number;
   style?: StyleProp<TextStyle>;
   children?: React.ReactNode;
+  accessibilityRole?: TextProps['accessibilityRole'];
 }) {
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
   const styles = useStyles();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const long = text.length > threshold || text.split('\n').length > lines;
+  const preview = textPreview(text);
+  const long = text.length > threshold || preview.split('\n').length > lines;
+  const current = textPage(text, page);
   if (!long)
     return (
       <View style={styles.preview}>
         {children || (
-          <Text selectable style={[styles.body, style]}>
+          <Text selectable accessibilityRole={accessibilityRole} style={[styles.body, style]}>
             {text}
           </Text>
         )}
@@ -44,13 +52,13 @@ export default function ContentPreview({
     );
   return (
     <View style={styles.preview}>
-      <Text numberOfLines={lines} style={[styles.body, style]}>
-        {text}
+      <Text numberOfLines={lines} accessibilityRole={accessibilityRole} style={[styles.body, style]}>
+        {preview}
       </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Read more: ${title}`}
-        onPress={() => setOpen(true)}
+        onPress={() => { setPage(0); setOpen(true); }}
         style={styles.more}
       >
         <Text style={styles.moreText}>Read more</Text>
@@ -76,7 +84,7 @@ export default function ContentPreview({
           />
           <View style={styles.dialog} accessibilityViewIsModal>
             <View style={styles.header}>
-              <Text accessibilityRole="header" style={styles.title}>
+              <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>
                 {title}
               </Text>
               <Pressable
@@ -89,14 +97,23 @@ export default function ContentPreview({
               </Pressable>
             </View>
             <ScrollView
+              key={current.page}
+              style={styles.scroll}
               contentContainerStyle={styles.content}
               keyboardShouldPersistTaps="handled"
             >
-              {children || (
+              {(text.length <= TEXT_PAGE_SIZE && children) || (
                 <Text selectable style={[styles.body, style]}>
-                  {text}
+                  {current.text}
                 </Text>
               )}
+              {current.count > 1 ? (
+                <View style={styles.pagination}>
+                  <Text style={styles.body} accessibilityLiveRegion="polite">Page {current.page + 1} of {current.count}</Text>
+                  <Button title="Previous page" variant="outline" disabled={current.page === 0} onPress={() => setPage(current.page - 1)} />
+                  <Button title="Next page" disabled={current.page + 1 === current.count} onPress={() => setPage(current.page + 1)} />
+                </View>
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -105,7 +122,7 @@ export default function ContentPreview({
   );
 }
 const useStyles = createThemedStyles(colors => ({
-  preview: { flexShrink: 1, gap: 6 },
+  preview: { flexShrink: 1, minWidth: 0, maxWidth: '100%', gap: 6 },
   body: { color: colors.ink, fontSize: 14, lineHeight: 23 },
   more: {
     flexDirection: 'row',
@@ -157,4 +174,6 @@ const useStyles = createThemedStyles(colors => ({
     alignItems: 'center',
   },
   content: { padding: 22, paddingBottom: 30 },
+  scroll: { flexShrink: 1 },
+  pagination: { gap: 12, paddingTop: 20 },
 }));

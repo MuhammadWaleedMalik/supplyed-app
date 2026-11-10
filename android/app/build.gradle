@@ -59,6 +59,12 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+// Opt-in convenience build for installing a release variant directly on a
+// development device. This deliberately uses the public debug key and allows
+// the LAN HTTP API, so it must never be uploaded to an app store.
+def localInstallableRelease =
+    providers.gradleProperty("localInstallableRelease").orNull == "true"
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -118,7 +124,12 @@ android {
             manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
-            manifestPlaceholders = [usesCleartextTraffic: "false"]
+            manifestPlaceholders = [
+                usesCleartextTraffic: localInstallableRelease ? "true" : "false"
+            ]
+            if (localInstallableRelease) {
+                signingConfig signingConfigs.debug
+            }
             // Configure the production upload key in CI/Android Studio.
             // Never silently distribute a release signed with the public debug key.
             minifyEnabled enableProguardInReleaseBuilds

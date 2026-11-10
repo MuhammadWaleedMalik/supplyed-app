@@ -1,6 +1,6 @@
 import { createThemedStyles } from '../Ui/theme';
 
-export const useStyles = createThemedStyles(colors => ({
+export const useStyles = createThemedStyles((colors, _common, layout) => ({
   safeArea: {
     flex: 1,
     backgroundColor: '#f4f6f8',
@@ -17,6 +17,7 @@ export const useStyles = createThemedStyles(colors => ({
     zIndex: 10,
   },
   brand: {
+    flexShrink: 1,
     fontSize: 19,
     fontWeight: '800',
     color: colors.ink,
@@ -167,7 +168,7 @@ export const useStyles = createThemedStyles(colors => ({
     gap: 10,
   },
   metric: {
-    width: '48%',
+    width: layout.compact ? '100%' : '48%',
     minHeight: 100,
     padding: 14,
     borderRadius: 16,
@@ -197,6 +198,7 @@ export const useStyles = createThemedStyles(colors => ({
   },
   sectionHead: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 10,
@@ -326,6 +328,7 @@ export const useStyles = createThemedStyles(colors => ({
   },
   teacherFoot: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
@@ -417,6 +420,8 @@ export const useStyles = createThemedStyles(colors => ({
     borderRadius: 18,
   },
   navLabel: {
+    maxWidth: '100%',
+    textAlign: 'center',
     fontSize: 11,
     color: colors.muted,
     fontWeight: '600',

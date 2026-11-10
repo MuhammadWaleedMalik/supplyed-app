@@ -6,6 +6,7 @@ import { displayDate, displayPay } from '../../utils/ui/marketplaceLabels';
 import { plannedLabel } from '../../utils/jobs/workSchedule';
 import Button from '../Ui/Button';
 import RichText from '../Ui/RichText';
+import ContentPreview from '../Ui/ContentPreview';
 import ConfirmDialog from '../Ui/ConfirmDialog';
 import { InfoGrid, RecordSection, StatusBadge } from '../Ui/RecordLayout';
 import { createThemedStyles, useTheme } from '../Ui/theme';
@@ -157,9 +158,7 @@ export default function SchoolApplicationDetail({
           <Text style={styles.eyebrow}>CANDIDATE REVIEW</Text>
           <StatusBadge status={application.status} />
         </View>
-        <Text accessibilityRole="header" style={styles.title}>
-          {terms?.title || application.jobName || 'Teaching role'}
-        </Text>
+        <ContentPreview accessibilityRole="header" title="Applied role" text={terms?.title || application.jobName || 'Teaching role'} style={styles.title} lines={3} />
         <Text style={styles.subtitle}>
           Received {displayDate(application.createdAt)}
         </Text>
@@ -446,7 +445,7 @@ export default function SchoolApplicationDetail({
     </View>
   );
 }
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   page: { gap: 18 },
   hero: {
     backgroundColor: '#fff',
@@ -483,11 +482,12 @@ const useStyles = createThemedStyles(colors => ({
     borderTopColor: colors.border,
     paddingTop: 18,
   },
-  progress: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  stage: { flex: 1, alignItems: 'center', gap: 8 },
+  progress: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 6 },
+  stage: { flexGrow: 1, flexBasis: layout.compact ? '45%' : 0, minWidth: 0, alignItems: 'center', gap: 8 },
   stageCircle: {
-    height: 30,
-    width: 30,
+    minHeight: 30,
+    minWidth: 30,
+    padding: 4,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
@@ -496,17 +496,17 @@ const useStyles = createThemedStyles(colors => ({
   stageDone: { backgroundColor: colors.brandDark },
   stageNumber: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   white: { color: '#fff' },
-  stageLabel: { color: colors.muted, fontSize: 10, textAlign: 'center' },
+  stageLabel: { maxWidth: '100%', color: colors.muted, fontSize: 10, textAlign: 'center' },
   currentLabel: { color: colors.brandDark, fontWeight: '700' },
   tabs: {
-    flexDirection: 'row',
+    flexDirection: layout.compact ? 'column' : 'row',
     borderRadius: 14,
     backgroundColor: '#e9eef2',
     padding: 4,
     gap: 3,
   },
   tab: {
-    flex: 1,
+    flex: layout.compact ? 0 : 1,
     minHeight: 44,
     paddingHorizontal: 5,
     justifyContent: 'center',

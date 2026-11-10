@@ -1,20 +1,27 @@
 import { ArrowRight, BriefcaseBusiness, Zap } from 'lucide-react-native';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '../Ui/theme';
 import { useJobStyles } from './jobStyles';
+import Button from '../Ui/Button';
 
-type Props = { onSelect: (mode: string) => void };
+type Props = { value?: string; onSelect: (mode: string) => void };
 
-export default function JobModeStep({ onSelect }: Props) {
+export default function JobModeStep({ value, onSelect }: Props) {
   const { colors } = useTheme();
   const jobStyles = useJobStyles();
+  const [selected, setSelected] = useState(value || '');
 
   return (
     <View style={jobStyles.modeGrid}>
       <Pressable
-        onPress={() => onSelect('brief')}
-        style={[jobStyles.modeCard, jobStyles.modePrimary]}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: selected === 'brief' }}
+        onPress={() => setSelected('brief')}
+        style={[
+          jobStyles.modeCard,
+          selected === 'brief' && jobStyles.modePrimary,
+        ]}
       >
         <View style={jobStyles.modeIcon}>
           <BriefcaseBusiness color={colors.brand} size={25} />
@@ -27,7 +34,15 @@ export default function JobModeStep({ onSelect }: Props) {
         </View>
         <ArrowRight color={colors.brand} size={22} />
       </Pressable>
-      <Pressable onPress={() => onSelect('instant')} style={jobStyles.modeCard}>
+      <Pressable
+        accessibilityRole="radio"
+        accessibilityState={{ checked: selected === 'instant' }}
+        onPress={() => setSelected('instant')}
+        style={[
+          jobStyles.modeCard,
+          selected === 'instant' && jobStyles.modePrimary,
+        ]}
+      >
         <View style={jobStyles.modeIcon}>
           <Zap color={colors.ink} size={25} />
         </View>
@@ -39,6 +54,11 @@ export default function JobModeStep({ onSelect }: Props) {
         </View>
         <ArrowRight color={colors.ink} size={22} />
       </Pressable>
+      <Button
+        title="Next"
+        disabled={!selected}
+        onPress={() => onSelect(selected)}
+      />
     </View>
   );
 }

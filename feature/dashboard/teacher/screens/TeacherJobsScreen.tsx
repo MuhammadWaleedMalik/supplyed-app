@@ -81,6 +81,11 @@ export default function TeacherJobsScreen() {
             onChange={setView}
           />
         ) : null}
+        {jobs.error ? (
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.cardBody}>
+            {jobs.error}
+          </Text>
+        ) : null}
         {view === 'For you' && !jobs.notificationJobId ? (
           <RecommendedJobs
             appliedJobIds={appliedJobIds}
@@ -114,9 +119,6 @@ export default function TeacherJobsScreen() {
 
             {jobs.error ? (
               <>
-                <Text accessibilityLiveRegion="polite" style={styles.cardBody}>
-                  {jobs.error}
-                </Text>
                 <Button
                   title="Retry jobs"
                   variant="social"

@@ -2,6 +2,7 @@ import { createThemedStyles } from './theme';
 
 export const useStyles = createThemedStyles((colors, common) => ({
   field: {
+    minWidth: 0,
     width: '100%',
     gap: 7,
   },
@@ -36,6 +37,7 @@ export const useStyles = createThemedStyles((colors, common) => ({
   },
   input: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 14,
     color: colors.ink,
     fontSize: 16,

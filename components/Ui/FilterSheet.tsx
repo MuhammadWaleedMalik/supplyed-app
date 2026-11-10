@@ -51,7 +51,7 @@ export default function FilterSheet({
       onRequestClose={() => { if (!busy) onClose(); }}
     >
       <KeyboardAvoidingView
-        style={styles.overlay}
+        style={[styles.overlay, { paddingTop: insets.top }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <Pressable
@@ -66,7 +66,7 @@ export default function FilterSheet({
           style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) }]}
         >
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>
+            <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>
               {title}
             </Text>
             <Pressable
@@ -85,8 +85,7 @@ export default function FilterSheet({
             contentContainerStyle={styles.content}
           >
             {children}
-          </ScrollView>
-          <View style={styles.footer}>
+            <View style={styles.footer}>
             <Button title={resetLabel} variant="link" disabled={busy} onPress={onReset} />
             <View style={styles.apply}>
               <Button
@@ -97,14 +96,15 @@ export default function FilterSheet({
                 onPress={onApply}
               />
             </View>
-          </View>
+            </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
     position: 'absolute',
@@ -143,13 +143,12 @@ const useStyles = createThemedStyles(colors => ({
   content: { padding: 20, gap: 20 },
   contentScroll: { flexGrow: 0, flexShrink: 1 },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+    flexDirection: layout.stack ? 'column' : 'row',
+    alignItems: 'stretch',
+    gap: 12,
     paddingTop: 12,
-    paddingHorizontal: 20,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  apply: { flex: 1 },
+  apply: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
 }));

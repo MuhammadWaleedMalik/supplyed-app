@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { CheckCircle2, AlertCircle } from 'lucide-react-native';
 import FilterSheet from './FilterSheet';
+import ContentPreview from './ContentPreview';
 import { createThemedStyles, useTheme } from './theme';
 
 type Props = {
@@ -65,7 +66,7 @@ export default function ConfirmDialog(props: Props) {
         )}
       </View>
       {props.context ? (
-        <Text style={styles.context}>{props.context}</Text>
+        <ContentPreview title="Action details" text={props.context} style={styles.context} />
       ) : null}
       <Text style={styles.description}>{props.description}</Text>
       {error ? (

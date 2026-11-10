@@ -12,6 +12,12 @@ import { setTeacherApplications } from '../store/teacherSlice';
 import { getMyApplicationForJob } from '../../shared/apis/applicationsApi';
 import { refreshMarketplace } from '../../shared/store/navigationSlice';
 import { applicationWithJob } from './useTeacherApplications';
+import {
+  getDocuments,
+  getRequirements,
+} from '../../../documents/apis/documentApi';
+import { requiredDocumentsVerified } from '../../../../utils/documents/documentUtils';
+import { getProfile } from '../../../onboarding/apis/profileApi';
 
 function messageFromError(problem: unknown) {
   return problem instanceof Error
@@ -203,6 +209,22 @@ export function useTeacherJobs() {
     const version = getSessionVersion();
     setFormError('');
     try {
+      const [requirements, documents, profile] = await Promise.all([
+        getRequirements(),
+        getDocuments(),
+        getProfile('teacher'),
+      ]);
+      if (version !== getSessionVersion()) return;
+      if (profile.status !== 'ACTIVE') {
+        setFormError('Your profile must be active before applying. Check your profile review status in Settings.');
+        return;
+      }
+      if (!requiredDocumentsVerified(requirements, documents)) {
+        setFormError(
+          'You cannot apply yet. Upload or replace every required document, then wait for SupplyED approval. Check Settings > Documents for pending, rejected or expired files.',
+        );
+        return;
+      }
       const existing = await getMyApplicationForJob(job.id);
       if (version !== getSessionVersion()) return;
       if (existing) {
@@ -251,6 +273,24 @@ export function useTeacherJobs() {
     setFormError('');
 
     try {
+      const [requirements, documents, profile] = await Promise.all([
+        getRequirements(),
+        getDocuments(),
+        getProfile('teacher'),
+      ]);
+      if (getSessionVersion() !== version) return;
+      if (profile.status !== 'ACTIVE') {
+        setFormError('Your profile is no longer active. Check your profile review status before applying.');
+        setApplyStep(1);
+        return;
+      }
+      if (!requiredDocumentsVerified(requirements, documents)) {
+        setFormError(
+          'Your document eligibility changed. Update pending, rejected or expired files in Settings > Documents before applying.',
+        );
+        setApplyStep(1);
+        return;
+      }
       const created = await sendTeacherApplication(selectedJob.id, coverLetter);
       if (getSessionVersion() !== version) return;
       dispatch(refreshMarketplace());

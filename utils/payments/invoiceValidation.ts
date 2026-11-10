@@ -23,6 +23,34 @@ export function parseRefundAmount(value: string) {
   return Number.isSafeInteger(pence) && pence >= 1 ? pence : null;
 }
 
+export function buildBookingInvoiceData(
+  booking: {
+    id: string;
+    status: string;
+    payType?: string | null;
+    attendancePayroll?: { covered?: boolean } | null;
+  },
+  units: string,
+  poNumber: string,
+) {
+  if (booking.status !== 'COMPLETED')
+    throw new Error('Only completed bookings can be invoiced.');
+  const derivesUnits = booking.attendancePayroll?.covered === true;
+  const error =
+    (derivesUnits ? '' : validateInvoiceUnits(booking.payType, units)) ||
+    validatePoNumber(poNumber);
+  if (error) throw new Error(error);
+  const data: {
+    bookingId: string;
+    unitsWorked?: number;
+    poNumber?: string;
+  } = { bookingId: booking.id };
+  if (booking.payType?.toLowerCase() !== 'fixed' && !derivesUnits)
+    data.unitsWorked = Number(units.trim());
+  if (poNumber.trim()) data.poNumber = poNumber.trim();
+  return data;
+}
+
 export function buildAdminInvoiceData(bookingId: string, units: string, poNumber: string) {
   if (!bookingId.trim()) throw new Error('Enter the completed booking ID.');
   const error = (units.trim() ? validateInvoiceUnits('daily', units) : '') || validatePoNumber(poNumber);

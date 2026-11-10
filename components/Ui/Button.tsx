@@ -56,6 +56,9 @@ export default function Button({
 
 const useStyles = createThemedStyles(colors => ({
   button: {
+    minWidth: 0,
+    maxWidth: '100%',
+    flexShrink: 1,
     minHeight: 48,
     paddingHorizontal: 20,
     paddingVertical: 11,

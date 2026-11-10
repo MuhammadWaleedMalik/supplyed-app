@@ -1,6 +1,6 @@
 import { createThemedStyles } from '../Ui/theme';
 
-export const useSecurityStyles = createThemedStyles(colors => ({
+export const useSecurityStyles = createThemedStyles((colors, _common, layout) => ({
   page: {
     padding: 18,
     paddingBottom: 36,
@@ -65,7 +65,7 @@ export const useSecurityStyles = createThemedStyles(colors => ({
   countValue: { color: colors.ink, fontSize: 25, fontWeight: '700' },
   codes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   code: {
-    width: '48%',
+    width: layout.compact ? '100%' : '48%',
     borderRadius: 7,
     backgroundColor: colors.soft,
     padding: 10,

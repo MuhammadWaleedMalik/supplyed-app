@@ -130,6 +130,7 @@ export type JobPage = {
   jobs: Job[];
   page: number;
   hasNextPage: boolean;
+  total?: number;
 };
 
 function words(value: string) {
@@ -401,7 +402,7 @@ async function getJobsPageAt(
   if (filters.jobType) query.set('jobType', filters.jobType);
   const result = await protectedRequest<{
     jobs?: unknown;
-    pagination?: { page?: unknown; hasNextPage?: unknown };
+    pagination?: { page?: unknown; hasNextPage?: unknown; total?: unknown };
   }>(path + '?' + query.toString());
   if (!Array.isArray(result.jobs))
     throw new Error('The server returned an invalid jobs page.');
@@ -412,6 +413,10 @@ async function getJobsPageAt(
         ? result.pagination.page
         : page,
     hasNextPage: result.pagination?.hasNextPage === true,
+    total:
+      typeof result.pagination?.total === 'number'
+        ? result.pagination.total
+        : undefined,
   };
 }
 
@@ -421,6 +426,18 @@ export function getJobsPage(page: number, filters: JobFilters = {}) {
 
 export function getMyJobsPage(page: number, filters: JobFilters = {}) {
   return getJobsPageAt(endpoints.jobsMine, page, filters);
+}
+
+export function getInstitutionJobsPage(
+  institutionId: string,
+  page: number,
+  filters: JobFilters = {},
+) {
+  return getJobsPageAt(
+    endpoints.jobs + '/institution/' + encodeURIComponent(institutionId),
+    page,
+    filters,
+  );
 }
 
 export async function getMyJobsByStatusesPage(

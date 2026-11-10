@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import { createThemedStyles } from '../Ui/theme';
 import RichText from '../Ui/RichText';
+import ContentPreview from '../Ui/ContentPreview';
 
 export type InvitationTerms = Pick<
   Job,
@@ -84,7 +85,7 @@ export default function InvitationReview({
           ? 'New targeted-matching role'
           : 'Existing targeted-matching role'}
       </Text>
-      <Text style={styles.title}>{job.title}</Text>
+      <ContentPreview title="Invited role" text={job.title} style={styles.title} lines={3} />
       <Text style={styles.pay}>
         GBP {job.payAmount?.toLocaleString('en-GB')} {payBasis}
       </Text>

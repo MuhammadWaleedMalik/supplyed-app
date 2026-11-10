@@ -100,6 +100,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
               ]}
             >
               <Text
+                numberOfLines={2}
                 style={[
                   settingsStyles.sectionTabText,
                   section === item.value && settingsStyles.sectionTabTextActive,

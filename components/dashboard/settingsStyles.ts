@@ -1,9 +1,10 @@
 import { createThemedStyles } from '../Ui/theme';
 
-export const useSettingsStyles = createThemedStyles(colors => ({
+export const useSettingsStyles = createThemedStyles((colors, _common, layout) => ({
   screenBody: { flex: 1 },
   sectionTabs: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
     marginHorizontal: 18,
     marginTop: 12,
@@ -12,8 +13,10 @@ export const useSettingsStyles = createThemedStyles(colors => ({
     backgroundColor: colors.soft,
   },
   sectionTab: {
-    flex: 1,
-    minHeight: 44,
+    flexGrow: 1,
+    flexBasis: layout.compact ? '46%' : 0,
+    minWidth: 0,
+    minHeight: 48,
     paddingHorizontal: 8,
     paddingVertical: 10,
     alignItems: 'center',
@@ -21,7 +24,7 @@ export const useSettingsStyles = createThemedStyles(colors => ({
     borderRadius: 10,
   },
   sectionTabActive: { backgroundColor: colors.brand },
-  sectionTabText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
+  sectionTabText: { textAlign: 'center', color: colors.muted, fontSize: 13, lineHeight: 18, fontWeight: '700', flexShrink: 1 },
   sectionTabTextActive: { color: '#ffffff' },
   saveBar: {
     paddingHorizontal: 18,
@@ -109,6 +112,7 @@ export const useSettingsStyles = createThemedStyles(colors => ({
   imageTitle: { color: colors.ink, fontSize: 12, fontWeight: '700' },
   imageNote: { color: colors.muted, fontSize: 10, lineHeight: 15 },
   section: { gap: 12 },
+  sectionHeading: { color: colors.ink, fontSize: 17, lineHeight: 24, fontWeight: '800' },
   row: { gap: 12 },
   notificationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   wideRow: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -123,6 +127,21 @@ export const useSettingsStyles = createThemedStyles(colors => ({
   },
   recordLabel: { color: colors.muted, fontSize: 11, fontWeight: '700' },
   recordValue: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  availabilityDay: {
+    borderWidth: 1,
+    borderColor: colors.brandBorder,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    padding: 13,
+    gap: 12,
+  },
+  scheduleBody: { gap: 10, paddingTop: 2 },
+  availabilitySlot: {
+    borderRadius: 10,
+    backgroundColor: colors.soft,
+    padding: 12,
+    gap: 10,
+  },
   balanceValue: { color: colors.ink, fontSize: 30, fontWeight: '800' },
   success: { color: '#17783b', fontSize: 12, fontWeight: '600' },
   error: { color: '#b4233f', fontSize: 12 },

@@ -96,7 +96,7 @@ export function ThemeSettingsCard() {
   );
 }
 
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   card: {
     padding: 20,
     borderRadius: 16,
@@ -110,7 +110,8 @@ const useStyles = createThemedStyles(colors => ({
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   option: {
     flexGrow: 1,
-    flexBasis: '45%',
+    flexBasis: layout.compact ? '100%' : '45%',
+    maxWidth: '100%',
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',

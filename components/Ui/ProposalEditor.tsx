@@ -1,27 +1,22 @@
 import {
   observeEditorSelection,
   restoreEditorSelection,
-  editorColor,
 } from '../../utils/ui/editorSelection';
 import React, { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View, useWindowDimensions } from 'react-native';
 import {
   actions,
   RichEditor,
   RichToolbar,
 } from 'react-native-pell-rich-editor';
 import {
-  editorColors,
-  editorFonts,
   editorHtml,
-  editorSizes,
   escapeHtml,
   safeLink,
   sanitizeHtml,
 } from '../../utils/ui/safeHtml';
 import { richTextToPlainText } from '../../utils/ui/richText';
 import { observeEditorContent, requestCurrentEditorContent } from '../../utils/ui/editorContent';
-import DynamicSelect from './DynamicSelect';
 import Button from './Button';
 import Input from './Input';
 import { createThemedStyles, useTheme } from './theme';
@@ -32,21 +27,18 @@ type Props = {
   role?: boolean;
 };
 
-const editorStyle = {
-  backgroundColor: '#ffffff',
-  color: '#17211c',
-  contentCSSText: 'font-size:16px;line-height:1.7;padding:12px;',
-};
-
 // Screens only pass value/onChange. The editor library owns the cursor.
 export default function ProposalEditor({ value, onChange, role }: Props) {
+  const { fontScale } = useWindowDimensions();
+  const editorStyle = {
+    backgroundColor: '#ffffff',
+    color: '#17211c',
+    contentCSSText: `font-size:${16 * fontScale}px;line-height:1.7;padding:12px;overflow-wrap:anywhere;word-break:break-word;max-width:100%;box-sizing:border-box;`,
+    cssText: 'html,body{max-width:100%;overflow-x:hidden;} pre{white-space:pre-wrap;} img,table{max-width:100%;}',
+  };
   const [editor, setEditor] = useState<RichEditor | null>(null);
   const [initial] = useState(() => editorHtml(value));
   const lastContent = useRef(initial);
-  const [formattingOpen, setFormattingOpen] = useState(false);
-  const [font, setFont] = useState('');
-  const [size, setSize] = useState('');
-  const [color, setColor] = useState('');
   const [selectedText, setSelectedText] = useState('');
   const [selectedLink, setSelectedLink] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
@@ -105,57 +97,6 @@ export default function ProposalEditor({ value, onChange, role }: Props) {
       <Text style={styles.label}>
         {role ? 'Role description' : 'Application proposal'}
       </Text>
-      <Button title={formattingOpen ? 'Hide text options' : 'Text options'} variant="link" compact onPress={() => setFormattingOpen(current => !current)} />
-      {formattingOpen ? <View style={styles.link}><DynamicSelect
-        name="proposalFontFamily"
-        label="Font"
-        value={font}
-        placeholder="SupplyEd Sans"
-        onChange={next => {
-          if (next && !editorFonts.includes(next)) {
-            setError('This font is not supported yet.');
-            return;
-          }
-          setFont(next);
-          format('fontName', next || 'Arial');
-        }}
-      />
-      <DynamicSelect
-        name={role ? 'descriptionFontSize' : 'proposalFontSize'}
-        label="Text size"
-        value={size}
-        placeholder="16"
-        onChange={next => {
-          const px = next ? (next.endsWith('px') ? next : next + 'px') : '16px';
-          if (!editorSizes.includes(px)) {
-            setError('This size is not supported yet.');
-            return;
-          }
-          setSize(next);
-          editor?.command(
-            restoreEditorSelection +
-              'document.execCommand("fontSize",false,"7"); document.querySelectorAll("span").forEach(function(node){if(node.style.fontSize==="xxx-large") node.style.fontSize=' +
-              JSON.stringify(px) +
-              ';})',
-          );
-          editor?.focusContentEditor();
-        }}
-      />
-      <DynamicSelect
-        name="proposalTextColor"
-        label="Text color"
-        value={color}
-        placeholder="Default"
-        onChange={next => {
-          if (next && !editorColors.includes(next.toLowerCase())) {
-            setError('This text color is not supported yet.');
-            return;
-          }
-          setColor(next);
-          format('foreColor', next || '#17211c');
-        }}
-      />
-      </View> : null}
       {editor ? (
         <RichToolbar
           getEditor={() => editor}
@@ -190,11 +131,6 @@ export default function ProposalEditor({ value, onChange, role }: Props) {
           }
           if (event.type !== 'SUPPLYED_SELECTION') return;
           const data = event.data;
-          const selectedFont = String(data.font || '').replace(/["']/g, '');
-          const selectedColor = editorColor(String(data.color || ''));
-          setFont(editorFonts.includes(selectedFont) ? selectedFont : '');
-          setSize(editorSizes.includes(data.size) ? data.size : '');
-          setColor(editorColors.includes(selectedColor) ? selectedColor : '');
           setSelectedText(data.text || '');
           setSelectedLink(data.href || '');
         }}

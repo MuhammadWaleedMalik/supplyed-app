@@ -9,3 +9,7 @@ export const SOCKET_ORIGIN = API_URL.replace(/\/api\/?$/, '').replace(
   '',
 );
 export const SOCKET_PATH = '/api/socket.io';
+
+// Temporary local-distribution setting: Android and iOS use the same LAN API.
+// Set this back to false when the production HTTPS endpoint is available.
+export const ALLOW_INSECURE_API = true;

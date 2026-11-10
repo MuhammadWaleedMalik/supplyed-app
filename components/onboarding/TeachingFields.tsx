@@ -1,6 +1,7 @@
 /* eslint-disable no-control-regex -- Reject invisible control characters in user input. */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
+import { onDropdownRefresh } from '../../utils/api/dropdownEvents';
 import { useDropdown } from '../../feature/dropdowns/hooks/useDropdown';
 import {
   knownChoice,
@@ -43,25 +44,30 @@ export default function TeachingFields({
   const [subjectName, setSubjectName] = useState('');
   const [skillName, setSkillName] = useState('');
   const [notice, setNotice] = useState('');
-  const [catalogue, setCatalogue] = useState<TeachingCatalogue>();
+  const [showOtherSubject, setShowOtherSubject] = useState(false);
+  const [showOtherSkill, setShowOtherSkill] = useState(false);
+  const [catalogueResult, setCatalogueResult] = useState<{ scope: string; data: TeachingCatalogue }>();
+  const catalogueScope = schoolScoped ? 'school' : schoolType || '';
+  const catalogue = catalogueResult?.scope === catalogueScope ? catalogueResult.data : undefined;
   const [catalogueError, setCatalogueError] = useState('');
   const [catalogueAttempt, setCatalogueAttempt] = useState(0);
   const subjectValues = readChoices(subjects);
   const skillValues = readChoices(skills || '');
   useEffect(() => {
     if (!schoolScoped && !schoolType) {
-      setCatalogue(undefined);
+      setCatalogueResult(undefined);
       setCatalogueError('');
       return;
     }
     let active = true;
+    setCatalogueResult(undefined);
     setCatalogueError('');
     const request = schoolScoped
       ? getSchoolTeachingCatalogue()
       : getTeachingCatalogue(schoolType);
     request
       .then(result => {
-        if (active) setCatalogue(result);
+        if (active) setCatalogueResult({ scope: catalogueScope, data: result });
       })
       .catch(problem => {
         if (active)
@@ -74,7 +80,16 @@ export default function TeachingFields({
     return () => {
       active = false;
     };
-  }, [schoolScoped, schoolType, catalogueAttempt]);
+  }, [schoolScoped, schoolType, catalogueAttempt, catalogueScope]);
+
+  useEffect(() => {
+    const refresh = () => setCatalogueAttempt(value => value + 1);
+    const unsubscribe = onDropdownRefresh(refresh);
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
+    });
+    return () => { unsubscribe(); listener.remove(); };
+  }, []);
 
   const catalogueValues = useMemo(() => {
     const catalogueSubjects =
@@ -132,6 +147,9 @@ export default function TeachingFields({
   }
 
   function addName(kind: 'subject' | 'skill') {
+    if (!subjectMenu.data || subjectMenu.error ||
+      (kind === 'skill' && (!skillMenu.data || skillMenu.error)) ||
+      (catalogueScope && (!catalogue || catalogueError))) return;
     const name = (kind === 'subject' ? subjectName : skillName)
       .trim()
       .replace(/\s+/g, ' ');
@@ -148,6 +166,10 @@ export default function TeachingFields({
     const options =
       kind === 'subject' ? subjectOptions : skillMenu.options;
     const known = knownChoice(name, options);
+    if (kind === 'subject' && catalogue && !known && knownChoice(name, subjectMenu.options)) {
+      setNotice('This subject is not available for your school phase. Choose a subject from the current catalogue.');
+      return;
+    }
     if (known?.value === 'Other') {
       setNotice('Enter the actual subject or skill name.');
       return;
@@ -216,23 +238,32 @@ export default function TeachingFields({
       />
       {subjectMenu.data?.expandable ? (
         <>
-          <Input
-            label="Other subject"
-            value={subjectName}
-            onChangeText={setSubjectName}
-            required={false}
-            placeholder="Type a custom subject, then tap Add"
-          />
           <Button
-            title="Add subject"
-            onPress={() => addName('subject')}
-            disabled={
-              !subjectMenu.data ||
-              !!subjectMenu.error ||
-              ((!!schoolType || !!schoolScoped) && !catalogue)
-            }
+            title={showOtherSubject ? 'Hide other subject' : 'Add other subject'}
+            onPress={() => setShowOtherSubject(value => !value)}
             variant="link"
+            compact
           />
+          {showOtherSubject ? <>
+            <Input
+              label="Other subject"
+              maxLength={100}
+              value={subjectName}
+              onChangeText={setSubjectName}
+              required={false}
+              placeholder="Type a custom subject"
+            />
+            <Button
+              title="Add subject"
+              onPress={() => addName('subject')}
+              disabled={
+                !subjectMenu.data ||
+                !!subjectMenu.error ||
+                ((!!schoolType || !!schoolScoped) && !catalogue)
+              }
+              variant="link"
+            />
+          </> : null}
         </>
       ) : null}
       {onSkills ? (
@@ -262,24 +293,33 @@ export default function TeachingFields({
           />
           {skillMenu.data?.expandable ? (
             <>
-              <Input
-                label="Other skill"
-                value={skillName}
-                onChangeText={setSkillName}
-                required={false}
-                placeholder="Type a custom skill, then tap Add"
-              />
               <Button
-                title="Add skill"
-                onPress={() => addName('skill')}
+                title={showOtherSkill ? 'Hide other skill' : 'Add other skill'}
+                onPress={() => setShowOtherSkill(value => !value)}
                 variant="link"
-                disabled={!skillMenu.data || !!skillMenu.error}
+                compact
               />
+              {showOtherSkill ? <>
+                <Input
+                  label="Other skill"
+                  maxLength={100}
+                  value={skillName}
+                  onChangeText={setSkillName}
+                  required={false}
+                  placeholder="Type a custom skill"
+                />
+                <Button
+                  title="Add skill"
+                  onPress={() => addName('skill')}
+                  variant="link"
+                  disabled={!skillMenu.data || !subjectMenu.data || !!skillMenu.error || !!subjectMenu.error || (!!catalogueScope && (!catalogue || !!catalogueError))}
+                />
+              </> : null}
             </>
           ) : null}
         </>
       ) : null}
-      {subjectMenu.loading || (onSkills && skillMenu.loading) ? (
+      {subjectMenu.loading || (onSkills && skillMenu.loading) || (!!catalogueScope && !catalogue && !catalogueError) ? (
         <Text style={common.body}>Loading teaching choices…</Text>
       ) : null}
       {subjectMenu.error || (onSkills && skillMenu.error) ? (

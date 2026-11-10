@@ -45,7 +45,7 @@ export default function JobPostingFlow(props: Props) {
         onClose={props.onClose}
       />
 
-      {props.step === 1 ? <JobModeStep onSelect={props.onMode} /> : null}
+      {props.step === 1 ? <JobModeStep value={props.form.mode} onSelect={props.onMode} /> : null}
 
       {props.step === 2 ? (
         <JobDetailsStep

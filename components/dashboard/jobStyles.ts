@@ -1,6 +1,6 @@
 import { createThemedStyles } from '../Ui/theme';
 
-export const useJobStyles = createThemedStyles(colors => ({
+export const useJobStyles = createThemedStyles((colors, _common, layout) => ({
   shell: {
     gap: 18,
   },
@@ -115,7 +115,9 @@ export const useJobStyles = createThemedStyles(colors => ({
   },
   choice: {
     flex: 1,
-    minWidth: 64,
+    flexBasis: layout.compact ? '100%' : 96,
+    minWidth: 0,
+    maxWidth: '100%',
     paddingHorizontal: 8,
     paddingVertical: 10,
     minHeight: 48,
@@ -156,6 +158,7 @@ export const useJobStyles = createThemedStyles(colors => ({
   },
   listHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 10,

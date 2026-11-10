@@ -279,7 +279,7 @@ export default function DashboardSummary({
   );
 }
 
-const useHomeStyles = createThemedStyles(colors => ({
+const useHomeStyles = createThemedStyles((colors, _common, layout) => ({
   welcome: { gap: 6 },
   date: { color: colors.brandDark, fontSize: 13, fontWeight: '600' },
   hero: {
@@ -295,9 +295,9 @@ const useHomeStyles = createThemedStyles(colors => ({
     lineHeight: 29,
     fontWeight: '700',
   },
-  stats: { flexDirection: 'row', gap: 12 },
+  stats: { flexDirection: layout.compact ? 'column' : 'row', gap: 12 },
   stat: {
-    flex: 1,
+    flex: layout.compact ? 0 : 1,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: '#fff',
@@ -312,7 +312,7 @@ const useHomeStyles = createThemedStyles(colors => ({
     fontWeight: '600',
     color: colors.brandDark,
   },
-  sectionHead: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
   offer: {
     flexDirection: 'row',
     gap: 12,

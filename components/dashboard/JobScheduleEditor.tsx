@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import type {
   JobSchedule,
@@ -10,6 +10,7 @@ import DateField from '../Ui/DateField';
 import Input from '../Ui/Input';
 import ChoiceField from './ChoiceField';
 import { useJobStyles } from './jobStyles';
+import { scheduleDateWindow } from '../../utils/jobs/workSchedule';
 
 const DAY_NAMES = [
   'Sunday',
@@ -40,10 +41,14 @@ function read(value: string): JobSchedule {
 
 export default function JobScheduleEditor({
   value,
+  startDate,
+  endDate,
   disabled,
   onChange,
 }: {
   value: string;
+  startDate?: string;
+  endDate?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -53,6 +58,23 @@ export default function JobScheduleEditor({
   const [exceptionKind, setExceptionKind] = useState('Exclude');
   const [exceptionStart, setExceptionStart] = useState('09:00');
   const [exceptionEnd, setExceptionEnd] = useState('17:00');
+  const [showExceptions, setShowExceptions] = useState(false);
+  const dateWindow = useMemo(() => scheduleDateWindow(startDate, endDate), [startDate, endDate]);
+
+  useEffect(() => {
+    const available = dateWindow?.available;
+    if (!available || disabled) return;
+    const kept = schedule.weekdays.filter(item => available.has(item.day));
+    if (kept.length !== schedule.weekdays.length) {
+      onChange(
+        JSON.stringify({
+          ...schedule,
+          weekdays: kept,
+          exceptions: schedule.exceptions || [],
+        }),
+      );
+    }
+  }, [dateWindow, disabled, onChange, schedule]);
 
   function write(next: JobSchedule) {
     onChange(
@@ -61,6 +83,7 @@ export default function JobScheduleEditor({
   }
 
   function toggleDay(day: number, enabled: boolean) {
+    if (disabled || (dateWindow && !dateWindow.available.has(day))) return;
     write({
       ...schedule,
       weekdays: enabled
@@ -206,14 +229,24 @@ export default function JobScheduleEditor({
       <Text style={styles.modeBody}>
         Use whole-hour times. Add split shifts when the working day has a gap.
       </Text>
+      {dateWindow ? (
+        <Text style={styles.modeBody}>
+          {dateWindow.days < 7
+            ? `Only weekdays within this ${dateWindow.days}-day job can be selected.`
+            : 'This job is at least 7 days, so every weekday is available.'}
+        </Text>
+      ) : null}
       {DAY_NAMES.map((name, day) => {
         const weekday = schedule.weekdays.find(item => item.day === day);
+        const unavailable = Boolean(
+          dateWindow?.available && !dateWindow.available.has(day),
+        );
         return (
           <View key={name} style={styles.formSection}>
             <Checkbox
               label={name}
               checked={Boolean(weekday)}
-              disabled={disabled}
+              disabled={disabled || unavailable}
               onChange={enabled => toggleDay(day, enabled)}
             />
             {weekday?.slots.map((slot, index) => (
@@ -254,6 +287,13 @@ export default function JobScheduleEditor({
         );
       })}
 
+      <Button
+        title={showExceptions ? 'Hide date exceptions' : `Show date exceptions (${schedule.exceptions?.length || 0})`}
+        variant="link"
+        compact
+        onPress={() => setShowExceptions(expanded => !expanded)}
+      />
+      {showExceptions ? <>
       <Text style={styles.sectionTitle}>Date exceptions</Text>
       {(schedule.exceptions || []).map(item => (
         <View key={item.date} style={styles.formSection}>
@@ -345,6 +385,7 @@ export default function JobScheduleEditor({
         disabled={disabled || !exceptionDate}
         onPress={addException}
       />
+      </> : null}
     </View>
   );
 }

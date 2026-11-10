@@ -1,4 +1,4 @@
-import { openJob, refreshMarketplace } from '../store/navigationSlice';
+import { openJob, refreshMarketplace, showPage } from '../store/navigationSlice';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,7 +10,7 @@ import {
 import BookingFilterBar from '../../../../components/dashboard/BookingFilterBar';
 import BookingRecordCard from '../../../../components/dashboard/BookingRecordCard';
 import ConfirmDialog from '../../../../components/Ui/ConfirmDialog';
-import { Notice, RecordSkeleton } from '../../../../components/Ui/RecordLayout';
+import { Notice, RecordSection, RecordSkeleton, StatusBadge } from '../../../../components/Ui/RecordLayout';
 import { ApiError } from '../../../../utils/api/request';
 import { getSessionVersion } from '../../../../utils/api/session';
 import Button from '../../../../components/Ui/Button';
@@ -35,12 +35,11 @@ import { useBookings } from '../hooks/useBookings';
 import { useLimitedProfile } from '../hooks/useLimitedProfile';
 import { useAppDispatch, useAppSelector } from '../../../../store/hooks';
 import { openBookingMessages } from '../store/navigationSlice';
-
-function canActToday(value?: string | null) {
-  if (!value) return true;
-  const start = new Date(value).getTime();
-  return Number.isFinite(start) && start <= Date.now();
-}
+import {
+  canSchoolCompleteBooking,
+  canSchoolReportNoShow,
+} from '../../../../utils/bookings/bookingActions';
+import { displayDate } from '../../../../utils/ui/marketplaceLabels';
 
 function reviewWindowOpen(booking: Booking) {
   if (booking.status !== 'COMPLETED' || !booking.completedAt) return false;
@@ -74,6 +73,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     state => state.dashboardNavigation.notificationBookingId,
   );
   const [linkedBooking, setLinkedBooking] = useState<Booking>();
+  const [selectedBookingId, setSelectedBookingId] = useState('');
   const [linkedLoading, setLinkedLoading] = useState(false);
   const [linkedError, setLinkedError] = useState('');
   const [linkedAttempt, setLinkedAttempt] = useState(0);
@@ -110,9 +110,13 @@ export default function PaginatedBookingsScreen({ type }: Props) {
       active = false;
     };
   }, [bookingId, linkedAttempt]);
-  const visibleBookings = bookingId
+  const detailOpen = Boolean(bookingId || selectedBookingId);
+  const selectedBooking = bookingId
     ? linkedBooking
-      ? [linkedBooking]
+    : bookings.bookings.find(item => item.id === selectedBookingId);
+  const visibleBookings = detailOpen
+    ? selectedBooking
+      ? [selectedBooking]
       : []
     : bookings.bookings;
   const isLoading = bookingId ? linkedLoading : bookings.loading;
@@ -225,15 +229,35 @@ export default function PaginatedBookingsScreen({ type }: Props) {
       type === 'school'
         ? booking.instructor.fullName
         : booking.institution.name;
-    const showSchoolActions =
-      type === 'school' &&
-      booking.status === 'CONFIRMED' &&
-      canActToday(booking.startDate);
+    if (!detailOpen) {
+      return (
+        <RecordSection
+          title={booking.job.title}
+          action={<StatusBadge status={booking.status} />}
+        >
+          <Text style={styles.cardBody} numberOfLines={2}>{partyName}</Text>
+          <Text style={styles.teacherMeta}>
+            {displayDate(booking.startDate)} to {displayDate(booking.endDate)}
+          </Text>
+          <Button
+            title="See booking details"
+            variant="outline"
+            onPress={() => setSelectedBookingId(booking.id)}
+          />
+        </RecordSection>
+      );
+    }
+    const showComplete = canSchoolCompleteBooking(type, booking.status);
+    const showNoShow = canSchoolReportNoShow(
+      type,
+      booking.status,
+      booking.startDate,
+    );
     const showCancel = booking.status === 'CONFIRMED';
     const showReview = reviewWindowOpen(booking) && !hasMyReview(booking, type);
 
     return (
-      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} footer={booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.invoice || booking.automaticPayment ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
+      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} hideManage={booking.status === 'COMPLETED'} footer={booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.invoice || booking.automaticPayment ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
         {type === 'teacher' && [
           booking.job.address,
           booking.job.city,
@@ -256,26 +280,27 @@ export default function PaginatedBookingsScreen({ type }: Props) {
           variant="social"
           onPress={() => dispatch(openBookingMessages(booking.id))}
         />
-        {showSchoolActions ? (
+        {showComplete ? (
           <View style={styles.quickButtons}>
             <Button
-              title="Mark complete"
+              title="Complete booking"
               onPress={() => confirmComplete(booking)}
               disabled={busy}
               compact
             />
-            <Button
-              title="Report no-show"
-              variant="social"
-              onPress={() => confirmNoShow(booking)}
-              disabled={busy}
-              compact
-            />
+            {showNoShow ? (
+              <Button
+                title="Report no-show"
+                variant="social"
+                onPress={() => confirmNoShow(booking)}
+                disabled={busy}
+                compact
+              />
+            ) : null}
           </View>
         ) : null}
 
-        {type === 'school' &&
-        (booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') ? (
+        {type === 'school' && booking.status === 'CONFIRMED' ? (
           <AttendancePanel
             booking={booking}
             disabled={busy}
@@ -377,13 +402,16 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     );
   }
 
-  const filtersAreActive = Object.values(bookings.filters).some(
-    value => value !== '' && value !== 'ALL' && value !== 'All',
-  );
+  const filtersAreActive =
+    bookings.filters.status !== 'ALL' ||
+    Boolean(bookings.filters.search) ||
+    Boolean(bookings.filters.from) ||
+    Boolean(bookings.filters.to) ||
+    bookings.filters.invoice !== 'ALL';
 
   return (
     <>
-      {confirmation ? <ConfirmDialog key={confirmation.booking.id + confirmation.action} visible title={confirmation.action === 'complete' ? 'Complete this booking?' : 'Report a no-show?'} context={confirmation.booking.job.title + ' · ' + confirmation.booking.instructor.fullName} description={confirmation.action === 'complete' ? 'Confirm that the placement has finished. Attendance and payment will follow the agreed schedule.' : 'Confirm the teacher did not attend this placement. This records a final no-show outcome.'} confirmLabel={confirmation.action === 'complete' ? 'Confirm completion' : 'Confirm no-show'} destructive={confirmation.action === 'no-show'} onClose={() => setConfirmation(undefined)} onConfirm={() => updateBooking(() => confirmation.action === 'complete' ? completeBooking(confirmation.booking.id) : noShowBooking(confirmation.booking.id))} /> : null}
+      {confirmation ? <ConfirmDialog key={confirmation.booking.id + confirmation.action} visible title={confirmation.action === 'complete' ? 'Complete this booking?' : 'Report a no-show?'} context={confirmation.booking.job.title + ' · ' + confirmation.booking.instructor.fullName} description={confirmation.action === 'complete' ? 'Only the school can complete this booking. Confirm that the placement has finished. Attendance and payment will follow the agreed schedule.' : 'Confirm the teacher did not attend this placement. This records a final no-show outcome.'} confirmLabel={confirmation.action === 'complete' ? 'Complete booking' : 'Confirm no-show'} destructive={confirmation.action === 'no-show'} onClose={() => setConfirmation(undefined)} onConfirm={() => updateBooking(() => confirmation.action === 'complete' ? completeBooking(confirmation.booking.id) : noShowBooking(confirmation.booking.id))} /> : null}
       <LimitedProfileCard
         profile={profile.profile}
         error={profile.error}
@@ -402,7 +430,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
         }}
         onEndReachedThreshold={0.35}
         onEndReached={() => {
-          if (bookingId || !scrollStarted.current) return;
+          if (detailOpen || !scrollStarted.current) return;
           scrollStarted.current = false;
           bookings.loadMore();
         }}
@@ -411,27 +439,32 @@ export default function PaginatedBookingsScreen({ type }: Props) {
         ListHeaderComponent={
           <View style={jobStyles.shell}>
             {notice ? <Notice text={notice} /> : null}
+            {detailOpen ? (
+              <Button
+                title="Back to all bookings"
+                variant="link"
+                onPress={() => {
+                  setSelectedBookingId('');
+                  if (bookingId) dispatch(showPage('Bookings'));
+                }}
+              />
+            ) : null}
             <View style={jobStyles.progressCopy}>
-              <Text style={jobStyles.listTitle}>Bookings</Text>
+              <Text style={jobStyles.listTitle}>
+                {detailOpen ? 'Booking details' : 'Bookings'}
+              </Text>
               <Text style={jobStyles.modeBody}>
-                Stay on top of your placements, people and next steps.
+                {detailOpen
+                  ? 'Review the complete placement, people and available actions.'
+                  : 'Choose a booking to see its complete details and actions.'}
               </Text>
             </View>
 
-            {!bookingId ? (
+            {!detailOpen ? (
               <BookingFilterBar
                 filters={bookings.filters}
                 onChange={bookings.setFilter}
               />
-            ) : null}
-            {!bookingId && bookings.filters.agenda !== 'All' ? (
-              <Text style={styles.teacherMeta}>
-                {bookings.bookings.length} matching bookings in{' '}
-                {bookings.loadedCount} loaded.
-                {bookings.hasMore
-                  ? ' Load more to check remaining records.'
-                  : ''}
-              </Text>
             ) : null}
           </View>
         }
@@ -441,7 +474,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
           ) : (
             <View style={[styles.card, styles.emptyCard]}>
               <Text style={styles.cardTitle}>
-                {bookingId
+                {detailOpen
                   ? 'Booking unavailable'
                   : bookings.hasMore
                   ? 'No matches in loaded bookings'
@@ -450,7 +483,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
                   : 'No bookings yet'}
               </Text>
               <Text style={[styles.cardBody, styles.centerText]}>
-                {bookingId
+                {detailOpen
                   ? 'Retry or use Show all bookings to continue.'
                   : bookings.hasMore
                   ? 'Load more to check the remaining records.'
@@ -477,7 +510,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
                 onPress={refreshBookings}
               />
             ) : null}
-            {!bookingId && bookings.hasMore ? (
+            {!detailOpen && bookings.hasMore ? (
               <Button
                 title="Load more bookings"
                 variant="social"
@@ -490,7 +523,7 @@ export default function PaginatedBookingsScreen({ type }: Props) {
                 {bookings.error}
               </Text>
             ) : null}
-            {!bookingId &&
+            {!detailOpen &&
             bookings.bookings.length > 0 &&
             !bookings.hasMore &&
             !bookings.loading ? (

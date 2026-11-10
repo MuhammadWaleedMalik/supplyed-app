@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import { ThemeColors, useTheme } from './brandTheme';
 export {
@@ -55,17 +55,22 @@ export function useCommonStyles() {
 
 // Subscriptions refresh styles without remounting screens or resetting forms.
 type NamedStyles = Record<string, ViewStyle | TextStyle | ImageStyle>;
+type Layout = { compact: boolean; stack: boolean; fontScale: number };
 export function createThemedStyles<T extends NamedStyles>(
   factory: (
     colors: ThemeColors,
     common: ReturnType<typeof commonStyles>,
+    layout: Layout,
   ) => T & NamedStyles,
 ) {
   return function useThemedStyles() {
     const { colors } = useTheme();
+    const { width, fontScale } = useWindowDimensions();
+    const compact = width / Math.max(fontScale, 1) < 360;
+    const stack = width / Math.max(fontScale, 1) < 480;
     return useMemo(
-      () => StyleSheet.create(factory(colors, commonStyles(colors))),
-      [colors],
+      () => StyleSheet.create(factory(colors, commonStyles(colors), { compact, stack, fontScale })),
+      [colors, compact, stack, fontScale],
     );
   };
 }

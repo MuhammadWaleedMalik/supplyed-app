@@ -2,6 +2,7 @@ import { ApiError } from '../api/request';
 import { AccountType } from '../onboarding/onboardingData';
 import {
   getProfile,
+  getComplianceApproval,
   getSignatoryApproval,
 } from '../../feature/onboarding/apis/profileApi';
 import {
@@ -20,14 +21,21 @@ export async function nextAccountScreen(type: AccountType) {
     throw error;
   }
   if (!profile?.id) return 'onboarding';
+  // Suspension/deactivation takes priority over repairable onboarding fields.
+  if (['SUSPENDED', 'DEACTIVATED'].includes(profile.status || '')) return 'reviewStatus';
 
-  const requirements = await getRequirements();
-  const documents = await getDocuments();
+  const [requirements, documents] = await Promise.all([getRequirements(), getDocuments()]);
   const documentsReady = requiredDocumentsReady(requirements, documents);
   let trustReady = true;
 
   if (type === 'school' && profile.institutionType === 'MAT_SCHOOL') {
     const approval = await getSignatoryApproval();
+    trustReady = approval?.status === 'APPROVED';
+  } else if (
+    type === 'school' &&
+    profile.complianceApprovalRequired !== false
+  ) {
+    const approval = await getComplianceApproval();
     trustReady = approval?.status === 'APPROVED';
   }
 

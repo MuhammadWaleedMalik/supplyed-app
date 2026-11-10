@@ -306,10 +306,12 @@ export default function AvailabilityCard() {
           disabled={saving}
           onChangeText={setTimeZone}
         />
+        <Text style={styles.sectionHeading}>Weekly schedule</Text>
+        <Text style={styles.cardNote}>Turn on only the days when schools may book you, then set one or more time ranges.</Text>
         {DAYS.map((label, day) => {
           const entry = weekdays.find(item => item.day === day);
           return (
-            <View key={label} style={styles.record}>
+            <View key={label} style={styles.availabilityDay}>
               <Checkbox
                 label={label}
                 checked={Boolean(entry)}
@@ -317,9 +319,9 @@ export default function AvailabilityCard() {
                 onChange={enabled => toggleDay(day, enabled)}
               />
               {entry ? (
-                <View style={styles.record}>
+                <View style={styles.scheduleBody}>
                   {entry.slots.map((slot, index) => (
-                    <View key={`${day}-${index}`} style={styles.record}>
+                    <View key={`${day}-${index}`} style={styles.availabilitySlot}>
                       <Input
                         label="START (HH:mm)"
                         value={slot.start}
@@ -361,14 +363,15 @@ export default function AvailabilityCard() {
         })}
       </View>
       <View style={styles.card}>
-        <Text style={styles.recordLabel}>DATE EXCEPTIONS</Text>
+        <Text style={styles.sectionHeading}>Date exceptions</Text>
+        <Text style={styles.cardNote}>Override your normal schedule for a specific date.</Text>
         {exceptions.map(item => (
-          <View key={item.date} style={styles.record}>
+          <View key={item.date} style={styles.availabilityDay}>
             <Text style={styles.recordValue}>
               {item.date} · {item.kind}
             </Text>
             {item.slots?.map((slot, index) => (
-              <View key={`${item.date}-${index}`} style={styles.record}>
+              <View key={`${item.date}-${index}`} style={styles.availabilitySlot}>
                 <Input
                   label="START (HH:mm)"
                   value={slot.start}

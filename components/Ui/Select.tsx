@@ -8,7 +8,6 @@ import {
   Pressable,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +50,6 @@ export default function Select({
   const { colors } = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const choices = useMemo(
@@ -122,7 +120,7 @@ export default function Select({
         ]}
       >
         <Text
-          numberOfLines={1}
+          numberOfLines={2}
           style={[styles.value, !value && styles.placeholder]}
         >
           {display || placeholder}
@@ -144,7 +142,7 @@ export default function Select({
         onRequestClose={() => setOpen(false)}
       >
         <KeyboardAvoidingView
-          style={styles.overlay}
+          style={[styles.overlay, { paddingTop: insets.top }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable
@@ -157,11 +155,6 @@ export default function Select({
             style={[
               styles.sheet,
               {
-                height: Math.min(
-                  height * 0.82,
-                  680,
-                  260 + choices.length * 64 + (multiple ? 64 : 0),
-                ),
                 paddingBottom: Math.max(insets.bottom, 16),
               },
             ]}
@@ -170,7 +163,7 @@ export default function Select({
             <View style={styles.handle} />
             <View style={styles.sheetHeader}>
               <View style={styles.sheetCopy}>
-                <Text style={styles.sheetTitle}>{label}</Text>
+                <Text numberOfLines={2} style={styles.sheetTitle}>{label}</Text>
                 {multiple ? (
                   <Text style={styles.hint} accessibilityLiveRegion="polite">
                     {selectedValues.length} selected
@@ -178,15 +171,19 @@ export default function Select({
                   </Text>
                 ) : null}
               </View>
-              <Pressable
+              {multiple ? <Button title="Done" compact onPress={() => setOpen(false)} /> : <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close options"
                 onPress={() => setOpen(false)}
                 style={styles.closeButton}
               >
                 <X color={colors.ink} size={22} />
-              </Pressable>
+              </Pressable>}
             </View>
+            <FlatList
+              style={styles.list}
+              ListHeaderComponent={
+                <>
             <View style={styles.searchRow}>
               <Search color={colors.muted} size={19} />
               <TextInput
@@ -197,6 +194,7 @@ export default function Select({
                 onChangeText={setSearch}
                 autoCapitalize="none"
                 autoCorrect={false}
+                maxLength={100}
                 returnKeyType="search"
                 style={styles.search}
               />
@@ -223,8 +221,8 @@ export default function Select({
                 <Text style={styles.clearText}>Clear selection</Text>
               </Pressable>
             ) : null}
-            <FlatList
-              style={styles.list}
+                </>
+              }
               data={filteredChoices}
               extraData={value}
               keyExtractor={option => option.value}
@@ -317,11 +315,6 @@ export default function Select({
                 </>
               }
             />
-            {multiple ? (
-              <View style={styles.footer}>
-                <Button title="Done" onPress={() => setOpen(false)} />
-              </View>
-            ) : null}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -339,6 +332,7 @@ const useStyles = createThemedStyles((colors, common) => ({
     borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
+    paddingVertical: 10,
     backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,6 +354,7 @@ const useStyles = createThemedStyles((colors, common) => ({
     backgroundColor: 'rgba(9, 20, 29, 0.48)',
   },
   sheet: {
+    flex: 1,
     flexShrink: 1,
     width: '100%',
     maxWidth: 640,
@@ -385,7 +380,7 @@ const useStyles = createThemedStyles((colors, common) => ({
     alignItems: 'center',
     gap: 12,
   },
-  sheetCopy: { flex: 1, gap: 4 },
+  sheetCopy: { flex: 1, minWidth: 0, gap: 4 },
   sheetTitle: { color: colors.ink, fontSize: 20, fontWeight: '700' },
   hint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   closeButton: {
@@ -406,6 +401,7 @@ const useStyles = createThemedStyles((colors, common) => ({
   },
   search: {
     flex: 1,
+    minWidth: 0,
     minHeight: 48,
     paddingVertical: 10,
     paddingRight: 12,
@@ -429,7 +425,7 @@ const useStyles = createThemedStyles((colors, common) => ({
     alignItems: 'center',
     gap: 12,
   },
-  optionCopy: { flex: 1, gap: 2 },
+  optionCopy: { flex: 1, minWidth: 0, gap: 2 },
   selectedOption: { backgroundColor: colors.brandTint },
   optionText: { color: colors.ink, fontSize: 15, lineHeight: 22 },
   selectedOptionText: { color: colors.brandDark, fontWeight: '700' },

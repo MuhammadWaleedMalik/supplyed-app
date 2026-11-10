@@ -45,8 +45,7 @@ export default function DashboardNav({ role, selected, onSelect }: Props) {
           ) : null}
         </View>
         <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
+          numberOfLines={2}
           style={[styles.navLabel, active && styles.navLabelSelected]}
         >
           {tab.label}

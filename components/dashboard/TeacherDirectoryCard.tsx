@@ -132,7 +132,7 @@ export default function TeacherDirectoryCard({
   );
 }
 
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   card: {
     borderRadius: 18,
     borderWidth: 1,
@@ -177,6 +177,6 @@ const useStyles = createThemedStyles(colors => ({
   subjects: { color: colors.ink, fontSize: 13, lineHeight: 19 },
   rate: { color: colors.ink, fontSize: 14, fontWeight: '700' },
   warning: { color: '#975510', fontSize: 12, lineHeight: 18 },
-  actions: { flexDirection: 'row', gap: 10, paddingTop: 2 },
-  action: { flex: 1 },
+  actions: { flexDirection: layout.compact ? 'column' : 'row', gap: 10, paddingTop: 2 },
+  action: { flex: layout.compact ? 0 : 1 },
 }));

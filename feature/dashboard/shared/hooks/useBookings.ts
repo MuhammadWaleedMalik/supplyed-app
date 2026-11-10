@@ -2,10 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { getSessionVersion } from '../../../../utils/api/session';
 import { useSessionState } from '../../../../utils/ui/useSessionState';
 import {
-  isInAgenda,
-  type AgendaView,
-} from '../../../../utils/jobs/bookingAgenda';
-import {
   type Booking,
   type BookingInvoiceFilter,
   type BookingQuery,
@@ -15,7 +11,6 @@ import {
 } from '../apis/bookingsApi';
 
 export type BookingFilters = {
-  agenda: AgendaView;
   status: 'ALL' | BookingStatus;
   search: string;
   from: string;
@@ -24,7 +19,6 @@ export type BookingFilters = {
 };
 
 const initialFilters: BookingFilters = {
-  agenda: 'All',
   status: 'CONFIRMED',
   search: '',
   from: '',
@@ -52,31 +46,11 @@ function rangeError(filters: BookingFilters) {
   return from > to ? 'The from date must be before the to date.' : '';
 }
 
-async function loadAgendaBatch(
+async function loadBookingsPage(
   filters: BookingFilters,
-  firstPage: number,
-  isCurrent: () => boolean,
+  page: number,
 ): Promise<BookingsPage> {
-  const rows: Booking[] = [];
-  let result: BookingsPage;
-  let nextPage = firstPage;
-  // Scan bounded pages so today's ongoing work is not hidden behind future work.
-  // The contract does not define whether date filters mean start dates or overlaps.
-  // Classify the returned date ranges locally instead of assuming server semantics.
-  do {
-    result = await getMyBookingsPage(queryFromFilters(filters, nextPage));
-    if (result.pagination.page !== nextPage)
-      throw new Error('Unable to read the next bookings page. Please refresh.');
-    rows.push(...result.bookings);
-    nextPage += 1;
-  } while (
-    isCurrent() &&
-    filters.agenda !== 'All' &&
-    result.pagination.hasNextPage &&
-    !rows.some(booking => isInAgenda(booking, filters.agenda)) &&
-    nextPage < firstPage + 5
-  );
-  return { ...result, bookings: rows };
+  return getMyBookingsPage(queryFromFilters(filters, page));
 }
 
 function errorMessage(problem: unknown) {
@@ -120,13 +94,7 @@ export function useBookings() {
     setLoadingMore(false);
     setError('');
     try {
-      const result = await loadAgendaBatch(
-        nextFilters,
-        1,
-        () =>
-          request === requestId.current &&
-          sessionVersion === getSessionVersion(),
-      );
+      const result = await loadBookingsPage(nextFilters, 1);
       if (
         request !== requestId.current ||
         sessionVersion !== getSessionVersion()
@@ -173,12 +141,9 @@ export function useBookings() {
     const request = requestId.current;
     const sessionVersion = getSessionVersion();
     try {
-      const result = await loadAgendaBatch(
+      const result = await loadBookingsPage(
         filtersRef.current,
         page.current + 1,
-        () =>
-          request === requestId.current &&
-          sessionVersion === getSessionVersion(),
       );
       if (
         request !== requestId.current ||
@@ -217,7 +182,7 @@ export function useBookings() {
   }
 
   return {
-    bookings: bookings.filter(booking => isInAgenda(booking, filters.agenda)),
+    bookings,
     loadedCount: bookings.length,
     filters,
     loading,

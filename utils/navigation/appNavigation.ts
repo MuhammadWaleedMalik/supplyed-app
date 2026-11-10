@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler } from 'react-native';
+import { AppState, BackHandler } from 'react-native';
 import { getCurrentUser, User } from '../../feature/auth/apis/authApi';
 import {
   clearTokens,
@@ -96,8 +96,11 @@ export function useAppNavigation() {
     useState<AppScreen>('dashboard');
   const [restoreError, setRestoreError] = useState('');
   const restoreAttempt = useRef(0);
+  const accessAttempt = useRef(0);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [accessError, setAccessError] = useState('');
 
-  const defaultBackTarget = ['workspaceProfile', 'settings'].includes(screen)
+  const defaultBackTarget = ['workspaceProfile', 'settings', 'security'].includes(screen)
     ? accountReturnScreen
     : getBackTarget(screen, registerBackScreen);
   const backTarget =
@@ -137,10 +140,36 @@ export function useAppNavigation() {
     setScreen('reviewStatus');
   }
 
-  const showDashboard = useCallback(() => {
+  const showDashboard = useCallback(async () => {
     if (!getAccessToken()) return;
-    setScreen(isAdmin ? 'adminPayments' : 'dashboard');
-  }, [isAdmin]);
+    if (isAdmin) {
+      setScreen('adminPayments');
+      return;
+    }
+    const attempt = ++accessAttempt.current;
+    const version = getSessionVersion();
+    setCheckingAccess(true);
+    setAccessError('');
+    try {
+      const destination = await nextAccountScreen(profileType);
+      if (version !== getSessionVersion() || attempt !== accessAttempt.current) return;
+      setScreen(destination);
+      setCheckingAccess(false);
+    } catch (problem) {
+      if (version !== getSessionVersion() || attempt !== accessAttempt.current) return;
+      setAccessError(problem instanceof Error ? problem.message : 'Unable to check account access. Please retry.');
+    }
+  }, [isAdmin, profileType]);
+
+  useEffect(() => {
+    let previous = AppState.currentState;
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active' && previous !== 'active' && screen === 'dashboard')
+        showDashboard();
+      previous = state;
+    });
+    return () => listener.remove();
+  }, [screen, showDashboard]);
 
   function showWorkspaceProfile() {
     setAccountReturnScreen(
@@ -150,6 +179,7 @@ export function useAppNavigation() {
   }
 
   function showSecurity() {
+    setAccountReturnScreen(screen === 'reviewStatus' ? 'reviewStatus' : 'dashboard');
     setScreen('security');
   }
 
@@ -169,7 +199,8 @@ export function useAppNavigation() {
       screen === 'restoring';
 
     if (!cannotGoBack) {
-      openScreen(backTarget);
+      if (backTarget === 'dashboard') showDashboard();
+      else openScreen(backTarget);
     }
   }
 
@@ -223,6 +254,9 @@ export function useAppNavigation() {
 
   function showLanding() {
     restoreAttempt.current += 1;
+    accessAttempt.current += 1;
+    setCheckingAccess(false);
+    setAccessError('');
     clearTokens();
     setVerificationEmail('');
     setOtpToken('');
@@ -304,6 +338,9 @@ export function useAppNavigation() {
     () =>
       onSessionExpired(() => {
         restoreAttempt.current += 1;
+        accessAttempt.current += 1;
+        setCheckingAccess(false);
+        setAccessError('');
         setVerificationEmail('');
         setOtpToken('');
         setTwoFactorToken('');
@@ -334,7 +371,9 @@ export function useAppNavigation() {
         return true;
       }
 
-      setScreen(backTarget);
+      if (checkingAccess) return true;
+      if (backTarget === 'dashboard') showDashboard();
+      else setScreen(backTarget);
       return true;
     }
 
@@ -344,10 +383,12 @@ export function useAppNavigation() {
     );
 
     return () => backPress.remove();
-  }, [screen, backTarget]);
+  }, [screen, backTarget, checkingAccess, showDashboard]);
 
   return {
     screen,
+    checkingAccess,
+    accessError,
     restoreError,
     restoreSession,
     verificationEmail,

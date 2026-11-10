@@ -69,6 +69,8 @@ const useStyles = createThemedStyles(colors => ({
   },
   progressLabel: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     marginTop: 4,
   },

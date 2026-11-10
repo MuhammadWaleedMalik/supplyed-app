@@ -24,13 +24,13 @@ export default function OnboardingFooter({
   );
 }
 
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   footer: {
     borderTopWidth: 1,
     borderColor: colors.brandBorder,
     paddingTop: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: layout.compact ? 'column-reverse' : 'row',
+    alignItems: 'stretch',
     justifyContent: 'space-between',
     gap: 12,
   },

@@ -1,6 +1,8 @@
 const messages: Record<string, string> = {
   SCHOOL_INACTIVE:
     'Your school must be active and approved to publish, invite or hire. Existing bookings and history remain available.',
+  INSTRUCTOR_DOCUMENTS_NOT_VERIFIED:
+    'Required documents must be uploaded, current and approved before you can apply or message. Update pending, rejected or expired files in Settings > Documents.',
   JOB_RESERVED:
     'This job is reserved for an invited teacher. New applications and other hires are unavailable until the invitation is resolved.',
   JOB_TERMS_LOCKED:

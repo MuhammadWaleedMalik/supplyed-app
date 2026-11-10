@@ -1,6 +1,6 @@
 import { createThemedStyles } from '../Ui/theme';
 
-export const useApplicationStyles = createThemedStyles(colors => ({
+export const useApplicationStyles = createThemedStyles((colors, _common, layout) => ({
   header: {
     gap: 5,
     flex: 1,
@@ -11,6 +11,7 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     fontWeight: '800',
   },
   copy: {
+    flexShrink: 1,
     color: colors.muted,
     fontSize: 13,
     lineHeight: 20,
@@ -21,6 +22,7 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     gap: 8,
   },
   meta: {
+    maxWidth: '100%',
     borderRadius: 6,
     backgroundColor: colors.soft,
     paddingHorizontal: 9,
@@ -55,8 +57,8 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     gap: 8,
   },
   profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: layout.compact ? 'column' : 'row',
+    alignItems: 'stretch',
     gap: 14,
   },
   profileAvatar: {
@@ -79,7 +81,8 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     fontWeight: '800',
   },
   profileCopy: {
-    flex: 1,
+    flex: layout.compact ? 0 : 1,
+    minWidth: 0,
     gap: 4,
   },
   profileLocation: {
@@ -93,6 +96,7 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     gap: 6,
   },
   profileTag: {
+    maxWidth: '100%',
     borderRadius: 6,
     backgroundColor: colors.soft,
     paddingHorizontal: 8,
@@ -109,7 +113,7 @@ export const useApplicationStyles = createThemedStyles(colors => ({
     gap: 8,
   },
   code: {
-    width: '48%',
+    width: layout.compact ? '100%' : '48%',
     borderRadius: 7,
     backgroundColor: colors.soft,
     padding: 10,

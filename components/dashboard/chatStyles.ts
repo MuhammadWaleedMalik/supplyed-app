@@ -58,7 +58,7 @@ export const useChatStyles = createThemedStyles(colors => ({
   jobLabel: { fontSize: 12, color: '#8696a0' },
   badge: {
     minWidth: 22,
-    height: 22,
+    minHeight: 22,
     borderRadius: 11,
     paddingHorizontal: 6,
     backgroundColor: colors.brandDark,
@@ -119,6 +119,8 @@ export const useChatStyles = createThemedStyles(colors => ({
   },
   messageMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    maxWidth: '100%',
     alignItems: 'center',
     alignSelf: 'flex-end',
     gap: 4,

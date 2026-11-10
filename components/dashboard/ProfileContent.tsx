@@ -1,12 +1,19 @@
-import React from 'react';
-import { Image, Text, View } from 'react-native';
-import { MapPin, ShieldCheck, GraduationCap } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Linking, Text, View } from 'react-native';
+import {
+  FileText,
+  GraduationCap,
+  MapPin,
+  ShieldCheck,
+} from 'lucide-react-native';
 import type { LimitedProfile } from '../../feature/dashboard/shared/apis/publicProfileApi';
 import { InfoGrid, RecordSection, StatusBadge } from '../Ui/RecordLayout';
 import { createThemedStyles, useTheme } from '../Ui/theme';
 import TeacherBookingDates from './TeacherBookingDates';
 import ReviewHistory from './ReviewHistory';
 import ContentPreview from '../Ui/ContentPreview';
+import Button from '../Ui/Button';
+import InstitutionJobsSection from './InstitutionJobsSection';
 
 export default function ProfileContent({
   profile,
@@ -19,6 +26,8 @@ export default function ProfileContent({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const [documentError, setDocumentError] = useState('');
+  useEffect(() => setDocumentError(''), [profile.id]);
   const initials = profile.title
     .split(' ')
     .map(word => word[0])
@@ -26,6 +35,20 @@ export default function ProfileContent({
     .slice(0, 2)
     .toUpperCase();
   const teacher = profile.reviewType === 'instructor';
+  async function openDocument(url: string | null) {
+    if (!url || !/^https:\/\//i.test(url)) {
+      setDocumentError('This document does not have a valid download link.');
+      return;
+    }
+    setDocumentError('');
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setDocumentError(
+        'This document could not be opened. Reopen the profile to refresh its secure link.',
+      );
+    }
+  }
   function tags(title: string, values?: string[]) {
     if (!values?.length) return null;
     return (
@@ -62,12 +85,7 @@ export default function ProfileContent({
             </View>
           )}
           <View style={styles.identityCopy}>
-            <Text
-              accessibilityRole="header"
-              style={[styles.name, compact && styles.smallName]}
-            >
-              {profile.title}
-            </Text>
+            <ContentPreview accessibilityRole="header" title="Profile name" text={profile.title} style={[styles.name, compact && styles.smallName]} lines={3} />
             <Text style={styles.subtitle}>{profile.subtitle}</Text>
             {profile.location ? (
               <View style={styles.location}>
@@ -163,6 +181,54 @@ export default function ProfileContent({
               )}
             </RecordSection>
           )}
+          <RecordSection
+            title={teacher ? 'Certificates' : 'School achievements'}
+            subtitle={
+              teacher
+                ? 'Documents shared by this teacher'
+                : 'Documents shared by this school'
+            }
+            action={<FileText size={22} color={colors.brandDark} />}
+          >
+            {profile.documents?.length ? (
+              profile.documents.map(document => (
+                <View key={document.id} style={styles.document}>
+                  <View style={styles.documentCopy}>
+                    <Text style={styles.label}>{document.title}</Text>
+                    {document.description ? (
+                      <ContentPreview
+                        text={document.description}
+                        title={document.title}
+                        style={styles.body}
+                      />
+                    ) : null}
+                    <Text style={styles.documentMeta}>
+                      {document.issueDate
+                        ? `Issued ${document.issueDate.slice(0, 10)}`
+                        : 'Issue date not provided'}
+                    </Text>
+                  </View>
+                  <Button
+                    title="Open document"
+                    variant="link"
+                    compact
+                    onPress={() => openDocument(document.fileUrl)}
+                  />
+                </View>
+              ))
+            ) : (
+              <Text style={styles.body}>
+                {teacher
+                  ? 'No public certificates have been added yet.'
+                  : 'No public achievements have been added yet.'}
+              </Text>
+            )}
+            {documentError ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {documentError}
+              </Text>
+            ) : null}
+          </RecordSection>
           {teacher ? (
             <RecordSection
               title="Availability"
@@ -200,6 +266,17 @@ export default function ProfileContent({
               ))}
             </RecordSection>
           ) : null}
+          {!teacher ? (
+            <RecordSection
+              title="Active roles"
+              subtitle="Current opportunities published by this school"
+            >
+              <InstitutionJobsSection
+                key={profile.id}
+                institutionId={profile.id}
+              />
+            </RecordSection>
+          ) : null}
           {reviews && profile.reviewType ? (
             <RecordSection title="Reviews & feedback">
               <ReviewHistory id={profile.id} type={profile.reviewType} />
@@ -210,7 +287,7 @@ export default function ProfileContent({
     </View>
   );
 }
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   content: { gap: 18 },
   hero: {
     backgroundColor: '#fff',
@@ -221,8 +298,8 @@ const useStyles = createThemedStyles(colors => ({
     gap: 18,
   },
   compactHero: { padding: 0, borderWidth: 0, borderRadius: 0, gap: 10 },
-  identity: { flexDirection: 'row', gap: 16, alignItems: 'center' },
-  identityCopy: { flex: 1, gap: 6 },
+  identity: { flexDirection: layout.compact ? 'column' : 'row', gap: 16, alignItems: layout.compact ? 'flex-start' : 'center' },
+  identityCopy: { flex: layout.compact ? 0 : 1, minWidth: 0, maxWidth: '100%', gap: 6 },
   avatar: {
     height: 80,
     width: 80,
@@ -242,7 +319,7 @@ const useStyles = createThemedStyles(colors => ({
   smallName: { fontSize: 17, lineHeight: 24 },
   subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   location: { flexDirection: 'row', gap: 5, alignItems: 'center' },
-  locationText: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  locationText: { flexShrink: 1, color: colors.muted, fontSize: 12, lineHeight: 18 },
   verification: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   facts: { borderTopWidth: 1, borderColor: colors.border, paddingTop: 18 },
   body: { color: colors.muted, fontSize: 14, lineHeight: 24 },
@@ -250,10 +327,23 @@ const useStyles = createThemedStyles(colors => ({
   tagSection: { gap: 10 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   tag: {
+    maxWidth: '100%',
     backgroundColor: colors.brandTint,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   tagText: { color: colors.brandDark, fontSize: 12 },
+  document: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    paddingTop: 14,
+  },
+  documentCopy: { flexGrow: 1, flexShrink: 1, flexBasis: layout.stack ? '100%' : 180, minWidth: 0, gap: 5 },
+  documentMeta: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  error: { color: '#b42318', fontSize: 14, lineHeight: 22 },
 }));

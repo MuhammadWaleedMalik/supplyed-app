@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
-import { SOCKET_ORIGIN, SOCKET_PATH } from '../../../../constants/api';
+import {
+  ALLOW_INSECURE_API,
+  SOCKET_ORIGIN,
+  SOCKET_PATH,
+} from '../../../../constants/api';
 import {
   ChatMessage,
   ConversationSide,
@@ -68,7 +72,9 @@ export function useConversationSocket() {
   useEffect(() => {
     if (
       !session.token ||
-      (!__DEV__ && !SOCKET_ORIGIN.startsWith('https://')) ||
+      (!__DEV__ &&
+        !ALLOW_INSECURE_API &&
+        !SOCKET_ORIGIN.startsWith('https://')) ||
       !['INSTRUCTOR', 'INSTITUTION'].includes(session.role || '')
     )
       return;

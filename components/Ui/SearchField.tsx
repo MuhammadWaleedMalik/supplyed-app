@@ -60,7 +60,7 @@ const useStyles = createThemedStyles(colors => ({
     alignItems: 'center',
     gap: 10,
   },
-  input: { flex: 1, minHeight: 48, color: colors.ink, fontSize: 16 },
+  input: { flex: 1, minWidth: 0, minHeight: 48, color: colors.ink, fontSize: 16 },
   clear: {
     width: 48,
     height: 48,

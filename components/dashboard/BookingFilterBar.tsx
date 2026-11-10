@@ -6,7 +6,6 @@ import FilterSheet from '../Ui/FilterSheet';
 import SearchField from '../Ui/SearchField';
 import DateField from '../Ui/DateField';
 import DynamicSelect from '../Ui/DynamicSelect';
-import ChoiceField from './ChoiceField';
 import { statusLabel } from '../../utils/ui/marketplaceLabels';
 import { useStyles } from './dashboardStyles';
 
@@ -44,15 +43,6 @@ export default function BookingFilterBar({ filters, onChange }: Props) {
 
   return (
     <View style={styles.section}>
-      <ChoiceField
-        hideLabel
-        label="View bookings"
-        value={filters.agenda}
-        options={['All', 'Today', 'Upcoming', 'Past']}
-        onChange={value =>
-          onChange('agenda', value as BookingFilters['agenda'])
-        }
-      />
       <SearchField
         value={filters.search}
         onChangeText={value => onChange('search', value.slice(0, 100))}
@@ -76,8 +66,8 @@ export default function BookingFilterBar({ filters, onChange }: Props) {
         onApply={apply}
         onReset={() => {
           setDraft({
-            ...filters,
             status: 'CONFIRMED',
+            search: filters.search,
             from: '',
             to: '',
             invoice: 'ALL',

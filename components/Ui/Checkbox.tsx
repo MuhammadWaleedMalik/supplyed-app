@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { createThemedStyles } from './theme';
 
 type Props = {
@@ -20,9 +21,9 @@ export default function Checkbox({ label, checked, disabled, onChange }: Props) 
       onPress={() => onChange(!checked)}
       style={styles.row}
     >
-      <Text style={[styles.box, checked && styles.selected]}>
-        {checked ? '✓' : ''}
-      </Text>
+      <View style={[styles.box, checked && styles.selected]}>
+        {checked ? <Check size={14} color="#ffffff" /> : null}
+      </View>
       <Text style={styles.label}>{label}</Text>
     </Pressable>
   );
@@ -42,10 +43,9 @@ const useStyles = createThemedStyles((colors, common) => ({
     borderRadius: 9,
     borderWidth: 1,
     borderColor: '#bdcbd6',
-    textAlign: 'center',
-    lineHeight: 16,
-    fontSize: 12,
-    color: '#ffffff',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selected: { borderColor: colors.brand, backgroundColor: colors.brand },
   label: { ...common.body, fontSize: 13, lineHeight: 19, flexShrink: 1 },

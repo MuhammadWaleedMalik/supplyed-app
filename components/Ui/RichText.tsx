@@ -11,6 +11,7 @@ import { editorHtml, safeLink } from '../../utils/ui/safeHtml';
 import RenderHtml, { RenderHTMLProps } from 'react-native-render-html';
 import { useTheme } from './theme';
 import ContentPreview from './ContentPreview';
+import { RICH_TEXT_LIMIT } from '../../utils/ui/textWindow';
 import {
   ignoredRichTextTags,
   richTextToPlainText,
@@ -50,27 +51,36 @@ export default function RichText({
   expandable = true,
 }: Props) {
   const { colors } = useTheme();
+  const oversized = (value?.length || 0) > RICH_TEXT_LIMIT;
+  const renderValue = oversized ? '' : value || '';
   const themedTagsStyles = useMemo(
     () => ({ ...tagsStyles, a: { color: colors.brandDark } }),
     [colors.brandDark],
   );
   const [width, setWidth] = useState(0);
   const plainText = useMemo(
-    () => richTextToPlainText(editorHtml(value || '')),
-    [value],
+    () => richTextToPlainText(editorHtml(renderValue)),
+    [renderValue],
   );
   const source = useMemo(
     () => ({
       // Editors often insert nonbreaking spaces between every word. Ordinary
       // spaces let the proposal wrap naturally on narrow mobile screens.
-      html: editorHtml(value || '').replace(
+      html: editorHtml(renderValue).replace(
         /&nbsp;|&#0*160;|&#x0*a0;|\u00a0/gi,
         ' ',
       ),
     }),
-    [value],
+    [renderValue],
   );
   const baseStyle = useMemo(() => ({ ...StyleSheet.flatten(style) }), [style]);
+
+  if (oversized) {
+    return <View>
+      <Text style={style}>This description is unusually large. Read it in pages below; formatting is displayed as text.</Text>
+      <ContentPreview text={value || ''} title={title} style={style} />
+    </View>;
+  }
 
   if (expandable && plainText) {
     return <ContentPreview text={plainText} title={title} style={style} lines={numberOfLines || 4}>

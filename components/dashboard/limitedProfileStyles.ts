@@ -89,6 +89,7 @@ export const useLimitedProfileStyles = createThemedStyles(colors => ({
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   tag: {
+    maxWidth: '100%',
     borderRadius: 6,
     backgroundColor: colors.soft,
     paddingHorizontal: 9,

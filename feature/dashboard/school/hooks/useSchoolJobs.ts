@@ -418,6 +418,11 @@ export function useSchoolJobs() {
       return;
     }
 
+    if (postingStep === 3 && form.status === 'ACTIVE' && !form.keyStages) {
+      setFormError('Choose at least one key stage before reviewing the job.');
+      return;
+    }
+
     setFormError('');
     setPostingStep(current => Math.min(4, current + 1));
   }
@@ -488,7 +493,7 @@ export function useSchoolJobs() {
         setForm({ ...jobToForm(problem.job), status: 'ACTIVE' });
       }
       setFormError(messageFromError(problem));
-      setPostingStep(2);
+      setPostingStep(4);
     } finally {
       savingRef.current = false;
       setSaving(false);

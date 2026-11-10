@@ -68,8 +68,10 @@ const useStyles = createThemedStyles((colors, common) => ({
   wideCard: { flex: 1 },
   selected: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   icon: {
-    width: 28,
-    height: 28,
+    alignSelf: 'flex-start',
+    minWidth: 28,
+    minHeight: 28,
+    paddingHorizontal: 5,
     borderRadius: 14,
     backgroundColor: colors.brandTint,
     color: colors.brand,

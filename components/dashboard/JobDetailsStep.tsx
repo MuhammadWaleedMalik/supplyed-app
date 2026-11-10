@@ -118,6 +118,7 @@ export default function JobDetailsStep({
     }
   }
   function chooseAddress(useSchool: boolean) {
+    if (form.addressMode === (useSchool ? 'school' : 'different')) return;
     if (onAddressMode) {
       onAddressMode(useSchool ? 'school' : 'different');
       return;
@@ -143,12 +144,22 @@ export default function JobDetailsStep({
     !listingError && /work|start|end|time|date/i.test(error) ? error : '';
   return (
     <View style={jobStyles.formSection}>
+      <Input
+        label="JOB TITLE"
+        value={form.title}
+        onChangeText={value => onChange('title', value)}
+      />
       <Text style={jobStyles.sectionTitle}>Role location</Text>
       <Checkbox
-        label="Use School Address as Job Location"
+        label="Same address as school address"
         checked={form.addressMode === 'school'}
-        onChange={() => chooseAddress(form.addressMode !== 'school')}
+        onChange={() => chooseAddress(true)}
         disabled={!effectiveAddress || addressLoading}
+      />
+      <Checkbox
+        label="Alternative address"
+        checked={form.addressMode === 'different'}
+        onChange={() => chooseAddress(false)}
       />
       {addressError || (!effectiveAddress && !addressLoading) ? (
         <Text style={jobStyles.error}>
@@ -164,41 +175,42 @@ export default function JobDetailsStep({
           Teachers will see this school address on the role and booking.
         </Text>
       ) : null}
-      <Input
-        label="ADDRESS"
-        value={form.address}
-        onChangeText={value => onChange('address', value)}
-        disabled={form.addressMode === 'school'}
-      />
-      <DynamicSelect
-        name="country"
-        label="COUNTRY"
-        value={form.countryCode}
-        allowed={['GB']}
-        onChange={value => onChange('countryCode', value)}
-        disabled={form.addressMode === 'school'}
-      />
-      <DynamicSelect
-        name="city"
-        label="CITY"
-        value={form.city}
-        onChange={value => onChange('city', value)}
-        disabled={form.addressMode === 'school'}
-      />
-      <DynamicSelect
-        name="region"
-        label="COUNTY"
-        required={false}
-        value={form.county}
-        onChange={value => onChange('county', value)}
-        disabled={form.addressMode === 'school'}
-      />
-      <Input
-        label="POSTCODE"
-        value={form.postalCode}
-        onChangeText={value => onChange('postalCode', value)}
-        disabled={form.addressMode === 'school'}
-      />
+      {form.addressMode === 'different' ? (
+        <>
+          <Input
+            label="ADDRESS"
+            maxLength={250}
+            value={form.address}
+            onChangeText={value => onChange('address', value)}
+          />
+          <DynamicSelect
+            name="country"
+            label="COUNTRY"
+            value={form.countryCode}
+            allowed={['GB']}
+            onChange={value => onChange('countryCode', value)}
+          />
+          <DynamicSelect
+            name="city"
+            label="CITY"
+            value={form.city}
+            onChange={value => onChange('city', value)}
+          />
+          <DynamicSelect
+            name="region"
+            label="COUNTY"
+            required={false}
+            value={form.county}
+            onChange={value => onChange('county', value)}
+          />
+          <Input
+            label="POSTCODE"
+            maxLength={20}
+            value={form.postalCode}
+            onChangeText={value => onChange('postalCode', value)}
+          />
+        </>
+      ) : null}
       <Text style={jobStyles.sectionTitle}>Pay</Text>
       <DynamicSelect
         label="PAY BASIS"
@@ -275,6 +287,8 @@ export default function JobDetailsStep({
       />
       <JobScheduleEditor
         value={form.schedule}
+        startDate={form.startDate}
+        endDate={form.endDate}
         onChange={value => onChange('schedule', value)}
       />
       <DateField
@@ -326,11 +340,6 @@ export default function JobDetailsStep({
         </Text>
       ) : null}
       <Text style={jobStyles.sectionTitle}>Role information</Text>
-      <Input
-        label="JOB TITLE"
-        value={form.title}
-        onChangeText={value => onChange('title', value)}
-      />
       <TeachingFields
         schoolScoped
         subjects={form.subject}

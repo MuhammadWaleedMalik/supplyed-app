@@ -27,6 +27,8 @@ export default function FilterButton({
 
 const useStyles = createThemedStyles(colors => ({
   button: {
+    maxWidth: '100%',
+    flexShrink: 1,
     minHeight: 48,
     paddingHorizontal: 14,
     borderWidth: 1,
@@ -40,5 +42,5 @@ const useStyles = createThemedStyles(colors => ({
     alignSelf: 'flex-start',
   },
   active: { backgroundColor: colors.brandTint, borderColor: colors.brand },
-  label: { color: colors.brandDark, fontSize: 14, fontWeight: '600' },
+  label: { flexShrink: 1, color: colors.brandDark, fontSize: 14, fontWeight: '600' },
 }));

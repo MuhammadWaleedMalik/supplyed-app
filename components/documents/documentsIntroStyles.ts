@@ -15,8 +15,9 @@ export const useStyles = createThemedStyles(colors => ({
   stepIcon: {
     backgroundColor: '#ffffff',
     color: colors.brand,
-    width: 30,
-    height: 30,
+    minWidth: 30,
+    minHeight: 30,
+    paddingHorizontal: 5,
     borderRadius: 15,
     textAlign: 'center',
     lineHeight: 30,

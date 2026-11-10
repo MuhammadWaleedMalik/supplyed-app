@@ -23,6 +23,23 @@ export function calendarDay(value: string) {
   return time / 86400000;
 }
 
+/** Calendar dates, inclusive; a short job can only use weekdays it contains. */
+export function scheduleDateWindow(startDate?: string, endDate?: string) {
+  if (!startDate || !endDate) return undefined;
+  try {
+    const start = calendarDay(startDate);
+    const end = calendarDay(endDate);
+    const days = end - start + 1;
+    if (days < 1) return undefined;
+    const available = new Set<number>();
+    for (let offset = 0; offset < Math.min(days, 7); offset++)
+      available.add(new Date((start + offset) * 86400000).getUTCDay());
+    return { days, available };
+  } catch {
+    return undefined;
+  }
+}
+
 export function shiftCalendarDay(value: string, days: number) {
   const date = new Date((calendarDay(value) + days) * 86400000);
   if (!Number.isFinite(date.getTime()) || date.getUTCFullYear() > 9999)

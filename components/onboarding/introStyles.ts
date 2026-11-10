@@ -14,8 +14,9 @@ export const useStyles = createThemedStyles(colors => ({
   steps: { gap: 15, marginTop: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   number: {
-    width: 28,
-    height: 28,
+    minWidth: 28,
+    minHeight: 28,
+    paddingHorizontal: 5,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#66717a',

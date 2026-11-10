@@ -31,7 +31,6 @@ export const endpoints = {
   requirements: '/document-requirements/profile',
   documents: '/documents',
   profileDocuments: '/profile-documents',
-  profileCompletion: '/profile-completion/me',
   availability: '/availability/me',
   availabilityForJob: (id: string) =>
     '/availability/jobs/' + encodeURIComponent(id) + '/check',

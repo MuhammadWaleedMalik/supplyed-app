@@ -1,4 +1,4 @@
-import { API_URL } from '../../constants/api';
+import { ALLOW_INSECURE_API, API_URL } from '../../constants/api';
 import { userFacingError } from './userFacingError';
 import { normalizeMarketplaceResponse } from './marketplaceResponse';
 import {
@@ -57,7 +57,11 @@ export async function apiRequest<T>(
   token = '',
   options: RequestOptions = {},
 ): Promise<T> {
-  if (!__DEV__ && !API_URL.startsWith('https://')) {
+  if (
+    !__DEV__ &&
+    !ALLOW_INSECURE_API &&
+    !API_URL.startsWith('https://')
+  ) {
     throw new ApiError(
       'A secure production API address is required.',
       0,

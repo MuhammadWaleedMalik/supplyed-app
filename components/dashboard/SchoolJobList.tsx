@@ -6,6 +6,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import type { Job } from '../../feature/dashboard/shared/apis/jobsApi';
 import Button from '../Ui/Button';
+import ContentPreview from '../Ui/ContentPreview';
 import { useTheme } from '../Ui/theme';
 import { useStyles } from './dashboardStyles';
 import { useJobStyles } from './jobStyles';
@@ -48,7 +49,7 @@ export default function SchoolJobList({ jobs, onSelect }: Props) {
         return (
           <View key={job.id} style={styles.card}>
             <View style={jobStyles.listHeader}>
-              <Text style={styles.cardTitle}>{job.title}</Text>
+              <ContentPreview title="Job title" text={job.title} style={styles.cardTitle} lines={3} />
               <View style={jobStyles.statusBadge}>
                 <Text style={jobStyles.statusText}>{listingStatus(job)}</Text>
               </View>

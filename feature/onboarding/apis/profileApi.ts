@@ -19,6 +19,7 @@ export type Profile = {
   id: string;
   status?: string;
   institutionType?: string;
+  complianceApprovalRequired?: boolean;
   trust?: { id: string; name: string; companyNumber?: string | null } | null;
 };
 

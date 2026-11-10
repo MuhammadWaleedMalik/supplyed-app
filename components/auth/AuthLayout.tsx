@@ -82,7 +82,7 @@ export default function AuthLayout({
 const useStyles = createThemedStyles(() => ({
   keyboard: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
-  scroll: { flexGrow: 1, backgroundColor: '#ffffff', paddingBottom: 32 },
+  scroll: { flexGrow: 1, backgroundColor: '#ffffff', paddingBottom: 96 },
   panels: { flexGrow: 1 },
   widePanels: { flexDirection: 'row' },
 }));

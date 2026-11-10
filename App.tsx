@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
-import { AppState, Linking, StatusBar } from 'react-native';
+import { AppState, Linking, Modal, StatusBar } from 'react-native';
 import { restoreBrandTheme } from './components/Ui/theme';
 import {
   handleURLCallback,
@@ -49,6 +49,8 @@ export default function App() {
   const [pendingInvitationId, setPendingInvitationId] = useState('');
   const {
     screen,
+    checkingAccess,
+    accessError,
     restoreError,
     restoreSession,
     verificationEmail,
@@ -252,6 +254,11 @@ export default function App() {
               'documents',
               'reviewStatus',
             ].includes(screen) && <PublicThemeControls />}
+            <Modal visible={checkingAccess} animationType="fade" onRequestClose={() => {}}>
+              <SafeAreaProvider>
+                <SessionScreen error={accessError} onRetry={showDashboard} onExit={showLanding} />
+              </SafeAreaProvider>
+            </Modal>
       </SafeAreaProvider>
     </Provider>
   );

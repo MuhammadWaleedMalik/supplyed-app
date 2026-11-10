@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/Ui/Button';
 import { useStyles } from '../../../components/dashboard/dashboardStyles';
@@ -11,7 +11,7 @@ export default function SessionScreen({ error, onRetry, onExit }: Props) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.page}>
+      <ScrollView contentContainerStyle={styles.page}>
         <Text style={styles.title}>Loading your account</Text>
         {error ? (
           <>
@@ -22,7 +22,7 @@ export default function SessionScreen({ error, onRetry, onExit }: Props) {
           <ActivityIndicator />
         )}
         <Button title="Log out" variant="link" onPress={onExit} />
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

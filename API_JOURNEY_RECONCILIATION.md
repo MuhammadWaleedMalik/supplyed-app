@@ -72,7 +72,9 @@ copy the Next.js `/api/*` layer.
 
 - Added single-school compliance approval fetch/request/resend/status handling.
 - Preserved the separate MAT trust-signatory flow.
-- Added `/profile-completion/me` to the profile History status card.
+- The profile History status card uses the role profile's supported `status`
+  field. The stale `/profile-completion/me` request was removed because the
+  current backend has no such controller or response contract.
 
 ### Availability and work lifecycle
 

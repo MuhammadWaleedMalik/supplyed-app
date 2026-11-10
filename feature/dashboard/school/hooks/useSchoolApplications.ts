@@ -83,7 +83,7 @@ export function useSchoolApplications(jobId = '') {
     () =>
       createMergedPager(
         jobs
-          .filter(job => !jobId || job.id === jobId)
+          .filter(job => !!jobId && job.id === jobId)
           .map(job => async (page: number) => {
             const result = await getApplicationsPage(page, status, job.id);
             return {

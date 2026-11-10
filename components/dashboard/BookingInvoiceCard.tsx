@@ -2,13 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { Booking } from '../../feature/dashboard/shared/apis/bookingsApi';
 import { syncBookingPayment } from '../../feature/dashboard/shared/apis/bookingsApi';
-import type { InvoiceRole } from '../../feature/dashboard/shared/apis/invoicesApi';
+import {
+  createInvoice,
+  type InvoiceRole,
+} from '../../feature/dashboard/shared/apis/invoicesApi';
+import { ApiError } from '../../utils/api/request';
+import { buildBookingInvoiceData } from '../../utils/payments/invoiceValidation';
 import {
   automaticPaymentPhase,
   formatPence,
   requiresCardAuthentication,
 } from '../../utils/payments/paymentUtils';
 import Button from '../Ui/Button';
+import ConfirmDialog from '../Ui/ConfirmDialog';
+import Input from '../Ui/Input';
 import BookingTipCard from './BookingTipCard';
 import InvoiceCard from './InvoiceCard';
 import { useStyles } from './dashboardStyles';
@@ -26,6 +33,11 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
   const [current, setCurrent] = useState(booking);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [confirmingManual, setConfirmingManual] = useState(false);
+  const [units, setUnits] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [manualNeedsRefresh, setManualNeedsRefresh] = useState(false);
   const running = useRef(false);
 
   useEffect(() => setCurrent(booking), [booking]);
@@ -37,6 +49,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
     setError('');
     try {
       setCurrent(await syncBookingPayment(current.id));
+      setManualNeedsRefresh(false);
       await onChanged();
     } catch (problem) {
       setError(
@@ -64,6 +77,64 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
           paymentAttemptCount: invoice.paymentAttemptCount,
         })
       : '';
+  const fixed = current.payType?.toLowerCase() === 'fixed';
+  const manualAvailable =
+    role === 'INSTITUTION' &&
+    current.status === 'COMPLETED' &&
+    (!invoice || invoice.status === 'VOID') &&
+    ['DISABLED', 'BLOCKED', 'REVIEW_REQUIRED'].includes(
+      current.automaticPayment?.state || 'DISABLED',
+    );
+
+  function confirmManualInvoice() {
+    try {
+      buildBookingInvoiceData(current, units, poNumber);
+      setError('');
+      setConfirmingManual(true);
+    } catch (problem) {
+      setError(
+        problem instanceof Error ? problem.message : 'Check the invoice fields.',
+      );
+    }
+  }
+
+  async function createManualInvoice() {
+    if (running.current || manualNeedsRefresh || !manualAvailable) return false;
+    running.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const created = await createInvoice(
+        buildBookingInvoiceData(current, units, poNumber),
+      );
+      setCurrent(value => ({ ...value, invoice: created }));
+      setShowManualForm(false);
+      setConfirmingManual(false);
+      setUnits('');
+      setPoNumber('');
+      await onChanged();
+      return true;
+    } catch (problem) {
+      const uncertain =
+        !(problem instanceof ApiError) ||
+        problem.status === 0 ||
+        problem.status === 408 ||
+        problem.status === 409 ||
+        problem.status >= 500;
+      if (uncertain) setManualNeedsRefresh(true);
+      setError(
+        uncertain
+          ? 'The invoice result is uncertain. Refresh payment before trying again.'
+          : problem instanceof Error
+          ? problem.message
+          : 'Unable to create the invoice.',
+      );
+      return false;
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }
 
   let status = current.automaticPayment?.message || 'Checking payment status.';
   if (invoice?.status === 'PENDING')
@@ -92,6 +163,15 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
 
   return (
     <View style={styles.section}>
+      <ConfirmDialog
+        visible={confirmingManual}
+        title="Create manual invoice?"
+        context={current.job.title}
+        description="SupplyEd calculates the amount from this completed booking. The school will receive an invoice instead of an automatic card collection."
+        confirmLabel="Create invoice"
+        onClose={() => setConfirmingManual(false)}
+        onConfirm={createManualInvoice}
+      />
       <Text style={styles.cardTitle}>Payment</Text>
       <Text style={styles.cardBody}>{status}</Text>
       {automatic ||
@@ -118,6 +198,69 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
       ) : null}
       {invoice && invoice.status !== 'PENDING' ? (
         <InvoiceCard invoice={invoice} role={role} onChanged={onChanged} />
+      ) : null}
+      {manualAvailable ? (
+        <View style={styles.section}>
+          <Text style={styles.cardTitle}>Manual invoice fallback</Text>
+          <Text style={styles.cardBody}>
+            Create an invoice when this completed booking is not eligible for
+            automatic card collection.
+          </Text>
+          {showManualForm ? (
+            <>
+              {!fixed && !current.attendancePayroll?.covered ? (
+                <Input
+                  label={
+                    current.payType?.toLowerCase() === 'hourly'
+                      ? 'HOURS WORKED'
+                      : 'DAYS WORKED'
+                  }
+                  placeholder="For example, 4.5"
+                  decimal
+                  value={units}
+                  onChangeText={setUnits}
+                  disabled={busy}
+                />
+              ) : null}
+              {current.attendancePayroll?.covered && !fixed ? (
+                <Text style={styles.cardBody}>
+                  Days or hours worked are calculated from the final attendance
+                  record.
+                </Text>
+              ) : null}
+              <Input
+                label="PO NUMBER"
+                placeholder="Optional purchase order number"
+                maxLength={100}
+                required={false}
+                value={poNumber}
+                onChangeText={setPoNumber}
+                disabled={busy}
+              />
+              <Button
+                title={busy ? 'Creating invoice...' : 'Create invoice'}
+                onPress={confirmManualInvoice}
+                disabled={busy || manualNeedsRefresh}
+                compact
+              />
+              <Button
+                title="Cancel"
+                variant="link"
+                onPress={() => setShowManualForm(false)}
+                disabled={busy}
+                compact
+              />
+            </>
+          ) : (
+            <Button
+              title="Create manual invoice"
+              variant="outline"
+              onPress={() => setShowManualForm(true)}
+              disabled={busy || manualNeedsRefresh}
+              compact
+            />
+          )}
+        </View>
       ) : null}
       <Button
         title={busy ? 'Checking payment...' : 'Refresh payment'}

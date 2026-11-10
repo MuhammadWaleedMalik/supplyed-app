@@ -26,6 +26,7 @@ export type Document = {
   fileKey?: string;
   originalName?: string;
   uploadedAt?: string;
+  documentExpiryDate?: string | null;
   status?: string;
   rejectionComment?: string | null;
 };

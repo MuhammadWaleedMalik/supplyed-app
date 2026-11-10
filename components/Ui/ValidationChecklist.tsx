@@ -37,6 +37,6 @@ const useStyles = createThemedStyles(colors => ({
   list: { gap: 4, paddingTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   symbol: { width: 18, alignItems: 'center' },
-  label: { color: colors.muted, fontSize: 12 },
+  label: { flex: 1, minWidth: 0, color: colors.muted, fontSize: 12 },
   done: { color: '#17804f' },
 }));

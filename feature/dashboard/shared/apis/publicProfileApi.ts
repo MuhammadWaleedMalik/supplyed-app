@@ -5,6 +5,7 @@ import {
 import { endpoints } from '../../../../constants/endpoints';
 import { protectedRequest } from '../../../../utils/api/request';
 import type { Application } from './applicationsApi';
+import type { ProfileDocument } from './profileDocumentsApi';
 
 export type LimitedProfile = {
   bookings?: BookingPeriod[] | null;
@@ -24,6 +25,7 @@ export type LimitedProfile = {
   skills?: string[];
   keyStages?: string[];
   overview?: { label: string; value: string }[];
+  documents?: ProfileDocument[];
 };
 
 export type InstructorPublicProfile = {
@@ -45,6 +47,7 @@ export type InstructorPublicProfile = {
   ratingCount: number;
   dbsVerified: boolean;
   memberSince: string | null;
+  certificates: ProfileDocument[];
 };
 
 export type InstitutionPublicProfile = {
@@ -62,6 +65,7 @@ export type InstitutionPublicProfile = {
   typicalPupilCount: number | null;
   verified: boolean;
   memberSince: string | null;
+  achievements: ProfileDocument[];
 };
 
 function localDate(value: string | null) {
@@ -120,6 +124,7 @@ export async function getInstructorProfile(
     subjects: profile.subjects || [],
     skills: profile.skills || [],
     keyStages: profile.keyStages || [],
+    documents: profile.certificates || [],
     facts: [
       { label: 'Experience', value: profile.experience == null ? 'Not provided' : `${profile.experience} years` },
       { label: 'Reviews', value: profile.ratingCount ? `${profile.ratingAverage.toFixed(1)} / 5 · ${profile.ratingCount} reviews` : 'New to SupplyEd' },
@@ -175,6 +180,7 @@ export async function getInstitutionProfile(
       memberSince ? `Member since ${memberSince}` : '',
     ].filter(Boolean),
     verified: profile.verified,
+    documents: profile.achievements || [],
   };
 }
 

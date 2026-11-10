@@ -19,7 +19,9 @@ import {
 import { requiredDocumentsReady } from '../../../utils/documents/documentUtils';
 import {
   getProfile,
+  getComplianceApproval,
   getSignatoryApproval,
+  ComplianceApproval,
   Profile,
   SignatoryApproval,
   submitProfileForReview,
@@ -38,34 +40,49 @@ function isMatSchool(type: AccountType, profile: Profile | null) {
   return type === 'school' && profile?.institutionType === 'MAT_SCHOOL';
 }
 
+type InstitutionApproval = SignatoryApproval | ComplianceApproval;
+
+function needsInstitutionApproval(type: AccountType, profile: Profile | null) {
+  return (
+    type === 'school' &&
+    (isMatSchool(type, profile) || profile?.complianceApprovalRequired !== false)
+  );
+}
+
 function canOpenDashboard(
   type: AccountType,
   profile: Profile | null,
-  approval: SignatoryApproval | null,
+  approval: InstitutionApproval | null,
 ) {
   const profileReady = profile?.status === 'ACTIVE';
   const approvalReady =
-    !isMatSchool(type, profile) || approval?.status === 'APPROVED';
+    !needsInstitutionApproval(type, profile) || approval?.status === 'APPROVED';
   return profileReady && approvalReady;
 }
 
-function approvalText(approval: SignatoryApproval | null) {
+function approvalText(approval: InstitutionApproval | null) {
   if (!approval) return 'Not requested yet';
-  if (approval.status === 'PENDING') return 'Waiting for signatory approval';
+  if (approval.status === 'PENDING') return 'Waiting for approval';
   if (approval.status === 'APPROVED') return 'Approved';
   if (approval.status === 'DECLINED') return 'Declined';
   if (approval.status === 'EXPIRED') return 'Expired';
   return approval.status;
 }
 
+async function loadApproval(type: AccountType, profile: Profile) {
+  if (isMatSchool(type, profile)) return getSignatoryApproval();
+  if (needsInstitutionApproval(type, profile)) return getComplianceApproval();
+  return null;
+}
+
 async function submitIfReady(
   type: AccountType,
   profile: Profile,
-  approval: SignatoryApproval | null,
+  approval: InstitutionApproval | null,
 ) {
   const version = getSessionVersion();
   const trustReady =
-    !isMatSchool(type, profile) || approval?.status === 'APPROVED';
+    !needsInstitutionApproval(type, profile) || approval?.status === 'APPROVED';
   if (profile.status !== 'INCOMPLETE' || !trustReady) return profile;
   const requirements = await getRequirements();
   assertSessionVersion(version);
@@ -88,7 +105,7 @@ export default function ReviewStatusScreen({
   const styles = useStyles();
 
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [approval, setApproval] = useState<SignatoryApproval | null>(null);
+  const [approval, setApproval] = useState<InstitutionApproval | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileBusy, setProfileBusy] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
@@ -96,8 +113,10 @@ export default function ReviewStatusScreen({
   const mounted = useRef(true);
 
   const matSchool = isMatSchool(type, profile);
+  const institutionApprovalRequired = needsInstitutionApproval(type, profile);
   const profileReady = profile?.status === 'ACTIVE';
-  const approvalReady = !matSchool || approval?.status === 'APPROVED';
+  const approvalReady =
+    !institutionApprovalRequired || approval?.status === 'APPROVED';
 
   const loadAll = useCallback(async () => {
     const version = getSessionVersion();
@@ -107,10 +126,16 @@ export default function ReviewStatusScreen({
     try {
       let nextProfile = await getProfile(type);
       if (!active()) return;
-      let nextApproval: SignatoryApproval | null = null;
+      let nextApproval: InstitutionApproval | null = null;
 
       if (isMatSchool(type, nextProfile)) {
         nextApproval = await getSignatoryApproval();
+        if (!active()) return;
+      } else if (
+        type === 'school' &&
+        nextProfile.complianceApprovalRequired !== false
+      ) {
+        nextApproval = await getComplianceApproval();
         if (!active()) return;
       }
 
@@ -139,11 +164,14 @@ export default function ReviewStatusScreen({
     try {
       let nextProfile = await getProfile(type);
       assertSessionVersion(version);
-      nextProfile = await submitIfReady(type, nextProfile, approval);
+      const nextApproval = await loadApproval(type, nextProfile);
+      assertSessionVersion(version);
+      nextProfile = await submitIfReady(type, nextProfile, nextApproval);
       if (!mounted.current || version !== getSessionVersion()) return;
       setProfile(nextProfile);
+      setApproval(nextApproval);
 
-      if (canOpenDashboard(type, nextProfile, approval)) {
+      if (canOpenDashboard(type, nextProfile, nextApproval)) {
         onDashboard();
       }
     } catch (problem) {
@@ -158,15 +186,17 @@ export default function ReviewStatusScreen({
   }
 
   async function refreshApprovalStatus() {
-    if (!matSchool || loading || profileBusy || approvalBusy) return;
+    if (!institutionApprovalRequired || loading || profileBusy || approvalBusy)
+      return;
     const version = getSessionVersion();
 
     setApprovalBusy(true);
     setError('');
     try {
-      const nextApproval = await getSignatoryApproval();
+      let nextProfile = await getProfile(type);
       assertSessionVersion(version);
-      let nextProfile = profile;
+      const nextApproval = await loadApproval(type, nextProfile);
+      assertSessionVersion(version);
 
       if (nextProfile) {
         nextProfile = await submitIfReady(type, nextProfile, nextApproval);
@@ -215,7 +245,11 @@ export default function ReviewStatusScreen({
           <Text style={common.cardTitle}>Your profile review</Text>
           <Text style={common.body}>
             You can access the dashboard after the profile is active
-            {matSchool ? ' and the MAT signatory has approved it.' : '.'}
+            {institutionApprovalRequired
+              ? matSchool
+                ? ' and the MAT signatory has approved it.'
+                : ' and the school compliance contact has approved it.'
+              : '.'}
           </Text>
 
           <View style={styles.statusBox}>
@@ -226,9 +260,13 @@ export default function ReviewStatusScreen({
               </Text>
             </View>
             <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Signatory approval</Text>
+              <Text style={styles.statusLabel}>
+                {matSchool ? 'Trust signatory approval' : 'Compliance approval'}
+              </Text>
               <Text style={[styles.statusValue, approvalReady && styles.good]}>
-                {matSchool ? approvalText(approval) : 'Not required'}
+                {institutionApprovalRequired
+                  ? approvalText(approval)
+                  : 'Not required'}
               </Text>
             </View>
           </View>
@@ -274,9 +312,15 @@ export default function ReviewStatusScreen({
               disabled={loading || profileBusy || approvalBusy}
               compact
             />
-            {matSchool ? (
+            {institutionApprovalRequired ? (
               <Button
-                title={approvalBusy ? 'Refreshing...' : 'Check trust approval'}
+                title={
+                  approvalBusy
+                    ? 'Refreshing...'
+                    : matSchool
+                    ? 'Check trust approval'
+                    : 'Check compliance approval'
+                }
                 variant="text"
                 onPress={refreshApprovalStatus}
                 disabled={loading || profileBusy || approvalBusy}
@@ -290,7 +334,7 @@ export default function ReviewStatusScreen({
   );
 }
 
-const useStyles = createThemedStyles(colors => ({
+const useStyles = createThemedStyles((colors, _common, layout) => ({
   safeArea: {
     flex: 1,
     backgroundColor: '#f4f6f8',
@@ -314,6 +358,7 @@ const useStyles = createThemedStyles(colors => ({
     color: colors.brand,
   },
   email: {
+    flexShrink: 1,
     maxWidth: 180,
     color: colors.muted,
     fontSize: 12,
@@ -323,6 +368,7 @@ const useStyles = createThemedStyles(colors => ({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 18,
+    paddingBottom: 96,
   },
   dialog: {
     width: '100%',
@@ -352,8 +398,8 @@ const useStyles = createThemedStyles(colors => ({
     minHeight: 48,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: layout.stack ? 'column' : 'row',
+    alignItems: layout.stack ? 'flex-start' : 'center',
     justifyContent: 'space-between',
     gap: 10,
     borderBottomWidth: 1,
@@ -368,7 +414,7 @@ const useStyles = createThemedStyles(colors => ({
     color: colors.ink,
     fontSize: 12,
     fontWeight: '800',
-    textAlign: 'right',
+    textAlign: layout.stack ? 'left' : 'right',
     flexShrink: 1,
   },
   good: {

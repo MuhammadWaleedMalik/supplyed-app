@@ -53,15 +53,15 @@ export default function SchoolAddressFields({
             error={requiredError(data.city, attempted)}
           />
         </View>
-        <Input
-          label="TYPICAL PUPIL COUNT"
-          placeholder="420"
-          number
-          required={false}
-          value={data.pupilCount}
-          onChangeText={value => update('pupilCount', value)}
-          half={wide}
-        />
+        <View style={[styles.field, wide && styles.half]}>
+          <DynamicSelect
+            name="region"
+            label="COUNTY / REGION"
+            required={false}
+            value={data.county}
+            onChange={value => update('county', value)}
+          />
+        </View>
       </View>
       <Input
         label="POSTCODE"
@@ -69,6 +69,14 @@ export default function SchoolAddressFields({
         value={data.postcode}
         onChangeText={value => update('postcode', value)}
         error={requiredError(data.postcode, attempted)}
+      />
+      <Input
+        label="TYPICAL PUPIL COUNT"
+        placeholder="420"
+        number
+        required={false}
+        value={data.pupilCount}
+        onChangeText={value => update('pupilCount', value)}
       />
       <TeachingFields
         label="Staffing needs"
@@ -83,12 +91,6 @@ export default function SchoolAddressFields({
         required
         value={data.coverTypes}
         onChange={value => update('coverTypes', value)}
-      />
-      <DynamicSelect
-        name="region"
-        label="Region"
-        value={data.county}
-        onChange={value => update('county', value)}
       />
     </View>
   );

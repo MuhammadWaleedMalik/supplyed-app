@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { Check, ChevronRight, MessageCircle, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Conversation } from '../../constants/conversationsApi';
@@ -57,7 +57,7 @@ export default function ConversationPicker({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={[styles.overlay, { paddingTop: insets.top + 20 }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.overlay, { paddingTop: insets.top }]}>
         <Pressable
           style={styles.backdrop}
           onPress={onClose}
@@ -71,7 +71,7 @@ export default function ConversationPicker({
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.copy}>
-              <Text accessibilityRole="header" style={styles.title}>
+              <Text accessibilityRole="header" numberOfLines={2} style={styles.title}>
                 Switch conversation
               </Text>
               <Text numberOfLines={1} style={styles.muted}>
@@ -87,7 +87,9 @@ export default function ConversationPicker({
               <X size={22} color={colors.ink} />
             </Pressable>
           </View>
-          <View style={styles.controls}>
+          <FlatList
+            style={styles.listView}
+            ListHeaderComponent={<View style={styles.controls}>
             <View style={styles.tabs}>
               {(['general', 'jobs'] as Topic[]).map(value => (
                 <Pressable
@@ -131,8 +133,7 @@ export default function ConversationPicker({
               onChangeText={setSearch}
             />
             <Text style={styles.muted}>Newest conversations first</Text>
-          </View>
-          <FlatList
+          </View>}
             data={visibleItems}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.list}
@@ -232,7 +233,7 @@ export default function ConversationPicker({
             }
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -279,7 +280,7 @@ const useStyles = createThemedStyles(colors => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  controls: { paddingHorizontal: 22, gap: 12, paddingBottom: 12 },
+  controls: { gap: 12, paddingBottom: 12 },
   tabs: {
     flexDirection: 'row',
     gap: 6,
@@ -296,10 +297,11 @@ const useStyles = createThemedStyles(colors => ({
   },
   activeTab: { backgroundColor: colors.brandTint },
   disabled: { opacity: 0.35 },
-  tabText: { fontSize: 14, fontWeight: '600', color: colors.muted },
+  tabText: { maxWidth: '100%', textAlign: 'center', fontSize: 14, fontWeight: '600', color: colors.muted },
   activeText: { color: colors.brandDark },
   count: { fontSize: 12 },
   list: { padding: 20, gap: 12 },
+  listView: { flex: 1 },
   card: {
     borderWidth: 1,
     borderColor: colors.border,
