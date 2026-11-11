@@ -17,12 +17,12 @@ export function useForegroundRefresh(
     const run = () => {
       if (AppState.currentState === 'active') callback.current();
     };
-    const timer = setInterval(run, milliseconds);
+    const timer = milliseconds > 0 ? setInterval(run, milliseconds) : undefined;
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') run();
     });
     return () => {
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
       subscription.remove();
     };
   }, [enabled, milliseconds]);

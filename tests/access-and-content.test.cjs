@@ -9,6 +9,7 @@ const {
   canSchoolCompleteBooking,
   canSchoolReportNoShow,
 } = require('../utils/bookings/bookingActions');
+const { getNotificationDestination } = require('../utils/navigation/notificationNavigation');
 
 const requirement = (overrides = {}) => ({
   id: 'dbs', isRequired: true, requiresReview: true,
@@ -100,7 +101,8 @@ test('huge text windows stay bounded without losing text or splitting surrogate 
 
 test('account entry checks current approval, documents, restricted states and API failures', async t => {
   const oldLoad = Module._load;
-  let profile, approval, requirements, documents, fail;
+  let profile, approval, requirements, documents, fail, identity, identityFailure;
+  let identityReads = 0, documentReads = 0;
   const calls = [];
   class ApiError extends Error { constructor(status) { super('request failed'); this.status = status; } }
   const mocks = new Map([
@@ -111,8 +113,8 @@ test('account entry checks current approval, documents, restricted states and AP
       getSignatoryApproval: async () => { calls.push('signatory'); return approval; },
     }],
     [require.resolve('../feature/documents/apis/documentApi'), {
-      getRequirements: async () => requirements,
-      getDocuments: async () => documents,
+      getRequirements: async () => { documentReads++; return requirements; },
+      getDocuments: async () => { documentReads++; return documents; },
     }],
   ]);
   Module._load = function(id, parent, isMain) {
@@ -120,16 +122,31 @@ test('account entry checks current approval, documents, restricted states and AP
     return mocks.has(key) ? mocks.get(key) : oldLoad.call(this, id, parent, isMain);
   };
   let nextAccountScreen;
-  try { ({ nextAccountScreen } = require('../utils/navigation/nextAccountScreen')); }
+  try {
+    // Use the production gate with a controlled backend reply; no real network requests.
+    const identityApi = require('../feature/identityVerification/apis/identityVerificationApi');
+    mocks.set(require.resolve('../feature/identityVerification/apis/identityVerificationApi'), {
+      ...identityApi,
+      getMyIdentityVerification: async () => {
+        identityReads++;
+        if (identityFailure) throw identityFailure;
+        return identity;
+      },
+    });
+    ({ nextAccountScreen } = require('../utils/navigation/nextAccountScreen'));
+  }
   finally { Module._load = oldLoad; }
   function reset() {
     profile = { id: 'profile', status: 'ACTIVE', institutionType: 'SINGLE_SCHOOL' };
     approval = { status: 'APPROVED' };
     requirements = [requirement()]; documents = [document()]; fail = null; calls.length = 0;
+    identity = { required: true, canStart: false, state: 'VERIFIED', verification: null, verifiedAt: null };
+    identityFailure = null; identityReads = 0; documentReads = 0;
   }
   await t.test('single-school compliance, MAT signatory and explicitly waived compliance', async () => {
     reset(); assert.equal(await nextAccountScreen('school'), 'dashboard');
     assert.deepEqual(calls, ['compliance']);
+    assert.equal(identityReads, 0, 'schools do not load teacher identity checks');
     approval.status = 'PENDING'; assert.equal(await nextAccountScreen('school'), 'reviewStatus');
     profile.complianceApprovalRequired = false; assert.equal(await nextAccountScreen('school'), 'dashboard');
     profile.institutionType = 'MAT_SCHOOL'; assert.equal(await nextAccountScreen('school'), 'reviewStatus');
@@ -139,6 +156,7 @@ test('account entry checks current approval, documents, restricted states and AP
   await t.test('teachers may enter only when active and uploads are ready; pending uploads still cannot apply', async () => {
     reset(); assert.equal(await nextAccountScreen('teacher'), 'dashboard');
     assert.equal(calls.length, 0);
+    assert.equal(identityReads, 1);
     documents = []; assert.equal(await nextAccountScreen('teacher'), 'documents');
     documents = [document({ status: 'PENDING' })];
     assert.equal(await nextAccountScreen('teacher'), 'dashboard');
@@ -153,7 +171,67 @@ test('account entry checks current approval, documents, restricted states and AP
   });
   await t.test('missing profiles go to onboarding; unexpected API errors never unlock the dashboard', async () => {
     reset(); profile = null; assert.equal(await nextAccountScreen('teacher'), 'onboarding');
+    assert.equal(identityReads, 0);
     fail = new ApiError(404); assert.equal(await nextAccountScreen('teacher'), 'onboarding');
     fail = new ApiError(503); await assert.rejects(nextAccountScreen('teacher'), /request failed/);
   });
+  await t.test('not-started and unsuccessful teachers reach identity before documents', async () => {
+    for (const state of ['NOT_STARTED', 'UNSUCCESSFUL']) {
+      reset(); identity.state = state;
+      assert.equal(await nextAccountScreen('teacher'), 'identityVerification', state);
+      assert.equal(identityReads, 1);
+      assert.equal(documentReads, 0, 'identity step precedes document loading');
+    }
+  });
+  await t.test('pending checks permit documents and normal account entry like the web', async () => {
+    for (const state of ['LINK_SENT', 'PROCESSING', 'IN_REVIEW', 'RETRY_PENDING', 'VERIFIED']) {
+      reset(); identity.state = state;
+      assert.equal(await nextAccountScreen('teacher'), 'dashboard', state);
+      documents = [];
+      assert.equal(await nextAccountScreen('teacher'), 'documents', state);
+      documents = [document()]; profile.status = 'PENDING_REVIEW';
+      assert.equal(await nextAccountScreen('teacher'), 'reviewStatus', state);
+    }
+  });
+  await t.test('disabled identity and failed status reads preserve the web redirect behavior', async () => {
+    reset(); identity = { ...identity, required: false, state: 'NOT_STARTED' };
+    assert.equal(await nextAccountScreen('teacher'), 'dashboard');
+    identity.required = true;
+    identityFailure = new Error('identity service unavailable');
+    assert.equal(await nextAccountScreen('teacher'), 'dashboard');
+    documents = [];
+    assert.equal(await nextAccountScreen('teacher'), 'documents');
+  });
+  await t.test('suspension and deactivation take priority without loading identity or documents', async () => {
+    for (const status of ['SUSPENDED', 'DEACTIVATED']) {
+      reset(); profile.status = status; identity.state = 'NOT_STARTED';
+      assert.equal(await nextAccountScreen('teacher'), 'reviewStatus', status);
+      assert.equal(identityReads, 0);
+      assert.equal(documentReads, 0);
+    }
+  });
+  await t.test('identity notification parameters cannot override the backend account gate', async () => {
+    reset(); identity.state = 'NOT_STARTED';
+    const destination = getNotificationDestination({
+      type: 'IDENTITY_VERIFICATION',
+      link: '/verify-identity?state=VERIFIED&success=true&verifiedAt=2030-01-01#complete',
+      data: { state: 'VERIFIED', verified: true, result: 'VERIFIED' },
+    });
+    assert.deepEqual(destination, { screen: 'IdentityVerification' });
+    assert.equal(await nextAccountScreen('teacher'), 'identityVerification');
+    assert.equal(identity.state, 'NOT_STARTED');
+  });
+});
+
+test('identity notifications open the identity screen and reject external or malformed links', () => {
+  const notification = { type: 'IDENTITY_VERIFICATION', data: {}, link: '/verify-identity' };
+  assert.deepEqual(getNotificationDestination(notification), { screen: 'IdentityVerification' });
+  for (const link of [
+    'https://untrusted.example/verify-identity', '//untrusted.example/verify-identity',
+    'supplyed://verify-identity?state=VERIFIED', '/%2f/verify-identity',
+    '/verify-identity%5c', '/verify-identity-other',
+  ]) {
+    assert.deepEqual(getNotificationDestination({ ...notification, link }),
+      { screen: 'Notifications' }, link);
+  }
 });

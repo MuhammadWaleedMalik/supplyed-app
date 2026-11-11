@@ -3,6 +3,8 @@ import { createThemedStyles } from '../../../components/Ui/theme';
 export const useStyles = createThemedStyles(colors => ({
   safeArea: { flex: 1, backgroundColor: '#ffffff' },
   keyboard: { flex: 1 },
+  documentColumn: { gap: 16 },
+  wideDocumentColumn: { flex: 1 },
   topBar: {
     minHeight: 58,
     paddingHorizontal: 18,

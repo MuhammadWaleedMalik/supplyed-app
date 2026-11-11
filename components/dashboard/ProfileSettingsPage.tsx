@@ -22,13 +22,14 @@ import PayoutAccountCard from './PayoutAccountCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import AvailabilityCard from './AvailabilityCard';
 import ProfileDocumentsCard from './ProfileDocumentsCard';
+import IdentityVerificationCard from '../documents/IdentityVerificationCard';
 import { useStyles } from './dashboardStyles';
 import { useSettingsStyles } from './settingsStyles';
 
-type Props = { type: AccountType; title: string; onBack: () => void };
-type Section = 'account' | 'profile' | 'preferences' | 'history' | 'availability';
+type Props = { type: AccountType; title: string; onBack: () => void; onVerifyIdentity: () => void };
+type Section = 'account' | 'profile' | 'preferences' | 'history' | 'availability' | 'identity';
 
-export default function ProfileSettingsPage({ type, title, onBack }: Props) {
+export default function ProfileSettingsPage({ type, title, onBack, onVerifyIdentity }: Props) {
   const styles = useStyles();
   const settingsStyles = useSettingsStyles();
   const form = useProfileSettings(type);
@@ -53,6 +54,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
         { value: 'account', label: 'Account' },
         { value: 'history', label: 'History' },
       ];
+  if (type === 'teacher') sections.push({ value: 'identity', label: 'Identity & DBS' });
   const hints: Record<Section, string> = {
     account: 'Your photo, name, email and phone verification.',
     profile:
@@ -62,6 +64,7 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
     preferences: 'Appearance, notifications and payment preferences.',
     history: 'Your work, applications, reviews and verification status.',
     availability: 'Choose when schools can match you with teaching work.',
+    identity: 'Your identity, right to work and DBS checks.',
   };
 
   useEffect(() => {
@@ -178,6 +181,9 @@ export default function ProfileSettingsPage({ type, title, onBack }: Props) {
           ) : null}
           {section === 'availability' && type === 'teacher' ? (
             <AvailabilityCard />
+          ) : null}
+          {section === 'identity' && type === 'teacher' && form.settings?.profile.id ? (
+            <IdentityVerificationCard showDbs onVerify={onVerifyIdentity} />
           ) : null}
         </ScrollView>
         {editable ? (

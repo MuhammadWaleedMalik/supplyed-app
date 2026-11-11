@@ -9,7 +9,8 @@ type NotificationDestination =
   | {
       screen: 'Billing' | 'Dashboard' | 'Settings' | 'Notifications';
     }
-  | { screen: 'TeacherProfile' | 'InstitutionProfile'; id: string };
+  | { screen: 'TeacherProfile' | 'InstitutionProfile'; id: string }
+  | { screen: 'IdentityVerification' };
 
 function validId(value: unknown): value is string {
   return typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
@@ -92,6 +93,7 @@ export function getNotificationDestination(
     if (path === '/billing') return { screen: 'Billing' };
     if (path === '/dashboard') return { screen: 'Dashboard' };
     if (path === '/settings') return { screen: 'Settings' };
+    if (path === '/verify-identity') return { screen: 'IdentityVerification' };
     return fallback;
   } catch {
     return fallback;

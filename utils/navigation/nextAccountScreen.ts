@@ -10,6 +10,19 @@ import {
   getRequirements,
 } from '../../feature/documents/apis/documentApi';
 import { requiredDocumentsReady } from '../documents/documentUtils';
+import {
+  getMyIdentityVerification,
+  identityStepRequired,
+} from '../../feature/identityVerification/apis/identityVerificationApi';
+
+export async function needsIdentityStep() {
+  try {
+    return identityStepRequired(await getMyIdentityVerification());
+  } catch {
+    // Match the web redirect: backend submission/approval still enforces identity.
+    return false;
+  }
+}
 
 export async function nextAccountScreen(type: AccountType) {
   let profile;
@@ -23,6 +36,8 @@ export async function nextAccountScreen(type: AccountType) {
   if (!profile?.id) return 'onboarding';
   // Suspension/deactivation takes priority over repairable onboarding fields.
   if (['SUSPENDED', 'DEACTIVATED'].includes(profile.status || '')) return 'reviewStatus';
+
+  if (type === 'teacher' && (await needsIdentityStep())) return 'identityVerification';
 
   const [requirements, documents] = await Promise.all([getRequirements(), getDocuments()]);
   const documentsReady = requiredDocumentsReady(requirements, documents);

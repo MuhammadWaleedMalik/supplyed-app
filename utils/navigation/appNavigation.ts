@@ -11,7 +11,7 @@ import {
 } from '../api/session';
 import { getAppRole } from '../auth/authUtils';
 import { AccountType } from '../onboarding/onboardingData';
-import { nextAccountScreen } from './nextAccountScreen';
+import { needsIdentityStep, nextAccountScreen } from './nextAccountScreen';
 
 type AppScreen =
   | 'restoring'
@@ -22,6 +22,7 @@ type AppScreen =
   | 'twoFactor'
   | 'forgotPassword'
   | 'onboarding'
+  | 'identityVerification'
   | 'documents'
   | 'reviewStatus'
   | 'dashboard'
@@ -61,6 +62,8 @@ function getBackTarget(
     return 'landing';
   }
 
+  if (screen === 'identityVerification') return 'identityVerification';
+
   if (
     screen === 'workspaceProfile' ||
     screen === 'security' ||
@@ -93,6 +96,8 @@ export function useAppNavigation() {
   const [twoFactorToken, setTwoFactorToken] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [accountReturnScreen, setAccountReturnScreen] =
+    useState<AppScreen>('dashboard');
+  const [identityReturnScreen, setIdentityReturnScreen] =
     useState<AppScreen>('dashboard');
   const [restoreError, setRestoreError] = useState('');
   const restoreAttempt = useRef(0);
@@ -224,6 +229,7 @@ export function useAppNavigation() {
     setRestoreError('');
     setVerificationEmail(user.email);
     setCurrentSessionUser(user);
+    setIdentityReturnScreen('dashboard');
     setIsAdmin(user.role === 'ADMIN');
     if (user.role === 'ADMIN') {
       setScreen('adminPayments');
@@ -263,12 +269,41 @@ export function useAppNavigation() {
     setTwoFactorToken('');
     setRestoreError('');
     setIsAdmin(false);
+    setIdentityReturnScreen('dashboard');
     setScreen('landing');
   }
 
   function showDocuments(type: AccountType) {
     setProfileType(type);
     setScreen('documents');
+  }
+
+  async function showProfileDocuments(type: AccountType) {
+    const version = getSessionVersion();
+    const attempt = ++accessAttempt.current;
+    setProfileType(type);
+    setIdentityReturnScreen('documents');
+    setCheckingAccess(true);
+    const needsIdentity = type === 'teacher' && (await needsIdentityStep());
+    if (version !== getSessionVersion() || attempt !== accessAttempt.current) return;
+    setScreen(needsIdentity ? 'identityVerification' : 'documents');
+    setCheckingAccess(false);
+  }
+
+  function showIdentityVerification() {
+    if (profileType === 'teacher') {
+      setIdentityReturnScreen(screen);
+      setScreen('identityVerification');
+    }
+  }
+
+  function continueAfterIdentity() {
+    if (identityReturnScreen === 'dashboard') showDashboard();
+    else if (
+      ['workspaceProfile', 'settings', 'reviewStatus'].includes(identityReturnScreen)
+    )
+      setScreen(identityReturnScreen);
+    else showDocuments(profileType);
   }
 
   const restoreSession = useCallback(async () => {
@@ -297,6 +332,7 @@ export function useAppNavigation() {
       if (getSessionVersion() !== version || attempt !== restoreAttempt.current)
         return;
       setCurrentSessionUser(user);
+      setIdentityReturnScreen('dashboard');
       setVerificationEmail(user.email);
       setIsAdmin(user.role === 'ADMIN');
       if (user.role === 'ADMIN') {
@@ -402,6 +438,9 @@ export function useAppNavigation() {
     showForgotPassword,
     showAuthenticated,
     showDocuments,
+    showProfileDocuments,
+    showIdentityVerification,
+    continueAfterIdentity,
     showReviewStatus,
     showDashboard,
     showWorkspaceProfile,

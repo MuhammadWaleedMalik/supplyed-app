@@ -17,6 +17,7 @@ type Props = {
   onProfile: () => void;
   onSecurity: () => void;
   onSettings: () => void;
+  onVerifyIdentity: () => void;
 };
 
 export default function TeacherDashboard(props: Props) {
@@ -32,7 +33,7 @@ export default function TeacherDashboard(props: Props) {
     if (page === 'Invitations') return <InvitationsScreen role="teacher" />;
     if (page === 'Notifications') {
       return (
-        <NotificationsScreen type="teacher" onSettings={props.onSettings} />
+        <NotificationsScreen type="teacher" onSettings={props.onSettings} onVerifyIdentity={props.onVerifyIdentity} />
       );
     }
     if (page === 'Jobs') {

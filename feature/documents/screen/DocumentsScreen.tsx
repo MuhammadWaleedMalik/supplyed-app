@@ -14,6 +14,7 @@ import DocumentsUpload from '../../../components/documents/DocumentsUpload';
 import SignatoryApprovalPanel from '../../../components/documents/SignatoryApprovalPanel';
 import ComplianceApprovalPanel from '../../../components/documents/ComplianceApprovalPanel';
 import OptionalPhoneVerification from '../../../components/documents/OptionalPhoneVerification';
+import IdentityVerificationCard from '../../../components/documents/IdentityVerificationCard';
 import { useStyles } from './documentStyles';
 import { AccountType } from '../../../utils/onboarding/onboardingData';
 import { useDocuments } from '../hooks/useDocuments';
@@ -22,12 +23,14 @@ type Props = {
   type: AccountType;
   onReviewStatus: () => void;
   onExit: () => void;
+  onVerifyIdentity: () => void;
 };
 
 export default function DocumentsScreen({
   type,
   onReviewStatus,
   onExit,
+  onVerifyIdentity,
 }: Props) {
   const styles = useStyles();
 
@@ -54,40 +57,50 @@ export default function DocumentsScreen({
         >
           <View style={[styles.panels, wide && styles.widePanels]}>
             <DocumentsIntro type={type} wide={wide} />
-            <DocumentsUpload
-              requirements={form.requirements}
-              documents={form.documents}
-              error={form.error}
-              loading={form.loading}
-              onRetry={!form.loaded ? form.retryLoad : undefined}
-              submitting={form.submitting}
-              uploadingIds={form.uploadingIds}
-              uploadErrors={form.uploadErrors}
-              onRetryUpload={form.retryDocument}
-              previewingId={form.previewingId}
-              signatoryPanel={
-                <>
-                  <OptionalPhoneVerification />
-                  <SignatoryApprovalPanel
-                    visible={form.needsTrustApproval}
-                    approval={form.approval}
-                    refreshing={form.refreshingApproval}
-                    onRefresh={form.refreshApprovalStatus}
-                    onUpdated={form.updateApproval}
-                  />
-                  <ComplianceApprovalPanel
-                    visible={form.needsComplianceApproval}
-                    approval={form.complianceApproval}
-                    refreshing={form.refreshingApproval}
-                    onRefresh={form.refreshApprovalStatus}
-                    onUpdated={form.updateComplianceApproval}
-                  />
-                </>
-              }
-              onAdd={form.addDocument}
-              onPreview={form.previewDocument}
-              onSubmit={form.continueToReviewStatus}
-            />
+            <View
+              style={[styles.documentColumn, wide && styles.wideDocumentColumn]}
+            >
+              {type === 'teacher' ? (
+                <IdentityVerificationCard
+                  hideWhenDisabled
+                  onVerify={onVerifyIdentity}
+                />
+              ) : null}
+              <DocumentsUpload
+                requirements={form.requirements}
+                documents={form.documents}
+                error={form.error}
+                loading={form.loading}
+                onRetry={!form.loaded ? form.retryLoad : undefined}
+                submitting={form.submitting}
+                uploadingIds={form.uploadingIds}
+                uploadErrors={form.uploadErrors}
+                onRetryUpload={form.retryDocument}
+                previewingId={form.previewingId}
+                signatoryPanel={
+                  <>
+                    <OptionalPhoneVerification />
+                    <SignatoryApprovalPanel
+                      visible={form.needsTrustApproval}
+                      approval={form.approval}
+                      refreshing={form.refreshingApproval}
+                      onRefresh={form.refreshApprovalStatus}
+                      onUpdated={form.updateApproval}
+                    />
+                    <ComplianceApprovalPanel
+                      visible={form.needsComplianceApproval}
+                      approval={form.complianceApproval}
+                      refreshing={form.refreshingApproval}
+                      onRefresh={form.refreshApprovalStatus}
+                      onUpdated={form.updateComplianceApproval}
+                    />
+                  </>
+                }
+                onAdd={form.addDocument}
+                onPreview={form.previewDocument}
+                onSubmit={form.continueToReviewStatus}
+              />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

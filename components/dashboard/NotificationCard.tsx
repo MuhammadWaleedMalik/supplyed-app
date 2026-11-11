@@ -21,6 +21,7 @@ function notificationIcon(type: string): AppIconName {
     case 'INVOICE_PAID':
       return 'billing';
     case 'PROFILE_STATUS':
+    case 'IDENTITY_VERIFICATION':
       return 'profile';
     case 'REVIEW_RECEIVED':
       return 'reviews';

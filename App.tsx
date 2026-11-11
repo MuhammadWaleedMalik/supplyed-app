@@ -17,6 +17,7 @@ import ForgotPasswordScreen from './feature/auth/screen/ForgotPasswordScreen';
 import SessionScreen from './feature/auth/screen/SessionScreen';
 import OnboardingScreen from './feature/onboarding/screen/OnboardingScreen';
 import DocumentsScreen from './feature/documents/screen/DocumentsScreen';
+import IdentityVerificationScreen from './feature/identityVerification/screen/IdentityVerificationScreen';
 import ReviewStatusScreen from './feature/reviewStatus/screen/ReviewStatusScreen';
 import SchoolDashboard from './feature/dashboard/school/screens/SchoolDashboard';
 import TeacherDashboard from './feature/dashboard/teacher/screens/TeacherDashboard';
@@ -63,7 +64,9 @@ export default function App() {
     showTwoFactor,
     showForgotPassword,
     showAuthenticated,
-    showDocuments,
+    showProfileDocuments,
+    showIdentityVerification,
+    continueAfterIdentity,
     showReviewStatus,
     showDashboard,
     showWorkspaceProfile,
@@ -131,6 +134,7 @@ export default function App() {
                   'onboarding',
                   'restoring',
                   'documents',
+                  'identityVerification',
                   'reviewStatus',
                   'dashboard',
                   'adminPayments',
@@ -191,7 +195,7 @@ export default function App() {
                 email={verificationEmail}
                 type={profileType}
                 onExit={showLanding}
-                onProfileCreated={showDocuments}
+                onProfileCreated={showProfileDocuments}
               />
             )}
             {screen === 'documents' && (
@@ -199,14 +203,18 @@ export default function App() {
                 type={profileType}
                 onReviewStatus={showReviewStatus}
                 onExit={showLanding}
+                onVerifyIdentity={showIdentityVerification}
               />
+            )}
+            {screen === 'identityVerification' && (
+              <IdentityVerificationScreen onContinue={continueAfterIdentity} onExit={showLanding} />
             )}
             {screen === 'reviewStatus' && (
               <ReviewStatusScreen
                 email={verificationEmail}
                 type={profileType}
                 onDashboard={showDashboard}
-                onDocuments={() => showDocuments(profileType)}
+                onDocuments={() => showProfileDocuments(profileType)}
                 onEditProfile={showWorkspaceProfile}
                 onExit={showLanding}
               />
@@ -227,6 +235,7 @@ export default function App() {
                 onProfile={showWorkspaceProfile}
                 onSecurity={showSecurity}
                 onSettings={showSettings}
+                onVerifyIdentity={showIdentityVerification}
               />
             )}
             {screen === 'adminPayments' && (
@@ -237,11 +246,11 @@ export default function App() {
               />
             )}
             {screen === 'workspaceProfile' && (
-              <ProfileScreen type={profileType} onBack={goBack} />
+              <ProfileScreen type={profileType} onBack={goBack} onVerifyIdentity={showIdentityVerification} />
             )}
             {screen === 'security' && <SecurityScreen onBack={goBack} />}
             {screen === 'settings' && (
-              <SettingsScreen type={profileType} onBack={goBack} />
+              <SettingsScreen type={profileType} onBack={goBack} onVerifyIdentity={showIdentityVerification} />
             )}
             {[
               'landing',

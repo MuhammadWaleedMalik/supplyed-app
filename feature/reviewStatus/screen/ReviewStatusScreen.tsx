@@ -17,6 +17,7 @@ import {
   getRequirements,
 } from '../../documents/apis/documentApi';
 import { requiredDocumentsReady } from '../../../utils/documents/documentUtils';
+import { getMyIdentityVerification } from '../../identityVerification/apis/identityVerificationApi';
 import {
   getProfile,
   getComplianceApproval,
@@ -84,6 +85,11 @@ async function submitIfReady(
   const trustReady =
     !needsInstitutionApproval(type, profile) || approval?.status === 'APPROVED';
   if (profile.status !== 'INCOMPLETE' || !trustReady) return profile;
+  if (type === 'teacher') {
+    const identity = await getMyIdentityVerification();
+    assertSessionVersion(version);
+    if (identity.required && identity.state !== 'VERIFIED') return profile;
+  }
   const requirements = await getRequirements();
   assertSessionVersion(version);
   const documents = await getDocuments();

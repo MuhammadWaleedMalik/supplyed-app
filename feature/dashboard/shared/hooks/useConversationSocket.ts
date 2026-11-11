@@ -203,6 +203,7 @@ export function useConversationSocket() {
       dispatch(setChatConnected(true));
       dispatch(setChatError(''));
       dispatch(refreshChat());
+      dispatch(refreshMarketplace());
       refreshInbox();
       refreshNotificationInbox();
     });

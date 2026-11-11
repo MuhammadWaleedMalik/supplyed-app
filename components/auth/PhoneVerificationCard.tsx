@@ -10,6 +10,7 @@ type Props = {
   user?: User;
   editable?: boolean;
   disabled?: boolean;
+  required?: boolean;
   onVerified: (user: User) => void;
 };
 
@@ -17,6 +18,7 @@ export default function PhoneVerificationCard({
   user,
   editable = false,
   disabled = false,
+  required = false,
   onVerified,
 }: Props) {
   const styles = useStyles();
@@ -33,7 +35,7 @@ export default function PhoneVerificationCard({
           label="PHONE"
           placeholder="+44 7700 900000"
           phone
-          required={false}
+          required={required}
           value={form.phone}
           disabled={!user || busy || form.savedVerified}
           onChangeText={form.changePhone}
@@ -48,7 +50,9 @@ export default function PhoneVerificationCard({
       ) : (
         <>
           <Text style={styles.note}>
-            {editable
+            {required
+              ? "We'll text your TrustID link to this number, so confirm it first."
+              : editable
               ? 'Verification is optional. Save your number in Settings before verifying it.'
               : 'Verify your saved phone number to help complete your account verification.'}
           </Text>
@@ -59,7 +63,7 @@ export default function PhoneVerificationCard({
           ) : null}
           {!editable && !form.phone ? (
             <Text style={styles.note}>
-              Add and verify your phone later in Settings.
+              {required ? 'Enter your phone number to continue.' : 'Add and verify your phone later in Settings.'}
             </Text>
           ) : null}
           <Button

@@ -29,9 +29,9 @@ import {
   openNotificationPage,
 } from '../store/navigationSlice';
 
-type Props = { type: 'teacher' | 'school'; onSettings: () => void };
+type Props = { type: 'teacher' | 'school'; onSettings: () => void; onVerifyIdentity?: () => void };
 
-export default function NotificationsScreen({ type, onSettings }: Props) {
+export default function NotificationsScreen({ type, onSettings, onVerifyIdentity }: Props) {
   const { colors } = useTheme();
   const styles = useStyles();
   const notificationStyles = useNotificationStyles();
@@ -48,6 +48,9 @@ export default function NotificationsScreen({ type, onSettings }: Props) {
     const destination = getNotificationDestination(item);
 
     switch (destination.screen) {
+      case 'IdentityVerification':
+        if (type === 'teacher') onVerifyIdentity?.();
+        break;
       case 'Invitations':
         dispatch(openInvitation(destination.invitationId));
         break;
