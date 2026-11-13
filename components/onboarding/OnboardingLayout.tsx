@@ -65,8 +65,8 @@ export default function OnboardingLayout({
       >
         <ScrollView
           ref={scroll}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="always"
           contentContainerStyle={styles.scroll}
         >
           <View style={[styles.panels, wide && styles.widePanels]}>

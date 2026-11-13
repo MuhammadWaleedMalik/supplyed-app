@@ -42,7 +42,7 @@ export default function AccountFields({
         <View style={[styles.phone, wide && styles.half]}>
           <Input
             label="PHONE"
-            placeholder="+44 7700 900000"
+            placeholder="7700 900000"
             phone
             value={data.phone}
             disabled={phoneLocked}

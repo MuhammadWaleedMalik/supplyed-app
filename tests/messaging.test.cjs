@@ -2,7 +2,10 @@ require('./register.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  contactGroups,
   contactThreads,
+  conversationContextLabel,
+  conversationPreview,
   conversationTopic,
   defaultThread,
 } = require('../utils/messaging/threads');
@@ -21,7 +24,10 @@ function conversation(id, extra = {}) {
     id,
     createdAt: `2026-10-2${id.length}T10:00:00Z`,
     lastMessageAt: null,
+    lastMessage: null,
+    unreadCount: 0,
     applicationStatus: '',
+    counterpart: { id: 'person-1', role: 'teacher', name: 'Taylor' },
     job: { id: 'job', title: 'Cover role' },
     ...extra,
   };
@@ -37,6 +43,65 @@ test('uses exactly General and Jobs conversation categories', () => {
   const threads = contactThreads([general, application, booking]);
   assert.deepEqual(new Set(threads.map(item => item.topic)), new Set(['general', 'jobs']));
   assert.equal(defaultThread(threads).topic, 'jobs');
+});
+
+test('inbox previews the newest real message and labels its booking context', () => {
+  const message = conversation('message', {
+    createdAt: '2026-10-20T10:00:00Z',
+    lastMessageAt: '2026-10-28T10:00:00Z',
+    lastMessage: {
+      body: 'I can arrive at 8:15.',
+      createdAt: '2026-10-28T10:00:00Z',
+      fromMe: false,
+      hasAttachments: false,
+    },
+    booking: {
+      id: 'booking-1',
+      status: 'CONFIRMED',
+      applicationId: 'application-1',
+    },
+    applicationId: 'application-1',
+  });
+  const newerEmptyThread = conversation('empty', {
+    createdAt: '2026-10-29T10:00:00Z',
+    applicationId: 'application-2',
+    applicationStatus: 'APPLIED',
+  });
+  const group = contactGroups([newerEmptyThread, message])[0];
+  assert.equal(group.latest.id, 'message');
+  assert.equal(conversationPreview(group.latest), 'I can arrive at 8:15.');
+  assert.equal(conversationContextLabel(group.latest), 'Booking · Application');
+});
+
+test('empty chats show application, invitation, booking or general context', () => {
+  assert.equal(
+    conversationPreview(
+      conversation('invite', {
+        applicationId: 'invitation-1',
+        applicationStatus: 'INVITED',
+      }),
+    ),
+    'Invitation chat',
+  );
+  assert.equal(
+    conversationContextLabel(
+      conversation('direct', {
+        booking: {
+          id: 'booking-direct',
+          status: 'CONFIRMED',
+          applicationId: null,
+        },
+        applicationId: null,
+      }),
+    ),
+    'Booking · Invitation',
+  );
+  assert.equal(
+    conversationPreview(
+      conversation('general-chat', { job: null, applicationId: null }),
+    ),
+    'General conversation chat',
+  );
 });
 
 test('builds booking and participant-thread paths with encoded IDs', () => {

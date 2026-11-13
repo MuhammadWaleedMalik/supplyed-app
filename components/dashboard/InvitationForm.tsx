@@ -49,6 +49,7 @@ const emptyJob: JobForm = {
   days: '',
   mode: 'instant',
   timeZone: 'Europe/London',
+  currency: 'GBP',
   paymentFrequency: 'daily',
   periodAnchor: 'ASSIGNMENT_START',
   workersRequired: '1',

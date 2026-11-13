@@ -4,9 +4,16 @@ import {
   ActivityIndicator,
   FlatList,
   Linking,
+  Pressable,
   Text,
   View,
 } from 'react-native';
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ChevronLeft,
+  MessageCircle,
+} from 'lucide-react-native';
 import BookingFilterBar from '../../../../components/dashboard/BookingFilterBar';
 import BookingRecordCard from '../../../../components/dashboard/BookingRecordCard';
 import ConfirmDialog from '../../../../components/Ui/ConfirmDialog';
@@ -71,6 +78,9 @@ export default function PaginatedBookingsScreen({ type }: Props) {
   const bookings = useBookings();
   const bookingId = useAppSelector(
     state => state.dashboardNavigation.notificationBookingId,
+  );
+  const returnPage = useAppSelector(
+    state => state.dashboardNavigation.returnPage,
   );
   const [linkedBooking, setLinkedBooking] = useState<Booking>();
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -166,7 +176,10 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     setConfirmation({ booking, action: 'no-show' });
   }
 
-  async function updateBooking(action: () => Promise<unknown>) {
+  async function updateBooking(
+    action: () => Promise<unknown>,
+    onActionError?: (message: string) => void,
+  ) {
     if (working.current) return false;
     working.current = true;
     setBusy(true);
@@ -186,11 +199,17 @@ export default function PaginatedBookingsScreen({ type }: Props) {
       if (version !== getSessionVersion() || !mounted.current) return false;
       if (problem instanceof ApiError && problem.status === 409) {
         await refreshBookings();
-        if (version === getSessionVersion() && mounted.current)
-          bookings.setError(
-            'This booking changed. The latest details have been requested; check them before trying again.',
-          );
-      } else bookings.setError(actionError(problem));
+        if (version === getSessionVersion() && mounted.current) {
+          const message =
+            'This booking changed. The latest details have been requested; check them before trying again.';
+          if (onActionError) onActionError(message);
+          else bookings.setError(message);
+        }
+      } else {
+        const message = actionError(problem);
+        if (onActionError) onActionError(message);
+        else bookings.setError(message);
+      }
       return false;
     } finally {
       working.current = false;
@@ -255,9 +274,39 @@ export default function PaginatedBookingsScreen({ type }: Props) {
     );
     const showCancel = booking.status === 'CONFIRMED';
     const showReview = reviewWindowOpen(booking) && !hasMyReview(booking, type);
+    const topActions = detailOpen ? (
+      <View style={styles.bookingDetailActions}>
+        {showComplete ? (
+          <View style={styles.bookingActionSlot}>
+            <Button
+              title="Complete booking"
+              icon={<CheckCircle2 size={19} color="#ffffff" />}
+              onPress={() => confirmComplete(booking)}
+              disabled={busy}
+            />
+          </View>
+        ) : null}
+        <View style={styles.bookingActionSlot}>
+          <Button
+            title="View job"
+            icon={<BriefcaseBusiness size={19} color={colors.ink} />}
+            variant="social"
+            onPress={() => dispatch(openJob(booking.job.id))}
+          />
+        </View>
+        <View style={styles.bookingActionSlot}>
+          <Button
+            title={type === 'school' ? 'Message teacher' : 'Message school'}
+            icon={<MessageCircle size={19} color={colors.ink} />}
+            variant="outline"
+            onPress={() => dispatch(openBookingMessages(booking.id))}
+          />
+        </View>
+      </View>
+    ) : undefined;
 
     return (
-      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} hideManage={booking.status === 'COMPLETED'} footer={booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.invoice || booking.automaticPayment ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
+      <BookingRecordCard booking={booking} partyName={partyName} onProfile={() => openPartyProfile(booking)} topActions={topActions} detailMode={detailOpen} hideManage={booking.status === 'COMPLETED'} footer={booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.invoice || booking.automaticPayment ? <BookingInvoiceCard booking={booking} role={type === 'school' ? 'INSTITUTION' : 'INSTRUCTOR'} onChanged={refreshBookings} /> : undefined}>
         {type === 'teacher' && [
           booking.job.address,
           booking.job.city,
@@ -270,17 +319,19 @@ export default function PaginatedBookingsScreen({ type }: Props) {
             onPress={() => openDirections(booking)}
           />
         ) : null}
-        <Button
-          title="View job"
-          variant="social"
-          onPress={() => dispatch(openJob(booking.job.id))}
-        />
-        <Button
-          title={type === 'school' ? 'Message teacher' : 'Message school'}
-          variant="social"
-          onPress={() => dispatch(openBookingMessages(booking.id))}
-        />
-        {showComplete ? (
+        {!detailOpen ? <>
+          <Button
+            title="View job"
+            variant="social"
+            onPress={() => dispatch(openJob(booking.job.id))}
+          />
+          <Button
+            title={type === 'school' ? 'Message teacher' : 'Message school'}
+            variant="social"
+            onPress={() => dispatch(openBookingMessages(booking.id))}
+          />
+        </> : null}
+        {showComplete && !detailOpen ? (
           <View style={styles.quickButtons}>
             <Button
               title="Complete booking"
@@ -300,10 +351,13 @@ export default function PaginatedBookingsScreen({ type }: Props) {
           </View>
         ) : null}
 
-        {type === 'school' && booking.status === 'CONFIRMED' ? (
+        {['CONFIRMED', 'COMPLETED'].includes(booking.status) &&
+        (booking.attendancePolicyEffectiveAt ||
+          booking.attendanceShifts?.length) ? (
           <AttendancePanel
             booking={booking}
             disabled={busy}
+            readOnly={type === 'teacher' || booking.status !== 'CONFIRMED'}
             onRun={updateBooking}
           />
         ) : null}
@@ -440,14 +494,23 @@ export default function PaginatedBookingsScreen({ type }: Props) {
           <View style={jobStyles.shell}>
             {notice ? <Notice text={notice} /> : null}
             {detailOpen ? (
-              <Button
-                title="Back to all bookings"
-                variant="link"
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  returnPage ? `Back to ${returnPage}` : 'Back to all bookings'
+                }
                 onPress={() => {
                   setSelectedBookingId('');
-                  if (bookingId) dispatch(showPage('Bookings'));
+                  if (bookingId)
+                    dispatch(showPage(returnPage || 'Bookings'));
                 }}
-              />
+                style={({ pressed }) => [
+                  styles.bookingBackButton,
+                  pressed && styles.bookingActionPressed,
+                ]}
+              >
+                <ChevronLeft size={24} color={colors.ink} />
+              </Pressable>
             ) : null}
             <View style={jobStyles.progressCopy}>
               <Text style={jobStyles.listTitle}>

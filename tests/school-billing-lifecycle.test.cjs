@@ -16,7 +16,8 @@ Module._load = function mockedLoad(request, parent, isMain) {
         useCallback: (callback, dependencies) =>
           harness.useCallback(callback, dependencies),
       };
-    if (request === 'react-native') return { Text: 'Text', View: 'View' };
+    if (request === 'react-native')
+      return { Switch: 'Switch', Text: 'Text', View: 'View' };
     if (request === 'lucide-react-native') return { CreditCard: 'CreditCard' };
     if (request.endsWith('/paymentsApi'))
       return {
@@ -27,6 +28,14 @@ Module._load = function mockedLoad(request, parent, isMain) {
         createSchoolBillingSetup: () => {
           harness.calls.create++;
           return harness.create();
+        },
+        updateAutomaticPayments: enabled => {
+          harness.calls.update.push(enabled);
+          harness.billing = {
+            ...harness.billing,
+            automaticPaymentsEnabled: enabled,
+          };
+          return Promise.resolve(harness.billing);
         },
       };
     if (request.endsWith('/useForegroundRefresh'))
@@ -41,6 +50,7 @@ Module._load = function mockedLoad(request, parent, isMain) {
       return {
         getPendingPaymentFlows: async () => harness.flows,
         onPaymentFlowsChanged: () => () => {},
+        reconcilePaymentFlow: async flow => ({ flow, state: 'waiting' }),
         withPaymentResourceLock: async (_resource, action) => action(),
         savePaymentFlow: async input => {
           harness.calls.save.push(input);
@@ -54,9 +64,6 @@ Module._load = function mockedLoad(request, parent, isMain) {
           harness.flows.unshift(saved);
           return saved;
         },
-        openPaymentFlow: async (flow, url) => {
-          harness.calls.open.push({ flow, url });
-        },
       };
     if (request.endsWith('/paymentUtils'))
       return {
@@ -67,6 +74,8 @@ Module._load = function mockedLoad(request, parent, isMain) {
     if (request === '../Ui/Button') return 'Button';
     if (request === '../Ui/Checkbox') return 'Checkbox';
     if (request === '../Ui/ConfirmDialog') return 'ConfirmDialog';
+    if (request === '../payments/StripeCheckoutModal')
+      return 'StripeCheckoutModal';
     if (request === './SettingsCardHeader') return 'SettingsCardHeader';
     if (request === './settingsStyles')
       return { useSettingsStyles: () => ({}) };
@@ -105,7 +114,7 @@ function mount(options = {}) {
     dirty: false,
     mounted: true,
     flows: [],
-    calls: { read: 0, create: 0, save: [], open: [] },
+    calls: { read: 0, create: 0, save: [], update: [] },
     billing: {
       setupStatus: 'NOT_STARTED',
       automaticPaymentsEnabled: false,
@@ -187,6 +196,9 @@ function mount(options = {}) {
     consent() {
       return elements(this.tree, 'Checkbox')[0];
     },
+    automationSwitch() {
+      return elements(this.tree, 'Switch')[0];
+    },
     confirmation() {
       return elements(this.tree, 'ConfirmDialog').find(
         element => element.props.title === 'Start a fresh card setup?',
@@ -203,6 +215,36 @@ function mount(options = {}) {
 
 test.afterEach(() => {
   if (harness?.mounted) harness.unmount();
+});
+
+test('automatic-payment switch persists enable and confirmed disable to the backend', async () => {
+  const h = mount({
+    billing: {
+      setupStatus: 'READY',
+      automaticPaymentsEnabled: false,
+      stripeSyncStatus: 'SYNCED',
+      canEnableAutomaticPayments: true,
+      paymentMethod: { type: 'card', label: 'Visa ending 4242' },
+    },
+  });
+  await h.flush();
+  assert.equal(h.automationSwitch().props.value, false);
+  await h.automationSwitch().props.onValueChange(true);
+  await h.flush();
+  assert.deepEqual(h.calls.update, [true]);
+  assert.equal(h.automationSwitch().props.value, true);
+
+  h.automationSwitch().props.onValueChange(false);
+  await h.flush();
+  assert.deepEqual(h.calls.update, [true]);
+  const confirmation = elements(h.tree, 'ConfirmDialog').find(
+    element => element.props.title === 'Turn off automatic payments?',
+  );
+  assert.equal(confirmation.props.visible, true);
+  await confirmation.props.onConfirm();
+  await h.flush();
+  assert.deepEqual(h.calls.update, [true, false]);
+  assert.equal(h.automationSwitch().props.value, false);
 });
 
 test('pending setup can be deliberately restarted with fresh consent and confirmation, retaining old recovery references', async () => {
@@ -231,13 +273,15 @@ test('pending setup can be deliberately restarted with fresh consent and confirm
   assert.match(h.confirmation().props.description, /Check setup status first/);
   assert.match(
     h.confirmation().props.description,
-    /old link will no longer complete setup/,
+    /older session will no longer complete setup/,
   );
   await h.confirmation().props.onConfirm();
   await h.flush();
   assert.equal(h.calls.create, 1);
   assert.equal(h.calls.save.length, 1);
-  assert.equal(h.calls.open.length, 1);
+  const checkout = elements(h.tree, 'StripeCheckoutModal')[0];
+  assert.equal(checkout.props.visible, true);
+  assert.equal(checkout.props.url, 'https://checkout.stripe.com/c/setup');
   assert.equal(h.flows.length, 2);
   assert.equal(h.flows[1].sessionId, 'cs_previous');
   assert.equal(h.consent().props.checked, false);
@@ -257,7 +301,10 @@ test('a lost setup-creation response refreshes settings and requires new consent
   assert.equal(h.calls.create, 1);
   assert.equal(h.calls.read, 2);
   assert.deepEqual(h.calls.save, []);
-  assert.deepEqual(h.calls.open, []);
+  assert.equal(
+    elements(h.tree, 'StripeCheckoutModal')[0].props.visible,
+    false,
+  );
   assert.equal(h.consent().props.checked, false);
   assert.equal(h.button('Start a fresh card setup').props.disabled, true);
   h.consent().props.onChange(true);

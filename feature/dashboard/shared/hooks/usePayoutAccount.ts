@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
-import { PAYMENT_WEB_URL } from '../../../../constants/payments';
 import { isStripeConnectUrl } from '../../../../utils/payments/paymentUtils';
 import {
   payoutResultIsUncertain,
@@ -10,7 +8,6 @@ import {
 import { getSessionVersion } from '../../../../utils/api/session';
 import {
   onPaymentFlowsChanged,
-  openPaymentFlow,
   savePaymentFlow,
   withPaymentResourceLock,
 } from '../../../../utils/payments/flowCoordinator';
@@ -36,6 +33,7 @@ export function usePayoutAccount() {
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [payoutUrl, setPayoutUrl] = useState('');
   const [refreshFailures, setRefreshFailures] = useState(0);
   // The ref also blocks two taps before React has rendered the disabled button.
   const actionRunning = useRef(false);
@@ -124,10 +122,11 @@ export function usePayoutAccount() {
           throw new Error('The payout setup link expired. Please try again.');
         const flow = await savePaymentFlow({ kind: 'teacher-onboarding' });
         if (!isActive()) return;
-        await openPaymentFlow(flow, link.url);
-        if (!isActive()) return;
+        if (!flow.flowId)
+          throw new Error('Unable to save payout setup for recovery.');
+        setPayoutUrl(link.url);
         setNotice(
-          'Stripe opened in your browser. Return here to check your payout status after updating your details.',
+          'Complete your payout details securely in the Stripe window.',
         );
       });
     } catch (problem) {
@@ -205,24 +204,17 @@ export function usePayoutAccount() {
     }
   }
 
-  async function openWebsitePayouts() {
-    if (!isActive() || actionRunning.current) return;
-    actionRunning.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await Linking.openURL(PAYMENT_WEB_URL + '/billing');
-      if (isActive())
-        setNotice(
-          'Manage bank details in your SupplyED website account. You may need to sign in there. Return here to refresh your payouts.',
-        );
-    } catch {
-      if (isActive())
-        setError('Unable to open the SupplyED website. Please try again.');
-    } finally {
-      actionRunning.current = false;
-      if (isActive()) setBusy(false);
-    }
+  async function closePayouts(result: 'success' | 'cancelled' | 'closed') {
+    setPayoutUrl('');
+    if (!isActive()) return;
+    setNotice(
+      result === 'success'
+        ? 'Stripe setup returned to SupplyED. Checking your payout status…'
+        : result === 'cancelled'
+        ? 'Stripe needs a fresh setup session. Continue payout setup when you are ready.'
+        : 'Stripe setup closed. Your saved progress is checked below.',
+    );
+    await refresh();
   }
 
   return {
@@ -233,9 +225,10 @@ export function usePayoutAccount() {
     needsRefresh,
     error,
     notice,
+    payoutUrl,
     refresh,
     openPayouts,
-    openWebsitePayouts,
+    closePayouts,
     withdraw,
   };
 }

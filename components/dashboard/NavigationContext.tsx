@@ -14,6 +14,9 @@ export default function NavigationContext() {
   const dispatch = useAppDispatch();
   const nav = useAppSelector(state => state.dashboardNavigation);
   if (!nav.returnPage || nav.page === 'Notifications') return null;
+  // Focused bookings provide their own compact, source-aware back arrow. Avoid
+  // stacking this larger linked-record header above the booking detail header.
+  if (nav.page === 'Bookings' && nav.notificationBookingId) return null;
   const focused = Boolean(
     nav.notificationJobId ||
       nav.notificationApplicationId ||

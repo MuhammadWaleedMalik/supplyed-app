@@ -84,4 +84,9 @@ export const useStyles = createThemedStyles(colors => ({
     flexWrap: 'wrap',
   },
   footerNote: { color: colors.muted, fontSize: 12, flex: 1 },
+  schoolFooter: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    paddingTop: 14,
+  },
 }));

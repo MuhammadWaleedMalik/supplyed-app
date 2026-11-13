@@ -9,8 +9,10 @@ import Button from '../Ui/Button';
 import { useCommonStyles } from '../Ui/theme';
 import DocumentCard from './DocumentCard';
 import { useStyles } from './documentsUploadStyles';
+import type { AccountType } from '../../utils/onboarding/onboardingData';
 
 type Props = {
+  type: AccountType;
   requirements: Requirement[];
   documents: Document[];
   error: string;
@@ -37,15 +39,19 @@ export default function DocumentsUpload(props: Props) {
     : count.total
     ? Math.round((count.ready / count.total) * 100)
     : 100;
+  const school = props.type === 'school';
   return (
     <View style={styles.main}>
-      <Text style={styles.badge}>REQUIRED DOCUMENTS</Text>
+      <Text style={styles.badge}>
+        {school ? 'SCHOOL COMPLIANCE' : 'REQUIRED DOCUMENTS'}
+      </Text>
       <Text accessibilityRole="header" style={common.title}>
-        Upload required documents
+        {school ? 'Complete compliance check' : 'Upload required documents'}
       </Text>
       <Text style={common.body}>
-        Your profile has been created. Each document is sent for review as soon
-        as its upload finishes.
+        {school
+          ? 'Your school profile has been created. Complete the required evidence and approvals for compliance review.'
+          : 'Your profile has been created. Each document is sent for review as soon as its upload finishes.'}
       </Text>
       <View style={styles.progressLabel}>
         <Text style={styles.small}>PROGRESS</Text>
@@ -55,7 +61,9 @@ export default function DocumentsUpload(props: Props) {
         <View style={[styles.fill, { width: `${progress}%` }]} />
       </View>
       <View style={styles.notice}>
-        <Text style={styles.noticeTitle}>Profile created</Text>
+        <Text style={styles.noticeTitle}>
+          {school ? 'School profile created' : 'Profile created'}
+        </Text>
         <Text style={styles.noticeText}>
           {props.loading
             ? 'Loading required documents...'
@@ -70,7 +78,9 @@ export default function DocumentsUpload(props: Props) {
       </View>
       {!props.loading && !props.error && !props.requirements.length ? (
         <Text style={common.body}>
-          No documents are currently required for this profile.
+          {school
+            ? 'No document evidence is currently required. Complete any approvals shown below.'
+            : 'No documents are currently required for this profile.'}
         </Text>
       ) : null}
       {props.requirements.map(requirement => (
@@ -96,12 +106,22 @@ export default function DocumentsUpload(props: Props) {
           compact
         />
       ) : null}
-      <View style={styles.footer}>
-        <Text style={styles.footerNote}>
-          You can check status after sending for review.
-        </Text>
+      <View style={[styles.footer, school && styles.schoolFooter]}>
+        {!school ? (
+          <Text style={styles.footerNote}>
+            You can check status after sending for review.
+          </Text>
+        ) : null}
         <Button
-          title={props.submitting ? 'Sending...' : 'Send for review'}
+          title={
+            props.submitting
+              ? school
+                ? 'Reviewing...'
+                : 'Sending...'
+              : school
+              ? 'Review'
+              : 'Send for review'
+          }
           onPress={props.onSubmit}
           disabled={
             props.loading ||

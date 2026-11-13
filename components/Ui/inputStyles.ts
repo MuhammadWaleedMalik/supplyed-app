@@ -43,6 +43,27 @@ export const useStyles = createThemedStyles((colors, common) => ({
     fontSize: 16,
     paddingVertical: 12,
   },
+  phonePrefix: {
+    alignSelf: 'stretch',
+    minWidth: 66,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#dbe2e7',
+    borderTopLeftRadius: 11,
+    borderBottomLeftRadius: 11,
+    backgroundColor: colors.soft,
+  },
+  phonePrefixText: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  phoneInput: {
+    paddingLeft: 14,
+  },
   multiline: {
     minHeight: 96,
     paddingTop: 13,

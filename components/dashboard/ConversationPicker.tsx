@@ -3,7 +3,11 @@ import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, View 
 import { Check, ChevronRight, MessageCircle, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Conversation } from '../../constants/conversationsApi';
-import type { Topic } from '../../utils/messaging/threads';
+import {
+  conversationContextLabel,
+  conversationPreview,
+  type Topic,
+} from '../../utils/messaging/threads';
 import { createThemedStyles, useTheme } from '../Ui/theme';
 import { EmptyState, ListFeedback, StatusBadge } from '../Ui/RecordLayout';
 import SearchField from '../Ui/SearchField';
@@ -45,7 +49,13 @@ export default function ConversationPicker({
   const [search, setSearch] = useState('');
   const scrolled = useRef(false);
   const visibleItems = items.filter(item =>
-    [item.job?.title || 'General', item.applicationStatus, item.booking?.status]
+    [
+      item.job?.title || 'General',
+      item.applicationStatus,
+      item.booking?.status,
+      conversationContextLabel(item),
+      conversationPreview(item),
+    ]
       .join(' ')
       .toLowerCase()
       .includes(search.trim().toLowerCase()),
@@ -182,6 +192,15 @@ export default function ConversationPicker({
                       <ChevronRight size={18} color={colors.muted} />
                     )}
                   </View>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.preview,
+                      item.unreadCount > 0 && styles.previewUnread,
+                    ]}
+                  >
+                    {conversationPreview(item)}
+                  </Text>
                   <View style={styles.meta}>
                     {status ? (
                       <StatusBadge status={status} />
@@ -199,6 +218,9 @@ export default function ConversationPicker({
                     )}
                   </View>
                   <Text style={styles.muted}>
+                    {conversationContextLabel(item)}
+                    {item.job?.title ? ' · ' + item.job.title : ''}
+                    {' · '}
                     {new Date(item.createdAt).toLocaleDateString('en-GB', {
                       day: 'numeric',
                       month: 'short',
@@ -319,6 +341,8 @@ const useStyles = createThemedStyles(colors => ({
     lineHeight: 23,
     color: colors.ink,
   },
+  preview: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  previewUnread: { color: colors.ink, fontWeight: '700' },
   meta: {
     flexDirection: 'row',
     flexWrap: 'wrap',

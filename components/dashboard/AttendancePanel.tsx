@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   activateAttendance,
@@ -15,7 +15,11 @@ import { useStyles } from './dashboardStyles';
 type Props = {
   booking: Booking;
   disabled: boolean;
-  onRun: (action: () => Promise<unknown>) => Promise<boolean>;
+  readOnly?: boolean;
+  onRun: (
+    action: () => Promise<unknown>,
+    onError?: (message: string) => void,
+  ) => Promise<boolean>;
 };
 
 function when(value: string) {
@@ -34,15 +38,47 @@ function statusLabel(status: string) {
   return status.toLowerCase().replace(/_/g, ' ');
 }
 
-export default function AttendancePanel({ booking, disabled, onRun }: Props) {
+export default function AttendancePanel({
+  booking,
+  disabled,
+  readOnly = false,
+  onRun,
+}: Props) {
   const styles = useStyles();
   const [editing, setEditing] = useState('');
   const [reason, setReason] = useState('');
+  const [actionFailure, setActionFailure] = useState<{
+    shiftId: string;
+    message: string;
+  }>();
+  const [page, setPage] = useState(1);
+  const shifts = [...(booking.attendanceShifts || [])].sort(
+    (a, b) =>
+      new Date(a.scheduledStart).getTime() -
+      new Date(b.scheduledStart).getTime(),
+  );
+  const pageSize = 5;
+  const totalPages = Math.max(1, Math.ceil(shifts.length / pageSize));
+  const visibleShifts = shifts.slice((page - 1) * pageSize, page * pageSize);
 
-  async function run(action: () => Promise<unknown>) {
-    if (await onRun(action)) {
+  useEffect(() => {
+    setActionFailure(undefined);
+    setPage(1);
+  }, [booking.id]);
+
+  async function run(action: () => Promise<unknown>, shiftId?: string) {
+    if (shiftId) setActionFailure(undefined);
+    if (
+      await onRun(
+        action,
+        shiftId
+          ? message => setActionFailure({ shiftId, message })
+          : undefined,
+      )
+    ) {
       setEditing('');
       setReason('');
+      setActionFailure(undefined);
     }
   }
 
@@ -50,20 +86,41 @@ export default function AttendancePanel({ booking, disabled, onRun }: Props) {
     const correcting = editing === 'correct:' + shift.id;
     if (shift.status === 'AWAITING_CONFIRMATION') {
       return (
-        <View style={styles.quickButtons}>
-          <Button
-            title="Confirm present"
-            compact
-            disabled={disabled}
-            onPress={() => run(() => recordAttendance(booking.id, shift.id, 'PRESENT'))}
-          />
-          <Button
-            title="Record absent"
-            variant="social"
-            compact
-            disabled={disabled}
-            onPress={() => run(() => recordAttendance(booking.id, shift.id, 'ABSENT'))}
-          />
+        <View style={styles.section}>
+          <View style={styles.quickButtons}>
+            <Button
+              title="Confirm present"
+              compact
+              disabled={disabled}
+              onPress={() =>
+                run(
+                  () => recordAttendance(booking.id, shift.id, 'PRESENT'),
+                  shift.id,
+                )
+              }
+            />
+            <Button
+              title="Record absent"
+              variant="social"
+              compact
+              disabled={disabled}
+              onPress={() =>
+                run(
+                  () => recordAttendance(booking.id, shift.id, 'ABSENT'),
+                  shift.id,
+                )
+              }
+            />
+          </View>
+          {actionFailure?.shiftId === shift.id ? (
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
+              style={styles.attendanceError}
+            >
+              {actionFailure.message}
+            </Text>
+          ) : null}
         </View>
       );
     }
@@ -123,7 +180,28 @@ export default function AttendancePanel({ booking, disabled, onRun }: Props) {
           />
         </>
       ) : null}
-      {(booking.attendanceShifts || []).map(shift => {
+      {booking.paymentFrequency || booking.automaticPayment?.nextCollectionAt ? (
+        <View style={styles.record}>
+          <Text style={styles.recordLabel}>PAYMENT SCHEDULE</Text>
+          {booking.paymentFrequency ? (
+            <Text style={styles.recordValue}>
+              {booking.paymentFrequency.charAt(0).toUpperCase() +
+                booking.paymentFrequency.slice(1)}{' '}
+              booking payments
+            </Text>
+          ) : null}
+          {booking.automaticPayment?.nextCollectionAt ? (
+            <Text style={styles.cardBody}>
+              Next scheduled payment: {when(booking.automaticPayment.nextCollectionAt)}
+            </Text>
+          ) : (
+            <Text style={styles.cardBody}>
+              The next payment date will appear when it is scheduled.
+            </Text>
+          )}
+        </View>
+      ) : null}
+      {visibleShifts.map(shift => {
         const pending = (shift.correctionRequests || []).find(
           request => request.status === 'PENDING',
         );
@@ -137,7 +215,7 @@ export default function AttendancePanel({ booking, disabled, onRun }: Props) {
               {statusLabel(shift.status)}
               {shift.reason ? ' · ' + shift.reason : ''}
             </Text>
-            {shiftActions(shift)}
+            {!readOnly ? shiftActions(shift) : null}
             {pending ? (
               <View style={styles.quickButtons}>
                 <Text style={styles.cardBody}>
@@ -182,6 +260,29 @@ export default function AttendancePanel({ booking, disabled, onRun }: Props) {
           </View>
         );
       })}
+      {totalPages > 1 ? (
+        <View style={styles.attendancePager}>
+          <Button
+            title="Previous"
+            variant="social"
+            compact
+            disabled={page === 1}
+            onPress={() => setPage(current => Math.max(1, current - 1))}
+          />
+          <Text style={styles.attendancePageText}>
+            {page} of {totalPages}
+          </Text>
+          <Button
+            title="Next"
+            variant="social"
+            compact
+            disabled={page === totalPages}
+            onPress={() =>
+              setPage(current => Math.min(totalPages, current + 1))
+            }
+          />
+        </View>
+      ) : null}
       {booking.attendancePolicyEffectiveAt && !(booking.attendanceShifts || []).length ? (
         <Text style={styles.cardBody}>No eligible attendance shifts are available yet.</Text>
       ) : null}

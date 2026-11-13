@@ -20,8 +20,8 @@ import { protectedRequest } from '../../utils/api/request';
 import { getSessionVersion } from '../../utils/api/session';
 import Checkbox from '../Ui/Checkbox';
 import AutoUpdatedField from '../Ui/AutoUpdatedField';
-import ChoiceField from './ChoiceField';
 import JobScheduleEditor from './JobScheduleEditor';
+import Select from '../Ui/Select';
 
 type Props = {
   form: JobForm;
@@ -109,10 +109,10 @@ export default function JobDetailsStep({
     if (name === 'payType') {
       const allowed =
         value === 'fixed'
-          ? ['completion', 'milestone']
+          ? ['completion']
           : value === 'daily'
           ? ['daily', 'weekly', 'monthly']
-          : ['hourly', 'daily', 'weekly', 'monthly'];
+          : ['daily', 'weekly', 'monthly'];
       if (!allowed.includes(form.paymentFrequency))
         onFieldChange('paymentFrequency', allowed[0]);
     }
@@ -225,23 +225,35 @@ export default function JobDetailsStep({
         value={form.payAmount}
         onChangeText={value => onChange('payAmount', value)}
       />
-      <ChoiceField
+      <DynamicSelect
+        name="currency"
+        label="CURRENCY"
+        value={form.currency}
+        allowed={['GBP']}
+        onChange={value => onChange('currency', value)}
+      />
+      <Select
         label="PAYMENT FREQUENCY"
         value={form.paymentFrequency}
+        placeholder="Choose payment frequency"
         options={
           form.payType === 'fixed'
-            ? ['completion', 'milestone']
+            ? [{ value: 'completion', label: 'After completion' }]
             : form.payType === 'daily'
             ? ['daily', 'weekly', 'monthly']
-            : ['hourly', 'daily', 'weekly', 'monthly']
+            : ['daily', 'weekly', 'monthly']
         }
         onChange={value => onChange('paymentFrequency', value)}
       />
       {['weekly', 'monthly'].includes(form.paymentFrequency) ? (
-        <ChoiceField
+        <Select
           label="PAYMENT PERIOD BOUNDARY"
           value={form.periodAnchor}
-          options={['ASSIGNMENT_START', 'CALENDAR']}
+          placeholder="Choose period boundary"
+          options={[
+            { value: 'ASSIGNMENT_START', label: 'Assignment start' },
+            { value: 'CALENDAR', label: 'Calendar periods' },
+          ]}
           onChange={value => onChange('periodAnchor', value)}
         />
       ) : null}

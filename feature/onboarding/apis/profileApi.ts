@@ -19,6 +19,8 @@ export type Profile = {
   id: string;
   status?: string;
   institutionType?: string;
+  complianceContact?: string | null;
+  complianceEmail?: string | null;
   complianceApprovalRequired?: boolean;
   trust?: { id: string; name: string; companyNumber?: string | null } | null;
 };
@@ -149,5 +151,19 @@ export function requestComplianceApproval() {
   return protectedRequest<ComplianceApproval>(
     endpoints.schoolComplianceApproval,
     'POST',
+  );
+}
+
+export async function updateSchoolComplianceEmail(value: string) {
+  const complianceEmail = value.trim().toLowerCase();
+  if (!isValidEmail(complianceEmail))
+    throw new Error('Enter a valid compliance email address.');
+  const version = getSessionVersion();
+  const profile = await getProfile('school');
+  assertSessionVersion(version);
+  return protectedRequest<Profile>(
+    endpoints.schoolProfile + '/' + encodeURIComponent(profile.id),
+    'PATCH',
+    { complianceEmail },
   );
 }

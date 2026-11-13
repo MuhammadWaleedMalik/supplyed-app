@@ -13,6 +13,7 @@ export default function DocumentsIntro({ type, wide }: Props) {
   const styles = useStyles();
 
   const { heading, description } = getIntroCopy(type, 2);
+  const school = type === 'school';
 
   return (
     <View style={[styles.intro, wide && styles.wideIntro]}>
@@ -23,17 +24,25 @@ export default function DocumentsIntro({ type, wide }: Props) {
       <View style={styles.step}>
         <Text style={styles.stepIcon}>▤</Text>
         <View>
-          <Text style={styles.stepTitle}>Required documents</Text>
+          <Text style={styles.stepTitle}>
+            {school ? 'Compliance check' : 'Required documents'}
+          </Text>
           <Text style={styles.stepDescription}>
-            Upload documents and send for review
+            {school
+              ? 'Complete evidence and approvals for review'
+              : 'Upload documents and send for review'}
           </Text>
         </View>
       </View>
       <View style={styles.path}>
         <Text style={styles.pathLabel}>CURRENT PATH</Text>
-        <Text style={styles.pathTitle}>Document review</Text>
+        <Text style={styles.pathTitle}>
+          {school ? 'Compliance check' : 'Document review'}
+        </Text>
         <Text style={styles.pathDescription}>
-          Profile details are locked. Add the required document to continue.
+          {school
+            ? 'School details are locked. Complete the required compliance checks to continue.'
+            : 'Profile details are locked. Add the required document to continue.'}
         </Text>
       </View>
     </View>

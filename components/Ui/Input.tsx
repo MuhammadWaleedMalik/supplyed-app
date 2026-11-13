@@ -3,7 +3,10 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import AppIcon from './AppIcon';
 import { useTheme } from './theme';
 import { useStyles } from './inputStyles';
-import { getKeyboardType } from '../../utils/ui/inputUtils';
+import {
+  getKeyboardType,
+  ukPhoneNationalValue,
+} from '../../utils/ui/inputUtils';
 
 type Props = {
   label?: string;
@@ -94,14 +97,24 @@ export default function Input({
           disabled && { backgroundColor: colors.soft },
         ]}
       >
-        {phone ? <Text style={styles.label}>+44</Text> : null}
+        {phone ? (
+          <View style={styles.phonePrefix}>
+            <Text style={styles.phonePrefixText}>+44</Text>
+          </View>
+        ) : null}
         <TextInput
           accessibilityLabel={label}
           placeholder={placeholder}
           placeholderTextColor="#8d9baa"
-          style={[styles.input, multiline && styles.multiline]}
-          value={phone && value?.startsWith('+44') ? value.slice(3) : value}
-          onChangeText={onChangeText}
+          style={[
+            styles.input,
+            phone && styles.phoneInput,
+            multiline && styles.multiline,
+          ]}
+          value={phone ? ukPhoneNationalValue(value) : value}
+          onChangeText={text =>
+            onChangeText?.(phone ? ukPhoneNationalValue(text) : text)
+          }
           onFocus={handleFocus}
           onBlur={handleBlur}
           selectionColor={colors.brand}
@@ -115,6 +128,7 @@ export default function Input({
           autoCapitalize={
             email || phone || number || decimal || url ? 'none' : 'sentences'
           }
+          autoComplete={phone ? 'tel-national' : undefined}
         />
         {password ? (
           <Pressable

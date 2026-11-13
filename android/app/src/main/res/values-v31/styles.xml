@@ -9,7 +9,10 @@
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
         <!-- The system launch screen is the only branded splash. The full
              wordmark fits inside this asset's central safe area. -->
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/supplyed_splash_icon</item>
+        <!-- Android 12 adds a mandatory system splash before our full SupplyED
+             artwork. Keep that transition visually empty so the logo is not
+             shown a second time inside Android's circular icon mask. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>

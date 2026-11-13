@@ -36,7 +36,12 @@ Module._load = function mockedLoad(request, parent, isMain) {
     if (request === '../Ui/Button') return Button;
     if (request === '../Ui/ConfirmDialog') return ConfirmDialog;
     if (request === '../Ui/Input') return Input;
-    if (request === './BookingTipCard' || request === './InvoiceCard') return () => null;
+    if (
+      request === './BookingTipCard' ||
+      request === './InvoiceCard' ||
+      request === './PaymentReleaseScheduleModal'
+    )
+      return () => null;
     if (request === './dashboardStyles') return { useStyles: () => ({}) };
     if (request === './jobStyles') return { useJobStyles: () => ({}) };
   }
@@ -175,11 +180,28 @@ test('manual invoice creation submits once and never applies a late result to an
   assert.equal(h.calls.created.length, 1);
 });
 
+test('manual payment preflight stops when the booking was already paid', async () => {
+  const h = mount({
+    sync: async () => ({
+      ...booking,
+      invoice: { id: 'paid-invoice', status: 'PAID' },
+    }),
+  });
+  await h.flush();
+  assert.equal(await h.find(ConfirmDialog).onConfirm(), false);
+  await h.flush();
+  assert.deepEqual(h.calls.sync, ['booking-one']);
+  assert.equal(h.calls.created.length, 0);
+  assert.equal(h.calls.changed, 1);
+});
+
 test('manual invoice rejection and parent refresh completion are guarded after unmount', async () => {
   const failed = deferred();
   const h = mount({ create: () => failed.promise });
   await h.flush();
   const action = h.find(ConfirmDialog).onConfirm();
+  await h.flush();
+  assert.equal(h.calls.created.length, 1);
   h.unmount();
   failed.reject(new ApiError('Unknown submission result'));
   assert.equal(await action, false);

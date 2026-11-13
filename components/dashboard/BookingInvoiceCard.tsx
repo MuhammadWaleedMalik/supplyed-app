@@ -19,6 +19,7 @@ import ConfirmDialog from '../Ui/ConfirmDialog';
 import Input from '../Ui/Input';
 import BookingTipCard from './BookingTipCard';
 import InvoiceCard from './InvoiceCard';
+import PaymentReleaseScheduleModal from './PaymentReleaseScheduleModal';
 import { useStyles } from './dashboardStyles';
 import { useJobStyles } from './jobStyles';
 
@@ -27,6 +28,32 @@ type Props = {
   role: InvoiceRole;
   onChanged: () => void | Promise<void | boolean>;
 };
+
+function paymentDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      })
+    : value;
+}
+
+function canStartManualPayment(booking: Booking, role: InvoiceRole) {
+  return (
+    role === 'INSTITUTION' &&
+    booking.status === 'COMPLETED' &&
+    (!booking.invoice || booking.invoice.status === 'VOID') &&
+    ['DISABLED', 'BLOCKED', 'REVIEW_REQUIRED'].includes(
+      booking.automaticPayment?.state || 'DISABLED',
+    )
+  );
+}
 
 export default function BookingInvoiceCard({ booking, role, onChanged }: Props) {
   const styles = useStyles();
@@ -39,6 +66,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
   const [units, setUnits] = useState('');
   const [poNumber, setPoNumber] = useState('');
   const [manualNeedsRefresh, setManualNeedsRefresh] = useState(false);
+  const [showReleaseSchedule, setShowReleaseSchedule] = useState(false);
   const running = useRef(false);
   const mounted = useRef(true);
   const mountedSession = useRef(getSessionVersion()).current;
@@ -95,13 +123,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
         })
       : '';
   const fixed = current.payType?.toLowerCase() === 'fixed';
-  const manualAvailable =
-    role === 'INSTITUTION' &&
-    current.status === 'COMPLETED' &&
-    (!invoice || invoice.status === 'VOID') &&
-    ['DISABLED', 'BLOCKED', 'REVIEW_REQUIRED'].includes(
-      current.automaticPayment?.state || 'DISABLED',
-    );
+  const manualAvailable = canStartManualPayment(current, role);
 
   function confirmManualInvoice() {
     if (!active() || running.current || manualNeedsRefresh || !manualAvailable)
@@ -124,8 +146,24 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
     setBusy(true);
     setError('');
     try {
+      // Reconcile immediately before creating the invoice. If collection or
+      // another payment appeared meanwhile, the manual flow stops here.
+      const latest = await syncBookingPayment(current.id);
+      if (!active()) return false;
+      setCurrent(latest);
+      if (!canStartManualPayment(latest, role)) {
+        setConfirmingManual(false);
+        setManualNeedsRefresh(false);
+        setError(
+          latest.invoice?.status === 'PAID'
+            ? 'This booking has already been paid.'
+            : 'The payment status changed. Review the latest payment details before trying again.',
+        );
+        await onChanged();
+        return false;
+      }
       const created = await createInvoice(
-        buildBookingInvoiceData(current, units, poNumber),
+        buildBookingInvoiceData(latest, units, poNumber),
       );
       if (!active()) return false;
       setCurrent(value => ({ ...value, invoice: created }));
@@ -186,17 +224,61 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
 
   return (
     <View style={styles.section}>
+      <PaymentReleaseScheduleModal
+        booking={current}
+        visible={showReleaseSchedule}
+        onClose={() => setShowReleaseSchedule(false)}
+      />
       <ConfirmDialog
         visible={confirmingManual}
-        title="Create manual invoice?"
+        title="Pay this booking manually?"
         context={current.job.title}
-        description="SupplyEd calculates the amount from this completed booking. The school will receive an invoice instead of an automatic card collection."
-        confirmLabel="Create invoice"
+        description="SupplyED will create one secure Stripe invoice from this booking. Its status is checked first, and a paid invoice cannot also be collected automatically."
+        confirmLabel="Continue to payment"
         onClose={() => setConfirmingManual(false)}
         onConfirm={createManualInvoice}
       />
       <Text style={styles.cardTitle}>Payment</Text>
       <Text style={styles.cardBody}>{status}</Text>
+      <Button
+        title="Payment release schedule"
+        variant="outline"
+        onPress={() => setShowReleaseSchedule(true)}
+      />
+      <View style={styles.record}>
+        <Text style={styles.recordLabel}>PAYMENT TIMING</Text>
+        <Text style={styles.recordValue}>
+          {current.paymentFrequency
+            ? current.paymentFrequency.charAt(0).toUpperCase() +
+              current.paymentFrequency.slice(1) +
+              ' schedule'
+            : 'Booking schedule'}
+        </Text>
+        {current.automaticPayment?.nextCollectionAt ? (
+          <Text style={styles.cardBody}>
+            Next scheduled payment:{' '}
+            {paymentDate(current.automaticPayment.nextCollectionAt)}
+          </Text>
+        ) : invoice?.nextPaymentAttemptAt ? (
+          <Text style={styles.cardBody}>
+            Next payment attempt: {paymentDate(invoice.nextPaymentAttemptAt)}
+          </Text>
+        ) : invoice?.status === 'PAID' && invoice.paidAt ? (
+          <Text style={styles.cardBody}>
+            Paid: {paymentDate(invoice.paidAt)}
+          </Text>
+        ) : (
+          <Text style={styles.cardBody}>
+            The exact payment date will appear when the backend schedules it.
+          </Text>
+        )}
+        {role === 'INSTRUCTOR' ? (
+          <Text style={styles.cardBody}>
+            Stripe balance availability and transfer to your bank are confirmed
+            separately after collection.
+          </Text>
+        ) : null}
+      </View>
       {automatic ||
       (current.automaticPayment &&
         current.automaticPayment.state !== 'DISABLED') ? (
@@ -224,11 +306,18 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
       ) : null}
       {manualAvailable ? (
         <View style={styles.section}>
-          <Text style={styles.cardTitle}>Manual invoice fallback</Text>
+          <Text style={styles.cardTitle}>Manual payment</Text>
           <Text style={styles.cardBody}>
-            Create an invoice when this completed booking is not eligible for
-            automatic card collection.
+            Automatic payments are off for this booking. Pay it once through a
+            secure Stripe invoice.
           </Text>
+          <View style={styles.paymentSafetyNote}>
+            <Text style={styles.paymentSafetyTitle}>No duplicate charge</Text>
+            <Text style={styles.cardBody}>
+              SupplyED checks the latest payment before continuing. Once this
+              invoice is paid, automatic collection cannot charge it again.
+            </Text>
+          </View>
           {showManualForm ? (
             <>
               {!fixed && !current.attendancePayroll?.covered ? (
@@ -261,7 +350,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
                 disabled={busy}
               />
               <Button
-                title={busy ? 'Creating invoice...' : 'Create invoice'}
+                title={busy ? 'Preparing payment...' : 'Continue to payment'}
                 onPress={confirmManualInvoice}
                 disabled={busy || manualNeedsRefresh}
                 compact
@@ -276,11 +365,13 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
             </>
           ) : (
             <Button
-              title="Create manual invoice"
-              variant="outline"
-              onPress={() => setShowManualForm(true)}
+              title="Pay manually"
+              onPress={() => {
+                if (fixed || current.attendancePayroll?.covered)
+                  confirmManualInvoice();
+                else setShowManualForm(true);
+              }}
               disabled={busy || manualNeedsRefresh}
-              compact
             />
           )}
         </View>

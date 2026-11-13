@@ -33,7 +33,7 @@ export default function PhoneVerificationCard({
       {editable ? (
         <Input
           label="PHONE"
-          placeholder="+44 7700 900000"
+          placeholder="7700 900000"
           phone
           required={required}
           value={form.phone}

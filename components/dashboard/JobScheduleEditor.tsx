@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import type {
   JobSchedule,
@@ -11,6 +11,7 @@ import Input from '../Ui/Input';
 import ChoiceField from './ChoiceField';
 import { useJobStyles } from './jobStyles';
 import { scheduleDateWindow } from '../../utils/jobs/workSchedule';
+import { reconcileScheduleWeekdays } from '../../utils/jobs/scheduleSelection';
 
 const DAY_NAMES = [
   'Sunday',
@@ -60,18 +61,31 @@ export default function JobScheduleEditor({
   const [exceptionEnd, setExceptionEnd] = useState('17:00');
   const [showExceptions, setShowExceptions] = useState(false);
   const dateWindow = useMemo(() => scheduleDateWindow(startDate, endDate), [startDate, endDate]);
+  const previousAvailable = useRef<Set<number> | undefined>(undefined);
+  const deliberatelyDeselected = useRef(new Set<number>());
+  const preservedWeekdays = useRef(new Map<number, JobSchedule['weekdays'][number]>());
+
+  for (const weekday of schedule.weekdays)
+    preservedWeekdays.current.set(weekday.day, weekday);
 
   useEffect(() => {
     const available = dateWindow?.available;
     if (!available || disabled) return;
-    const kept = schedule.weekdays.filter(item => available.has(item.day));
-    if (kept.length !== schedule.weekdays.length) {
+    const previous = previousAvailable.current;
+    const newlyAvailable = [...available].filter(
+      day => !previous || !previous.has(day),
+    );
+    const next = reconcileScheduleWeekdays(
+      schedule,
+      available,
+      newlyAvailable,
+      deliberatelyDeselected.current,
+      [...preservedWeekdays.current.values()],
+    );
+    previousAvailable.current = new Set(available);
+    if (JSON.stringify(next) !== JSON.stringify(schedule)) {
       onChange(
-        JSON.stringify({
-          ...schedule,
-          weekdays: kept,
-          exceptions: schedule.exceptions || [],
-        }),
+        JSON.stringify(next),
       );
     }
   }, [dateWindow, disabled, onChange, schedule]);
@@ -84,12 +98,17 @@ export default function JobScheduleEditor({
 
   function toggleDay(day: number, enabled: boolean) {
     if (disabled || (dateWindow && !dateWindow.available.has(day))) return;
+    if (enabled) deliberatelyDeselected.current.delete(day);
+    else deliberatelyDeselected.current.add(day);
     write({
       ...schedule,
       weekdays: enabled
         ? [
             ...schedule.weekdays,
-            { day, slots: [{ start: '09:00', end: '17:00' }] },
+            preservedWeekdays.current.get(day) || {
+              day,
+              slots: [{ start: '09:00', end: '17:00' }],
+            },
           ].sort((left, right) => left.day - right.day)
         : schedule.weekdays.filter(item => item.day !== day),
     });

@@ -221,18 +221,23 @@ test.afterEach(() => {
   if (harness?.mounted) harness.unmount();
 });
 
-test('onboarding always requests a fresh hosted link and persists only recovery references before opening', async () => {
+test('onboarding opens each fresh Stripe link in the in-app payout sheet and persists only recovery references', async () => {
   const h = mount();
   await h.flush();
   await h.value.openPayouts();
   await h.flush();
+  assert.equal(h.value.payoutUrl, 'https://connect.stripe.com/setup/test');
+  await h.value.closePayouts('closed');
+  await h.flush();
   await h.value.openPayouts();
+  await h.flush();
   assert.equal(h.calls.links, 2);
   assert.deepEqual(h.calls.saved, [
     { kind: 'teacher-onboarding' },
     { kind: 'teacher-onboarding' },
   ]);
-  assert.equal(h.calls.opened.length, 2);
+  assert.equal(h.calls.opened.length, 0);
+  assert.equal(h.value.payoutUrl, 'https://connect.stripe.com/setup/test');
   assert.equal(h.value.account.ready, true);
 });
 
@@ -247,8 +252,10 @@ test('changing accounts while requesting a link never persists or launches it fo
     expiresAt: null,
   });
   await opening;
+  await h.flush();
   assert.deepEqual(h.calls.saved, []);
   assert.deepEqual(h.calls.opened, []);
+  assert.equal(h.value.payoutUrl, '');
 });
 
 test('one withdrawal is submitted for repeated presses and the latest balance is read afterward', async () => {

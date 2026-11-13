@@ -1,5 +1,6 @@
 import {
   plannedPayload,
+  scheduleDateWindow,
   validateDateWindow,
   listingInstant,
   type PlannedWorkUnits,
@@ -90,6 +91,7 @@ export type JobForm = {
   scheduleError?: string;
   mode: string;
   timeZone: string;
+  currency: string;
   paymentFrequency: string;
   periodAnchor: string;
   workersRequired: string;
@@ -249,7 +251,32 @@ export function validateJobSchedule(
   }
   validateDateWindow(effective, timezone);
   plannedPayload(data);
-  schedulePayload(data.schedule);
+  const parsedSchedule = schedulePayload(data.schedule);
+  const dateWindow = scheduleDateWindow(data.startDate, data.endDate);
+  if (
+    parsedSchedule &&
+    dateWindow &&
+    parsedSchedule.weekdays.some(item => !dateWindow.available.has(item.day))
+  )
+    throw new Error(
+      'Choose only weekdays that occur within the assignment date range.',
+    );
+  const selectableFrequencies: Record<string, string[]> = {
+    hourly: ['daily', 'weekly', 'monthly'],
+    daily: ['daily', 'weekly', 'monthly'],
+    fixed: ['completion'],
+  };
+  const preservesHistoricalFrequency = Boolean(
+    original &&
+      data.payType === original.payType &&
+      data.paymentFrequency === original.paymentFrequency,
+  );
+  if (
+    data.payType &&
+    !selectableFrequencies[data.payType]?.includes(data.paymentFrequency) &&
+    !preservesHistoricalFrequency
+  )
+    throw new Error('Choose a supported payment frequency for this pay basis.');
   if (
     data.startDate &&
     (!before || data.startDate !== before.startDate) &&
@@ -275,6 +302,7 @@ export async function cleanJob(data: JobForm, timezone = 'Europe/London') {
   if (data.county) await checkDropdown('region', [data.county]);
   await checkDropdown('country', [data.countryCode]);
   if (data.payType) await checkDropdown('payType', [data.payType]);
+  await checkDropdown('currency', [data.currency || 'GBP']);
   return {
     ...units,
     jobType: (data.mode === 'instant' ? 'INSTANT' : 'BRIEF') as
@@ -301,7 +329,7 @@ export async function cleanJob(data: JobForm, timezone = 'Europe/London') {
     parkingInfo: data.parkingInfo.trim() || undefined,
     payAmount: numberValue(data.payAmount),
     payType: data.payType || undefined,
-    currency: 'GBP',
+    currency: data.currency || 'GBP',
     paymentFrequency: data.paymentFrequency || undefined,
     periodAnchor:
       (data.periodAnchor === 'CALENDAR'
@@ -580,6 +608,7 @@ export function jobToForm(job: Job, duplicate = false): JobForm {
     days: job.days == null ? '' : String(job.days),
     mode: job.jobType === 'INSTANT' ? 'instant' : 'brief',
     timeZone: job.timeZone || 'Europe/London',
+    currency: job.currency || 'GBP',
     paymentFrequency:
       job.paymentFrequency ||
       (job.payType === 'fixed'

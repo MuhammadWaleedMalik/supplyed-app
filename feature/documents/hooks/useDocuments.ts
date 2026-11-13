@@ -50,6 +50,7 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
   const [approval, setApproval] = useState<SignatoryApproval | null>(null);
   const [complianceApproval, setComplianceApproval] =
     useState<ComplianceApproval | null>(null);
+  const [complianceEmail, setComplianceEmail] = useState('');
   const [refreshingApproval, setRefreshingApproval] = useState(false);
   const uploading = useRef(new Set<string>());
   const submittingRef = useRef(false);
@@ -91,6 +92,7 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
         setNeedsComplianceApproval(
           type === 'school' && profile.institutionType === 'SINGLE_SCHOOL',
         );
+        setComplianceEmail(profile.complianceEmail || '');
 
         if (isMatSchool) {
           const latest = await getSignatoryApproval();
@@ -318,6 +320,8 @@ export function useDocuments(type: AccountType, onReviewStatus: () => void) {
     updateApproval: setApproval,
     complianceApproval,
     updateComplianceApproval: setComplianceApproval,
+    complianceEmail,
+    updateComplianceEmail: setComplianceEmail,
     refreshingApproval,
     loaded,
     retryLoad,

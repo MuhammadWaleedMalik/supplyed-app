@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splash_background" />
-    <!-- A bounded, centred mark, never a full-screen stretched bitmap. -->
-    <item android:width="240dp" android:height="240dp" android:gravity="center">
+    <!-- Use the portrait launch artwork as the complete window background.
+         The previous bounded icon produced an oval in the middle of a black
+         screen on tall Android devices. -->
+    <item>
         <bitmap
             android:gravity="fill"
-            android:src="@drawable/supplyed_splash_icon" />
+            android:src="@drawable/supplyed_splash" />
     </item>
 </layer-list>

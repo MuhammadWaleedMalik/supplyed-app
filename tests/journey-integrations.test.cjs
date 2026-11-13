@@ -35,10 +35,11 @@ test('documented school billing and teacher availability journeys have UI-backed
   ]) assert.match(payments, new RegExp(`endpoints\\.${endpoint}`));
   assert.match(billing, /I completed Stripe setup/);
   assert.match(billing, /updateAutomaticPayments/);
-  assert.match(billing, /openPaymentFlow/);
+  assert.match(billing, /StripeCheckoutModal/);
   assert.match(billing, /checked=\{setupConsent\}/);
   assert.match(billing, /!setupConsent/);
-  assert.match(billing, /checked=\{enableConsent\}/);
+  assert.match(billing, /value=\{billing\.automaticPaymentsEnabled\}/);
+  assert.match(billing, /onValueChange=\{enabled =>/);
   assert.match(availability, /endpoints\.availabilityForJob/);
   assert.match(availability, /weeklySchedule: \{ weekdays \}/);
   assert.match(availabilityCard, /Date exceptions/i);
@@ -61,7 +62,9 @@ test('current automatic booking payments, card recovery and tips are integrated'
   assert.match(payments, /syncBookingTip/);
   assert.match(bookingPayment, /Refresh payment/);
   assert.match(bookingPayment, /createInvoice/);
-  assert.match(bookingPayment, /Manual invoice fallback/);
+  assert.match(bookingPayment, /Manual payment/);
+  assert.match(bookingPayment, /title="Pay manually"/);
+  assert.match(bookingPayment, /const latest = await syncBookingPayment/);
   assert.match(bookingPayment, /manualNeedsRefresh/);
   assert.match(invoice, /Approve card payment/);
   assert.match(tip, /Continue to Stripe/);
@@ -98,6 +101,9 @@ test('school applications and both booking roles use summary-first detail flows'
     'feature/dashboard/shared/screens/PaginatedBookingsScreen.tsx',
   );
   const bookingCard = read('components/dashboard/BookingRecordCard.tsx');
+  const navigationContext = read(
+    'components/dashboard/NavigationContext.tsx',
+  );
 
   assert.match(applications, /See applications/);
   assert.match(applications, /<JobRecordDetails job=\{selectedJob\}/);
@@ -105,19 +111,41 @@ test('school applications and both booking roles use summary-first detail flows'
   assert.match(applications, /title="Open application"/);
   assert.match(applicationHook, /filter\(job => !!jobId && job\.id === jobId\)/);
   assert.match(bookings, /title="See booking details"/);
-  assert.match(bookings, /type === 'school' && booking\.status === 'CONFIRMED'/);
+  assert.match(bookings, /detailMode=\{detailOpen\}/);
+  assert.match(bookings, /title="Complete booking"/);
+  assert.match(bookings, /title=\{type === 'school' \? 'Message teacher'/);
+  assert.match(bookingCard, /Placement overview/);
+  assert.match(bookingCard, /Schedule and location/);
+  assert.match(bookingCard, /Booking controls/);
+  assert.match(bookings, /returnPage \? `Back to \$\{returnPage\}`/);
+  assert.match(bookings, /showPage\(returnPage \|\| 'Bookings'\)/);
+  assert.match(
+    navigationContext,
+    /nav\.page === 'Bookings' && nav\.notificationBookingId/,
+  );
+  assert.match(
+    bookings,
+    /\['CONFIRMED', 'COMPLETED'\]\.includes\(booking\.status\)/,
+  );
+  assert.match(
+    bookings,
+    /readOnly=\{type === 'teacher' \|\| booking\.status !== 'CONFIRMED'\}/,
+  );
   assert.match(bookings, /hideManage=\{booking\.status === 'COMPLETED'\}/);
   assert.match(bookingCard, /hideManage \|\| open/);
 });
 
 test('teacher profile tabs and dense sections remain compact and responsive', () => {
   const styles = read('components/dashboard/settingsStyles.ts');
+  const page = read('components/dashboard/ProfileSettingsPage.tsx');
   const profile = read('components/dashboard/ProfileSettingsCard.tsx');
   const availability = read('components/dashboard/AvailabilityCard.tsx');
   const history = read('components/dashboard/ProfileHistory.tsx');
 
-  assert.match(styles, /flexWrap: 'wrap'/);
-  assert.match(styles, /flexBasis: layout\.compact \? '46%' : 0/);
+  assert.match(styles, /sectionTabsScroller/);
+  assert.match(styles, /minWidth: layout\.compact \? 104 : 116/);
+  assert.match(page, /horizontal/);
+  assert.match(page, /numberOfLines=\{1\}/);
   assert.match(styles, /availabilityDay/);
   assert.match(profile, /TEACHING PREFERENCES/);
   assert.match(availability, /Weekly schedule/);

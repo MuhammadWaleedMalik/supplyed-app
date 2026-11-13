@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Switch, Text, View } from 'react-native';
 import { CreditCard } from 'lucide-react-native';
 import {
   createSchoolBillingSetup,
@@ -19,7 +19,6 @@ import { getSessionVersion } from '../../utils/api/session';
 import {
   getPendingPaymentFlows,
   onPaymentFlowsChanged,
-  openPaymentFlow,
   PendingPaymentFlow,
   reconcilePaymentFlow,
   savePaymentFlow,
@@ -34,6 +33,7 @@ import {
 import Button from '../Ui/Button';
 import Checkbox from '../Ui/Checkbox';
 import ConfirmDialog from '../Ui/ConfirmDialog';
+import StripeCheckoutModal from '../payments/StripeCheckoutModal';
 import SettingsCardHeader from './SettingsCardHeader';
 import { useSettingsStyles } from './settingsStyles';
 
@@ -76,8 +76,11 @@ export default function SchoolBillingCard({
   const [confirmFreshSetup, setConfirmFreshSetup] = useState(false);
   const [setupUncertain, setSetupUncertain] = useState(false);
   const [setupConsent, setSetupConsent] = useState(false);
-  const [enableConsent, setEnableConsent] = useState(false);
   const [pendingSetup, setPendingSetup] = useState<PendingPaymentFlow>();
+  const [checkout, setCheckout] = useState<{
+    url: string;
+    flow: PendingPaymentFlow;
+  }>();
   const mounted = useRef(true);
   const actionLock = useRef(false);
   const refreshAttempt = useRef(0);
@@ -145,7 +148,6 @@ export default function SchoolBillingCard({
       if (!mounted.current || version !== getSessionVersion()) return false;
       setBilling(result);
       setNotice(success(result));
-      setEnableConsent(false);
       dispatch(refreshMarketplace());
       return true;
     } catch (problem) {
@@ -189,9 +191,9 @@ export default function SchoolBillingCard({
         setPendingSetup(flow);
         setSetupUncertain(false);
         setNotice(
-          'Complete card setup in your browser, then return here to check its status.',
+          'Complete card setup securely in the mobile window.',
         );
-        await openPaymentFlow(flow, session.url);
+        setCheckout({ url: session.url, flow });
       });
     } catch (problem) {
       if (mounted.current && version === getSessionVersion()) {
@@ -205,15 +207,15 @@ export default function SchoolBillingCard({
     }
   }
 
-  async function finishSetup() {
-    if (!pendingSetup || actionLock.current) return;
+  async function finishSetup(flow = pendingSetup) {
+    if (!flow || actionLock.current) return;
     actionLock.current = true;
     const version = getSessionVersion();
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      const checked = await reconcilePaymentFlow(pendingSetup);
+      const checked = await reconcilePaymentFlow(flow);
       if (!mounted.current || version !== getSessionVersion()) return;
       if (checked.state === 'needs-login' || checked.state === 'failed')
         throw new Error(
@@ -231,10 +233,10 @@ export default function SchoolBillingCard({
             ? 'Your saved card is ready and automatic payments are enabled.'
             : 'Your saved card is ready. Automatic payments are off.'
           : result.setupStatus === 'READY' &&
-            pendingSetup.kind === 'school-card' &&
-            pendingSetup.replacingCard
+            flow.kind === 'school-card' &&
+            flow.replacingCard
           ? 'Your currently saved card is ready. Complete the replacement in Stripe, then check the saved card details again.'
-          : setupExpired(pendingSetup)
+          : setupExpired(flow)
           ? 'This setup session has expired. Check the saved card below or start a new setup.'
           : 'Card setup is still awaiting confirmation. You can check again after completing Stripe setup.',
       );
@@ -268,12 +270,23 @@ export default function SchoolBillingCard({
       <ConfirmDialog
         visible={confirmFreshSetup}
         title="Start a fresh card setup?"
-        description="Check setup status first if you already completed Stripe. Starting fresh replaces the previous checkout, so its old link will no longer complete setup. Continue when the earlier browser link is unavailable or you want to restart."
+        description="Check setup status first if you already completed Stripe. Starting fresh replaces the previous checkout, so the older session will no longer complete setup. Continue when you want to restart card entry."
         confirmLabel="Start fresh setup"
         onClose={() => setConfirmFreshSetup(false)}
         onConfirm={() => {
           setConfirmFreshSetup(false);
           return startSetup(true);
+        }}
+      />
+      <StripeCheckoutModal
+        visible={Boolean(checkout)}
+        url={checkout?.url || 'about:blank'}
+        onClose={result => {
+          const flow = checkout?.flow;
+          setCheckout(undefined);
+          if (result === 'cancelled')
+            setNotice('Card setup was cancelled. No card was changed.');
+          if (flow) finishSetup(flow).catch(() => {});
         }}
       />
       <ConfirmDialog
@@ -317,10 +330,6 @@ export default function SchoolBillingCard({
       ) : null}
       {billing ? (
         <>
-          <Text style={styles.recordValue}>
-            Automatic payments:{' '}
-            {billing.automaticPaymentsEnabled ? 'Enabled' : 'Off'}
-          </Text>
           <View style={styles.section}>
             <Text style={styles.recordValue}>
               {hasCard
@@ -328,7 +337,7 @@ export default function SchoolBillingCard({
                 : 'Set up automatic card payments'}
             </Text>
             <Text style={styles.cardNote}>
-              Enter your card details on Stripe's secure page. SupplyED stores
+              Enter your card details in Stripe's secure mobile window. SupplyED stores
               Stripe references and masked details only. No booking payment is
               taken during card setup.
             </Text>
@@ -365,7 +374,7 @@ export default function SchoolBillingCard({
               <Text style={styles.cardNote}>
                 {setupExpired(pendingSetup)
                   ? 'The earlier setup session has expired. You can start a fresh setup above.'
-                  : 'Card setup is pending. Check its status first. If the browser link is unavailable, give fresh consent above to deliberately replace that checkout. Closing your browser does not change automatic-payment settings.'}
+                  : 'Card setup is pending. Check its status first. To restart card entry, give fresh consent above and deliberately replace that checkout. Closing the Stripe window does not change automatic-payment settings.'}
               </Text>
               <Button
                 title="I completed Stripe setup — check status"
@@ -380,7 +389,7 @@ export default function SchoolBillingCard({
             <Text style={styles.cardNote}>
               The earlier setup could not be confirmed. Refresh billing to check
               your saved card. To restart, give fresh consent above and confirm a
-              new setup. This replaces the earlier browser link.
+              new setup. This replaces the earlier Stripe session.
             </Text>
           ) : null}
           <View style={styles.record}>
@@ -418,46 +427,50 @@ export default function SchoolBillingCard({
               {billing.lastSetupError}
             </Text>
           ) : null}
-          <Text style={styles.recordValue}>Booking-payment automation</Text>
-          <Text style={styles.cardNote}>
-            A failed charge or bank security check may need your attention in
-            Billing. Stripe balance availability and the teacher's bank payout
-            happen separately.
-          </Text>
-          {!billing.automaticPaymentsEnabled && hasCard ? (
-            <Checkbox
-              label="I authorise automatic charges to my saved card for payable teacher earnings plus the displayed SupplyED fee, following each booking's agreed schedule. I can turn off future automatic payments here."
-              checked={enableConsent}
-              disabled={busy || !billing.canEnableAutomaticPayments}
-              onChange={setEnableConsent}
-            />
-          ) : null}
-          {billing.automaticPaymentsEnabled ? (
-            <Button
-              title="Turn off automatic payments"
-              variant="social"
-              disabled={busy}
-              onPress={() => setConfirmDisable(true)}
-            />
-          ) : hasCard ? (
-            <Button
-              title="Enable automatic payments"
-              variant="social"
+          <View style={styles.automationSwitchCard}>
+            <View style={styles.automationSwitchCopy}>
+              <Text style={styles.automationSwitchTitle}>
+                Automatic booking payments
+              </Text>
+              <Text style={styles.cardNote}>
+                {billing.automaticPaymentsEnabled
+                  ? 'On — eligible booking payments follow their agreed schedule.'
+                  : 'Off — completed eligible bookings can be paid manually.'}
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Automatic booking payments"
+              accessibilityHint="Enables or disables automatic charges on the backend"
+              value={billing.automaticPaymentsEnabled}
               disabled={
-                busy || !billing.canEnableAutomaticPayments || !enableConsent
+                busy ||
+                (!billing.automaticPaymentsEnabled &&
+                  (!hasCard || !billing.canEnableAutomaticPayments))
               }
-              onPress={() => {
-                if (enableConsent)
-                  act(
-                    () => updateAutomaticPayments(true),
-                    result =>
-                      result.automaticPaymentsEnabled
-                        ? 'Automatic payments are enabled.'
-                        : 'Your preference was recorded. Refresh to check the latest status.',
-                  );
+              trackColor={{ false: '#d8dee3', true: '#83d4a4' }}
+              thumbColor={
+                billing.automaticPaymentsEnabled ? '#14833b' : '#ffffff'
+              }
+              onValueChange={enabled => {
+                if (!enabled) {
+                  setConfirmDisable(true);
+                  return;
+                }
+                act(
+                  () => updateAutomaticPayments(true),
+                  result =>
+                    result.automaticPaymentsEnabled
+                      ? 'Automatic payments are enabled.'
+                      : 'Your preference was recorded. Refresh to check the latest status.',
+                );
               }}
             />
-          ) : null}
+          </View>
+          <Text style={styles.cardNote}>
+            Turning this on authorises SupplyED to charge your saved card for
+            eligible teacher earnings and the displayed fee. Turning it off
+            updates the backend and stops new automatic payment submissions.
+          </Text>
           {!billing.canEnableAutomaticPayments &&
           !billing.automaticPaymentsEnabled ? (
             <Text style={styles.cardNote}>

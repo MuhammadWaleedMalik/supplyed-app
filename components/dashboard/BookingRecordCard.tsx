@@ -21,6 +21,8 @@ export default function BookingRecordCard({
   onProfile,
   children,
   footer,
+  topActions,
+  detailMode = false,
   hideManage = false,
 }: {
   booking: Booking;
@@ -28,6 +30,8 @@ export default function BookingRecordCard({
   onProfile: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  topActions?: React.ReactNode;
+  detailMode?: boolean;
   hideManage?: boolean;
 }) {
   const styles = useStyles();
@@ -44,6 +48,138 @@ export default function BookingRecordCard({
   ]
     .filter(Boolean)
     .join(', ');
+
+  if (detailMode) {
+    return (
+      <View style={styles.detailPage}>
+        <View style={styles.detailSection}>
+          <View style={styles.topLine}>
+            <Text style={styles.eyebrow}>
+              BOOKING Â·{' '}
+              {booking.source === 'DIRECT_HIRE'
+                ? 'JOB INVITATION'
+                : 'APPLICATION'}
+            </Text>
+            <StatusBadge status={booking.status} />
+          </View>
+          {topActions ? (
+            <View style={styles.detailActions}>{topActions}</View>
+          ) : null}
+        </View>
+
+        <Notice
+          text={
+            booking.termsStatus !== 'RECORDED'
+              ? 'Historical booking: some original details were not recorded. Confirm missing information with the school.'
+              : 'These are the agreed booking terms saved at confirmation.'
+          }
+        />
+
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionTitle}>Placement overview</Text>
+          <ContentPreview
+            accessibilityRole="header"
+            title="Booked role"
+            text={booking.job.title}
+            style={styles.title}
+            lines={3}
+          />
+          {booking.job.description ? (
+            <RichText value={booking.job.description} />
+          ) : null}
+          {booking.job.subjects?.length || booking.job.keyStages?.length ? (
+            <Text style={styles.subtle}>
+              {[
+                ...(booking.job.subjects || []),
+                ...(booking.job.keyStages || []),
+              ].join(' Â· ')}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionTitle}>
+            {booking.source === 'DIRECT_HIRE' ? 'School or teacher' : 'People'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${partyName} profile`}
+            onPress={onProfile}
+            style={styles.detailProfile}
+          >
+            <View style={styles.profileCopy}>
+              <Text style={styles.person}>{partyName}</Text>
+              <Text style={styles.subtle}>Booking contact</Text>
+            </View>
+            <Text style={styles.profileHint}>View profile â†’</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionTitle}>Schedule and location</Text>
+          <View style={styles.detailFact}>
+            <View style={styles.icon}>
+              <CalendarDays size={20} color={colors.brandDark} />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.label}>PLACEMENT DATES</Text>
+              <Text style={styles.value}>
+                {displayDate(booking.startDate)} to{' '}
+                {displayDate(booking.endDate)}
+              </Text>
+              <Text style={styles.subtle}>Europe/London time</Text>
+            </View>
+          </View>
+          <View style={styles.detailFact}>
+            <View style={styles.icon}>
+              <MapPin size={20} color={colors.brandDark} />
+            </View>
+            <ContentPreview
+              text={location || 'Location not provided'}
+              title="Booking address"
+              threshold={90}
+              lines={3}
+              style={styles.address}
+            />
+          </View>
+          {booking.job.parkingInfo ? (
+            <ContentPreview
+              text={booking.job.parkingInfo}
+              title="Parking information"
+              threshold={160}
+              lines={3}
+              style={styles.subtle}
+            />
+          ) : null}
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionTitle}>Agreed pay</Text>
+          <Text style={styles.amount}>
+            {displayPay(booking.payAmount, booking.payType)}
+          </Text>
+          <View style={styles.location}>
+            <BriefcaseBusiness size={17} color={colors.muted} />
+            <Text style={styles.subtle}>{plannedLabel(booking)}</Text>
+          </View>
+        </View>
+
+        {booking.cancelReason ? (
+          <Notice danger text={`Cancellation reason\n${booking.cancelReason}`} />
+        ) : null}
+
+        {children ? (
+          <View style={styles.detailSection}>
+            <Text style={styles.sectionTitle}>Booking controls</Text>
+            <View style={styles.actions}>{children}</View>
+          </View>
+        ) : null}
+
+        {footer ? <View style={styles.detailSection}>{footer}</View> : null}
+      </View>
+    );
+  }
+
   return (
     <View
       onLayout={event => setCardWidth(event.nativeEvent.layout.width)}
@@ -58,6 +194,7 @@ export default function BookingRecordCard({
         </Text>
         <StatusBadge status={booking.status} />
       </View>
+      {topActions ? <View style={styles.topActions}>{topActions}</View> : null}
       <Notice
         text={
           booking.termsStatus !== 'RECORDED'
@@ -160,6 +297,43 @@ export default function BookingRecordCard({
   );
 }
 const useStyles = createThemedStyles(colors => ({
+  detailPage: { gap: 14 },
+  detailSection: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    padding: 18,
+    gap: 14,
+  },
+  detailActions: { gap: 10, paddingTop: 2 },
+  sectionTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '800',
+  },
+  detailProfile: {
+    minHeight: 58,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    backgroundColor: colors.soft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  profileCopy: { flex: 1, minWidth: 0, gap: 3 },
+  detailFact: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.soft,
+  },
   card: {
     backgroundColor: '#fff',
     borderWidth: 1,
@@ -174,6 +348,12 @@ const useStyles = createThemedStyles(colors => ({
     justifyContent: 'space-between',
     gap: 8,
     alignItems: 'center',
+  },
+  topActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   eyebrow: {
     color: colors.muted,

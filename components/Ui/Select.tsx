@@ -230,8 +230,8 @@ export default function Select({
               maxToRenderPerBatch={12}
               windowSize={5}
               contentContainerStyle={styles.optionList}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
               renderItem={({ item: option }) => {
                 const selected = selectedValues.includes(option.value);
                 const unavailable = !!multiple && atLimit && !selected;

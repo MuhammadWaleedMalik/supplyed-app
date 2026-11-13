@@ -19,6 +19,35 @@ export function contactKey(conversation: Conversation) {
   return other.id ? `${other.role}:${other.id}` : `unknown:${conversation.id}`;
 }
 
+export function conversationContextLabel(conversation: Conversation) {
+  const applicationStatus = (conversation.applicationStatus || '').toUpperCase();
+  if (conversation.booking) {
+    return conversation.booking.applicationId || conversation.applicationId
+      ? 'Booking · Application'
+      : 'Booking · Invitation';
+  }
+  if (conversation.applicationId) {
+    return applicationStatus.includes('INVIT') ? 'Invitation' : 'Application';
+  }
+  return conversation.job ? 'Job conversation' : 'General conversation';
+}
+
+export function conversationPreview(conversation: Conversation) {
+  if (!conversation.lastMessage)
+    return conversationContextLabel(conversation) + ' chat';
+  const body = conversation.lastMessage.body.trim();
+  if (body) return body;
+  return conversation.lastMessage.hasAttachments ? 'Attachment' : 'Message';
+}
+
+function conversationActivityAt(conversation: Conversation) {
+  return (
+    conversation.lastMessageAt ||
+    conversation.lastMessage?.createdAt ||
+    conversation.createdAt
+  );
+}
+
 export function contactGroups(conversations: Conversation[]) {
   const groups = new Map<string, Conversation[]>();
   for (const item of conversations) {
@@ -29,21 +58,18 @@ export function contactGroups(conversations: Conversation[]) {
   }
   return Array.from(groups, ([key, items]) => {
     items.sort((a, b) =>
-      (b.lastMessageAt || b.createdAt).localeCompare(
-        a.lastMessageAt || a.createdAt,
-      ),
+      conversationActivityAt(b).localeCompare(conversationActivityAt(a)),
     );
+    const latestActivity = items[0];
+    const latestMessage = items.find(item => item.lastMessage);
     return {
       key,
       items,
-      latest: items[0],
+      latest: latestMessage || latestActivity,
+      activityAt: conversationActivityAt(latestActivity),
       unread: items.reduce((total, item) => total + item.unreadCount, 0),
     };
-  }).sort((a, b) =>
-    (b.latest.lastMessageAt || b.latest.createdAt).localeCompare(
-      a.latest.lastMessageAt || a.latest.createdAt,
-    ),
-  );
+  }).sort((a, b) => b.activityAt.localeCompare(a.activityAt));
 }
 
 export function contactThreads(conversations: Conversation[]) {

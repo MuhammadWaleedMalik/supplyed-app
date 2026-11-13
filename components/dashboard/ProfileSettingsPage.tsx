@@ -91,7 +91,13 @@ export default function ProfileSettingsPage({ type, title, onBack, onVerifyIdent
         style={settingsStyles.screenBody}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={settingsStyles.sectionTabs}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={settingsStyles.sectionTabsScroller}
+          contentContainerStyle={settingsStyles.sectionTabs}
+          keyboardShouldPersistTaps="always"
+        >
           {sections.map(item => (
             <Pressable
               key={item.value}
@@ -104,7 +110,7 @@ export default function ProfileSettingsPage({ type, title, onBack, onVerifyIdent
               ]}
             >
               <Text
-                numberOfLines={2}
+                numberOfLines={1}
                 style={[
                   settingsStyles.sectionTabText,
                   section === item.value && settingsStyles.sectionTabTextActive,
@@ -114,12 +120,12 @@ export default function ProfileSettingsPage({ type, title, onBack, onVerifyIdent
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
         <ScrollView
           ref={scroll}
           contentContainerStyle={settingsStyles.page}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
         >
           <Text style={settingsStyles.subtitle}>{hints[section]}</Text>
           {form.error ? (

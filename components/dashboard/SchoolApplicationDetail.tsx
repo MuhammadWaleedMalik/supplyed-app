@@ -17,6 +17,7 @@ import type { HirePaymentTerms } from '../../feature/dashboard/shared/apis/appli
 import Checkbox from '../Ui/Checkbox';
 import Input from '../Ui/Input';
 import ChoiceField from './ChoiceField';
+import Select from '../Ui/Select';
 
 type Props = {
   application: SchoolApplication;
@@ -96,7 +97,7 @@ export default function SchoolApplicationDetail({
   function changePayType(value: string) {
     setPayType(value);
     setPaymentFrequency(
-      value === 'fixed' ? 'completion' : value === 'hourly' ? 'hourly' : 'daily',
+      value === 'fixed' ? 'completion' : 'daily',
     );
     if (value !== 'hourly') setHours('');
     if (value !== 'daily') setDays('');
@@ -368,23 +369,36 @@ export default function SchoolApplicationDetail({
                 value={payAmount}
                 onChangeText={setPayAmount}
               />
-              <ChoiceField
+              <Select
+                label="CURRENCY"
+                value="GBP"
+                placeholder="Currency"
+                options={[{ value: 'GBP', label: 'GBP — British pound' }]}
+                disabled
+                onChange={() => {}}
+              />
+              <Select
                 label="PAYMENT FREQUENCY"
                 value={paymentFrequency}
+                placeholder="Choose payment frequency"
                 options={
                   payType === 'fixed'
-                    ? ['completion', 'milestone']
+                    ? [{ value: 'completion', label: 'After completion' }]
                     : payType === 'daily'
                     ? ['daily', 'weekly', 'monthly']
-                    : ['hourly', 'daily', 'weekly', 'monthly']
+                    : ['daily', 'weekly', 'monthly']
                 }
                 onChange={setPaymentFrequency}
               />
               {['weekly', 'monthly'].includes(paymentFrequency) ? (
-                <ChoiceField
+                <Select
                   label="PAYMENT PERIOD BOUNDARY"
                   value={periodAnchor}
-                  options={['ASSIGNMENT_START', 'CALENDAR']}
+                  placeholder="Choose period boundary"
+                  options={[
+                    { value: 'ASSIGNMENT_START', label: 'Assignment start' },
+                    { value: 'CALENDAR', label: 'Calendar periods' },
+                  ]}
                   onChange={value =>
                     setPeriodAnchor(
                       value as 'ASSIGNMENT_START' | 'CALENDAR',

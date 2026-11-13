@@ -51,8 +51,8 @@ export default function DocumentsScreen({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="always"
           contentContainerStyle={styles.scroll}
         >
           <View style={[styles.panels, wide && styles.widePanels]}>
@@ -67,6 +67,7 @@ export default function DocumentsScreen({
                 />
               ) : null}
               <DocumentsUpload
+                type={type}
                 requirements={form.requirements}
                 documents={form.documents}
                 error={form.error}
@@ -88,11 +89,14 @@ export default function DocumentsScreen({
                       onUpdated={form.updateApproval}
                     />
                     <ComplianceApprovalPanel
-                      visible={form.needsComplianceApproval}
+                      visible={type === 'school'}
+                      approvalRequired={form.needsComplianceApproval}
                       approval={form.complianceApproval}
+                      complianceEmail={form.complianceEmail}
                       refreshing={form.refreshingApproval}
                       onRefresh={form.refreshApprovalStatus}
                       onUpdated={form.updateComplianceApproval}
+                      onEmailChanged={form.updateComplianceEmail}
                     />
                   </>
                 }

@@ -1,6 +1,11 @@
 import { useForegroundRefresh } from '../hooks/useForegroundRefresh';
 import ContactConversation from '../../../../components/dashboard/ContactConversation';
-import { contactGroups, contactKey } from '../../../../utils/messaging/threads';
+import {
+  contactGroups,
+  contactKey,
+  conversationContextLabel,
+  conversationPreview,
+} from '../../../../utils/messaging/threads';
 import { ListFeedback } from '../../../../components/Ui/RecordLayout';
 import { useTheme } from '../../../../components/Ui/theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -335,6 +340,10 @@ export default function MessagesScreen({
               'Conversation with ' +
               item.counterpart.name +
               ', ' +
+              conversationContextLabel(item) +
+              ', ' +
+              conversationPreview(item) +
+              ', ' +
               item.unreadCount +
               ' unread'
             }
@@ -365,7 +374,11 @@ export default function MessagesScreen({
                     item.unreadCount > 0 && chatStyles.greenText,
                   ]}
                 >
-                  {conversationTime(item.lastMessageAt)}
+                  {conversationTime(
+                    item.lastMessageAt ||
+                      item.lastMessage?.createdAt ||
+                      item.createdAt,
+                  )}
                 </Text>
               </View>
               <View style={chatStyles.row}>
@@ -387,9 +400,7 @@ export default function MessagesScreen({
                     item.unreadCount > 0 && chatStyles.unreadSnippet,
                   ]}
                 >
-                  {item.lastMessage
-                    ? item.lastMessage.body || 'Attachment'
-                    : 'No messages yet'}
+                  {conversationPreview(item)}
                 </Text>
                 {item.unreadCount > 0 ? (
                   <View style={chatStyles.badge}>
@@ -400,7 +411,8 @@ export default function MessagesScreen({
                 ) : null}
               </View>
               <Text numberOfLines={1} style={chatStyles.jobLabel}>
-                {item.job?.title}
+                {conversationContextLabel(item)}
+                {item.job?.title ? ' · ' + item.job.title : ''}
                 {item.readOnly ? ' · Read only' : ''}
               </Text>
             </View>
