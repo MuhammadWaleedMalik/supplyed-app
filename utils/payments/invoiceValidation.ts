@@ -19,7 +19,8 @@ export function validatePoNumber(value: string) {
 export function parseRefundAmount(value: string) {
   const amount = value.trim();
   if (!/^\d+(\.\d{1,2})?$/.test(amount)) return null;
-  const pence = Math.round(Number(amount) * 100);
+  const [whole, fraction = ''] = amount.split('.');
+  const pence = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
   return Number.isSafeInteger(pence) && pence >= 1 ? pence : null;
 }
 

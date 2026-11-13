@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
-import { ApiError } from '../../../../utils/api/request';
+import { Linking } from 'react-native';
+import { PAYMENT_WEB_URL } from '../../../../constants/payments';
 import { isStripeConnectUrl } from '../../../../utils/payments/paymentUtils';
-import { payoutResultIsUncertain } from '../../../../utils/payments/payoutUtils';
+import {
+  payoutResultIsUncertain,
+  payoutStatusLabel,
+  payoutPollingInterval,
+} from '../../../../utils/payments/payoutUtils';
 import { getSessionVersion } from '../../../../utils/api/session';
 import {
+  onPaymentFlowsChanged,
+  openPaymentFlow,
+  savePaymentFlow,
+  withPaymentResourceLock,
+} from '../../../../utils/payments/flowCoordinator';
+import { useForegroundRefresh } from './useForegroundRefresh';
+import {
   createInstantPayout,
-  createPayoutDashboardLink,
   createPayoutOnboardingLink,
   getPayoutAccount,
   getPayoutBalance,
@@ -26,10 +36,10 @@ export function usePayoutAccount() {
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [stripeUrl, setStripeUrl] = useState('');
+  const [refreshFailures, setRefreshFailures] = useState(0);
   // The ref also blocks two taps before React has rendered the disabled button.
   const actionRunning = useRef(false);
-  const requestId = useRef(0);
+  const refreshing = useRef<Promise<boolean> | null>(null);
   const mounted = useRef(true);
   const session = useRef(getSessionVersion()).current;
   const isActive = useCallback(
@@ -37,75 +47,89 @@ export function usePayoutAccount() {
     [session],
   );
 
-  const refresh = useCallback(async () => {
-    if (!isActive()) return false;
-    const request = ++requestId.current;
-    const active = () => request === requestId.current && isActive();
-    setLoading(true);
-    setNeedsRefresh(true);
-    setError('');
-    try {
-      const latestAccount = await getPayoutAccount();
-      if (!active()) return false;
-      setAccount(latestAccount);
-      if (latestAccount.ready) {
-        const latestBalance = await getPayoutBalance();
-        if (!active()) return false;
-        setBalance(latestBalance);
-      } else {
-        setBalance(undefined);
+  const refresh = useCallback((): Promise<boolean> => {
+    if (!isActive()) return Promise.resolve(false);
+    if (refreshing.current) return refreshing.current;
+    const operation = (async () => {
+      setLoading(true);
+      setNeedsRefresh(true);
+      setError('');
+      try {
+        const latestAccount = await getPayoutAccount();
+        if (!isActive()) return false;
+        setAccount(latestAccount);
+        if (latestAccount.ready) {
+          const latestBalance = await getPayoutBalance();
+          if (!isActive()) return false;
+          setBalance(latestBalance);
+        } else {
+          setBalance(undefined);
+        }
+        setNeedsRefresh(false);
+        setRefreshFailures(0);
+        return true;
+      } catch (problem) {
+        if (!isActive()) return false;
+        setError(errorMessage(problem));
+        setRefreshFailures(value => value + 1);
+        return false;
+      } finally {
+        refreshing.current = null;
+        if (isActive()) setLoading(false);
       }
-      setNeedsRefresh(false);
-      return true;
-    } catch (problem) {
-      if (!active()) return false;
-      setError(errorMessage(problem));
-      return false;
-    } finally {
-      if (active()) setLoading(false);
-    }
+    })();
+    refreshing.current = operation;
+    return operation;
   }, [isActive]);
 
   useEffect(() => {
     mounted.current = true;
     refresh();
-    const subscription = AppState.addEventListener('change', state => {
-      // Stripe updates arrive through the backend, so read them again on return.
-      if (state === 'active') refresh();
+    const unsubscribe = onPaymentFlowsChanged(() => {
+      if (!actionRunning.current) return refresh();
     });
     return () => {
       mounted.current = false;
-      requestId.current += 1;
-      subscription.remove();
+      unsubscribe();
     };
   }, [refresh]);
 
+  // Only mounted, foreground screens poll. A returned Stripe page never proves
+  // readiness or bank arrival; both come from the authenticated backend.
+  useForegroundRefresh(
+    () => {
+      if (!actionRunning.current) return refresh();
+    },
+    true,
+    payoutPollingInterval(account, balance, refreshFailures),
+  );
+
   async function openPayouts() {
-    if (!isActive() || actionRunning.current || loading) return;
+    if (!isActive() || actionRunning.current || loading || refreshing.current)
+      return;
     actionRunning.current = true;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      // Always request a fresh link. Stripe onboarding links expire quickly.
-      let link;
-      if (account?.ready) {
-        try {
-          link = await createPayoutDashboardLink();
-        } catch (problem) {
-          if (!isActive()) return;
-          if (!(problem instanceof ApiError) || problem.status !== 400)
-            throw problem;
-          setNotice(
-            'Bank details for this account are managed on the SupplyEd website. Sign in there to update them. Your balance and instant withdrawals are available here.',
-          );
-          return;
-        }
-      } else link = await createPayoutOnboardingLink();
-      if (!isActive()) return;
-      if (!isStripeConnectUrl(link.url))
-        throw new Error('Stripe did not return a valid payout link.');
-      setStripeUrl(link.url);
+      await withPaymentResourceLock('teacher-onboarding', async () => {
+        // Onboarding also collects newly required payout details. An Express
+        // dashboard is not available for the backend's default account mode.
+        // Never keep the signed link; request a fresh one for every visit.
+        const link = await createPayoutOnboardingLink();
+        if (!isActive()) return;
+        if (!isStripeConnectUrl(link.url))
+          throw new Error('Stripe did not return a valid payout link.');
+        if (link.expiresAt && Date.parse(link.expiresAt) <= Date.now())
+          throw new Error('The payout setup link expired. Please try again.');
+        const flow = await savePaymentFlow({ kind: 'teacher-onboarding' });
+        if (!isActive()) return;
+        await openPaymentFlow(flow, link.url);
+        if (!isActive()) return;
+        setNotice(
+          'Stripe opened in your browser. Return here to check your payout status after updating your details.',
+        );
+      });
     } catch (problem) {
       if (isActive()) setError(errorMessage(problem));
     } finally {
@@ -114,27 +138,29 @@ export function usePayoutAccount() {
     }
   }
 
-  function closeStripe() {
-    setStripeUrl('');
-    refresh();
-  }
-
   async function withdraw(amountPence?: number) {
-    if (!isActive() || actionRunning.current || loading || needsRefresh) return;
+    if (
+      !isActive() ||
+      actionRunning.current ||
+      loading ||
+      refreshing.current ||
+      needsRefresh
+    )
+      return false;
     const requested = amountPence ?? balance?.instantAvailablePence ?? 0;
     if (!account?.ready || !balance?.instantDestination) {
       setError(
         'Finish payout setup and add an eligible debit card before withdrawing.',
       );
-      return;
+      return false;
     }
     if (!Number.isSafeInteger(requested) || requested < 40) {
       setError('The minimum instant withdrawal is £0.40.');
-      return;
+      return false;
     }
     if (requested > balance.instantAvailablePence) {
       setError('The amount exceeds your available instant balance.');
-      return;
+      return false;
     }
 
     actionRunning.current = true;
@@ -143,17 +169,18 @@ export function usePayoutAccount() {
     setNotice('');
     try {
       const payout = await createInstantPayout(amountPence);
-      if (!isActive()) return;
+      if (!isActive()) return true;
       setNotice(
         'Withdrawal requested. Status: ' +
-          payout.status.replace(/_/g, ' ') +
-          '.',
+          payoutStatusLabel(payout.status) +
+          '. A pending or in-transit payout has not reached your bank yet.',
       );
       // Until a successful refresh, do not allow another withdrawal on old data.
       setNeedsRefresh(true);
       await refresh();
+      return true;
     } catch (problem) {
-      if (!isActive()) return;
+      if (!isActive()) return true;
       if (payoutResultIsUncertain(problem)) {
         setNeedsRefresh(true);
         setNotice(
@@ -165,9 +192,33 @@ export function usePayoutAccount() {
             'Unable to check the withdrawal. Refresh payouts before trying again.',
           );
         }
+        // Close this confirmation after an uncertain submission. A new attempt
+        // must start with a new review of the balance, history and destination.
+        return true;
       } else {
         setError(errorMessage(problem));
+        return false;
       }
+    } finally {
+      actionRunning.current = false;
+      if (isActive()) setBusy(false);
+    }
+  }
+
+  async function openWebsitePayouts() {
+    if (!isActive() || actionRunning.current) return;
+    actionRunning.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await Linking.openURL(PAYMENT_WEB_URL + '/billing');
+      if (isActive())
+        setNotice(
+          'Manage bank details in your SupplyED website account. You may need to sign in there. Return here to refresh your payouts.',
+        );
+    } catch {
+      if (isActive())
+        setError('Unable to open the SupplyED website. Please try again.');
     } finally {
       actionRunning.current = false;
       if (isActive()) setBusy(false);
@@ -182,10 +233,9 @@ export function usePayoutAccount() {
     needsRefresh,
     error,
     notice,
-    stripeUrl,
     refresh,
     openPayouts,
-    closeStripe,
+    openWebsitePayouts,
     withdraw,
   };
 }

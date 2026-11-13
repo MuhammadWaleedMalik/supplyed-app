@@ -12,7 +12,10 @@ export type DashboardPage =
   | 'Invitations'
   | 'Teachers';
 
+export type BillingView = 'Invoices' | 'Payouts';
+
 type NavigationState = {
+  billingView: BillingView;
   dataRevision: number;
   invitationId: string;
   conversationId: string;
@@ -29,6 +32,7 @@ type NavigationState = {
 };
 
 const initialState: NavigationState = {
+  billingView: 'Invoices',
   dataRevision: 0,
   invitationId: '',
   conversationId: '',
@@ -72,6 +76,7 @@ const navigationSlice = createSlice({
       state.conversationId = '';
     },
     showPage(state, action: PayloadAction<DashboardPage>) {
+      if (action.payload === 'Billing') state.billingView = 'Invoices';
       state.invitationId = '';
       state.conversationId = '';
       state.duplicateJobId = '';
@@ -87,6 +92,17 @@ const navigationSlice = createSlice({
         state.messageApplicationId = '';
         state.messageBookingId = '';
       }
+    },
+    openPayouts(state) {
+      return {
+        ...initialState,
+        dataRevision: state.dataRevision,
+        page: 'Billing' as const,
+        billingView: 'Payouts' as const,
+      };
+    },
+    setBillingView(state, action: PayloadAction<BillingView>) {
+      state.billingView = action.payload;
     },
     openMessages(state, action: PayloadAction<string>) {
       state.conversationId = '';
@@ -181,6 +197,8 @@ export const {
   openBooking,
   openConversation,
   showPage,
+  openPayouts,
+  setBillingView,
   openMessages,
   openBookingMessages,
   openNotificationJob,

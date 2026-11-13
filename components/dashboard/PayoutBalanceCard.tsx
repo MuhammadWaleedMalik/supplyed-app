@@ -14,7 +14,7 @@ type Props = {
   balance: PayoutBalance;
   disabled: boolean;
   needsRefresh: boolean;
-  onWithdraw: (amountPence?: number) => Promise<void>;
+  onWithdraw: (amountPence?: number) => Promise<boolean>;
   onManage: () => void;
 };
 
@@ -26,6 +26,7 @@ export default function PayoutBalanceCard(props: Props) {
   const [withdrawal, setWithdrawal] = useState<{
     amountPence: number;
     destination: string;
+    destinationId: string;
   } | null>(null);
   const confirming = !!withdrawal;
   const confirmationOpen = useRef(false);
@@ -64,6 +65,7 @@ export default function PayoutBalanceCard(props: Props) {
       amountPence: requested,
       destination:
         props.balance.instantDestination?.label || 'your payout account',
+      destinationId: props.balance.instantDestination!.id,
     });
   }
 
@@ -80,17 +82,30 @@ export default function PayoutBalanceCard(props: Props) {
         onClose={closeConfirmation}
         onConfirm={async () => {
           if (!withdrawal || props.disabled || !canWithdraw) return false;
-          await props.onWithdraw(withdrawal.amountPence);
+          if (
+            props.balance.instantDestination?.id !== withdrawal.destinationId ||
+            (props.balance.instantDestination?.label ||
+              'your payout account') !== withdrawal.destination
+          ) {
+            closeConfirmation();
+            setAmountError(
+              'Your payout destination changed. Review the latest details before withdrawing.',
+            );
+            return;
+          }
+          const submitted = await props.onWithdraw(withdrawal.amountPence);
+          if (submitted) setAmount('');
+          return submitted;
         }}
       />
       <SettingsCardHeader
         icon={Wallet}
         title="PAYOUT BALANCE"
-        note="View your earnings and withdraw an eligible balance instantly."
+        note="Stripe funds available for bank payouts, separate from your invoice earnings."
       />
       <View style={settingsStyles.record}>
         <Text style={settingsStyles.recordLabel}>
-          AVAILABLE TO WITHDRAW NOW
+          AVAILABLE FOR INSTANT WITHDRAWAL
         </Text>
         <Text style={settingsStyles.balanceValue}>
           {formatPence(props.balance.instantAvailablePence)}
@@ -118,10 +133,11 @@ export default function PayoutBalanceCard(props: Props) {
       ) : (
         <>
           <Text style={settingsStyles.cardNote}>
-            Add a debit card in Manage payouts to withdraw instantly.
+            Open your SupplyED website payout settings to add an eligible
+            instant-withdrawal destination.
           </Text>
           <Button
-            title="Manage payouts"
+            title="Manage payouts on website"
             variant="social"
             disabled={props.disabled}
             onPress={props.onManage}

@@ -2,11 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Provider } from 'react-redux';
 import { AppState, Linking, Modal, StatusBar } from 'react-native';
 import { restoreBrandTheme } from './components/Ui/theme';
-import {
-  handleURLCallback,
-  resetPaymentSheetCustomer,
-} from '@stripe/stripe-react-native';
-import { getSessionVersion, onSessionChanged } from './utils/api/session';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LandingPage from './feature/landing/screen/LandingPage';
 import LoginScreen from './feature/auth/screen/LoginScreen';
@@ -29,14 +24,18 @@ import { useAppNavigation } from './utils/navigation/appNavigation';
 import { store } from './store';
 import {
   openInvitation,
+  openPayouts,
   refreshMarketplace,
+  showPage,
 } from './feature/dashboard/shared/store/navigationSlice';
 import { invitationIdFromLink } from './utils/navigation/invitationLinks';
 import PublicThemeControls from './components/Ui/PublicThemeControls';
 import { useConversationSocket } from './feature/dashboard/shared/hooks/useConversationSocket';
+import { usePaymentRecovery } from './utils/payments/usePaymentRecovery';
 
 export default function App() {
   useConversationSocket();
+  const { returnDestination, clearPaymentReturn } = usePaymentRecovery();
   useEffect(() => {
     restoreBrandTheme();
     const subscription = AppState.addEventListener('change', state => {
@@ -80,12 +79,6 @@ export default function App() {
     function handleLink(url: string | null | undefined) {
       const invitationId = url ? invitationIdFromLink(url) : '';
       if (invitationId) setPendingInvitationId(invitationId);
-      if (url?.startsWith('supplyed://stripe-redirect'))
-        handleURLCallback(url).catch(() => {
-          console.warn(
-            'Unable to process the payment redirect. Refresh the invoice to check payment status.',
-          );
-        });
     }
     Linking.getInitialURL()
       .then(handleLink)
@@ -95,18 +88,8 @@ export default function App() {
     const links = Linking.addEventListener('url', event =>
       handleLink(event.url),
     );
-    let version = getSessionVersion();
-    const unsubscribe = onSessionChanged(() => {
-      if (getSessionVersion() !== version) {
-        version = getSessionVersion();
-        resetPaymentSheetCustomer().catch(() => {
-          console.warn('Unable to clear the payment sheet customer cache.');
-        });
-      }
-    });
     return () => {
       links.remove();
-      unsubscribe();
     };
   }, []);
 
@@ -115,6 +98,18 @@ export default function App() {
     store.dispatch(openInvitation(pendingInvitationId));
     setPendingInvitationId('');
   }, [screen, pendingInvitationId]);
+
+  useEffect(() => {
+    if (!returnDestination) return;
+    if (screen === 'settings' || screen === 'workspaceProfile') {
+      clearPaymentReturn();
+      return;
+    }
+    if (screen !== 'dashboard') return;
+    store.dispatch(returnDestination === 'teacher-onboarding'
+      ? openPayouts() : showPage(returnDestination === 'tip' ? 'Bookings' : 'Billing'));
+    clearPaymentReturn();
+  }, [screen, returnDestination, clearPaymentReturn]);
 
   const authActions = {
     onVerification: showVerification,

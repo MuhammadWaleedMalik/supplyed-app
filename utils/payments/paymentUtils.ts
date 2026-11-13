@@ -1,5 +1,13 @@
 import { Linking } from 'react-native';
 
+export function parsePoundsToPence(input: string): number | null {
+  const value = input.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ''] = value.split('.');
+  const pence = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+  return Number.isSafeInteger(pence) ? pence : null;
+}
+
 // Backend money fields ending in Pence need to be divided by 100.
 // rateAmount is already in pounds and must not use this helper.
 export function formatPence(pence?: number | null, currency = 'GBP') {

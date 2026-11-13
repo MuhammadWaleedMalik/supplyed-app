@@ -19,6 +19,7 @@ import ProfileSettingsCard from './ProfileSettingsCard';
 import ProfileHistory from './ProfileHistory';
 import SettingsStatusCard from './SettingsStatusCard';
 import PayoutAccountCard from './PayoutAccountCard';
+import SchoolBillingCard from './SchoolBillingCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import AvailabilityCard from './AvailabilityCard';
 import ProfileDocumentsCard from './ProfileDocumentsCard';
@@ -164,7 +165,7 @@ export default function ProfileSettingsPage({ type, title, onBack, onVerifyIdent
               <NotificationSettingsCard type={type} />
               {type === 'teacher' ? (
                 <PayoutAccountCard showBalance={false} />
-              ) : null}
+              ) : <SchoolBillingCard onNavigate={onBack} />}
             </>
           ) : null}
           {section === 'history' && form.settings ? (

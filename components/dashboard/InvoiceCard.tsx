@@ -1,13 +1,7 @@
-import { useTheme } from '../Ui/theme';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
 import ConfirmDialog from '../Ui/ConfirmDialog';
 import { StatusBadge } from '../Ui/RecordLayout';
-import {
-  initPaymentSheet,
-  initStripe,
-  presentPaymentSheet,
-} from '@stripe/stripe-react-native';
 import {
   createInvoicePaymentSession,
   syncInvoice,
@@ -27,9 +21,20 @@ import {
 } from '../../feature/dashboard/shared/apis/invoicesApi';
 import { parseRefundAmount } from '../../utils/payments/invoiceValidation';
 import {
+  canPayInvoice,
+  isInvoicePaymentTerminal,
+} from '../../utils/payments/invoicePaymentState';
+import {
+  getPendingPaymentFlows,
+  onPaymentFlowsChanged,
+  openPaymentFlow,
+  reconcilePaymentFlow,
+  savePaymentFlow,
+  withPaymentResourceLock,
+} from '../../utils/payments/flowCoordinator';
+import {
   formatPence,
   openInvoicePdf,
-  openStripeInvoice,
   requiresCardAuthentication,
 } from '../../utils/payments/paymentUtils';
 import DynamicSelect from '../Ui/DynamicSelect';
@@ -50,7 +55,6 @@ function errorText(problem: unknown) {
 }
 
 export default function InvoiceCard({ invoice, role, onChanged }: Props) {
-  const { colors } = useTheme();
   const styles = useStyles();
   const jobStyles = useJobStyles();
 
@@ -76,19 +80,13 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
     [mountedSession],
   );
   const returningFromPayment = useRef(false);
+  const recoveryRead = useRef(0);
   const refreshAfterPaymentOpens = useRef(false);
   const current = details || invoice;
-  const unpaid =
-    current.status === 'OPEN' || current.status === 'UNCOLLECTIBLE';
-  const automatic = current.collectionMethod === 'charge_automatically';
   const cardApproval = requiresCardAuthentication(
     current.lastPaymentFailureCode,
   );
-  const failedAutomaticPayment =
-    unpaid &&
-    automatic &&
-    Boolean(current.lastPaymentFailureMessage || cardApproval);
-  const canPay = role === 'INSTITUTION' && failedAutomaticPayment;
+  const canPay = canPayInvoice(current, role);
   const remainingPence = details
     ? Math.max(0, details.totalAmountPence - details.amountRefundedPence)
     : 0;
@@ -114,14 +112,28 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
     setBusy(true);
     setError('');
     try {
-      const latest = await syncInvoice(invoice.id);
+      const pending = (await getPendingPaymentFlows()).find(
+        flow => flow.kind === 'invoice' && flow.invoiceId === invoice.id,
+      );
+      if (!active()) return;
+      const result = pending ? await reconcilePaymentFlow(pending) : undefined;
+      if (!active()) return;
+      if (result?.state === 'needs-login')
+        throw new Error('Sign in to the original account to check this payment.');
+      if (result?.error) throw new Error(result.error);
+      const latest =
+        (result?.data as Invoice | undefined) ?? await syncInvoice(invoice.id);
       if (!active()) return;
       setDetails(latest);
       setNeedsRefresh(false);
       if (latest.status === 'PAID' || latest.status === 'VOID')
         returningFromPayment.current = false;
       setMessage(
-        latest.status === 'OPEN' || latest.status === 'UNCOLLECTIBLE'
+        latest.status === 'PAID'
+          ? 'Payment confirmed. Thank you.'
+          : latest.status === 'VOID'
+          ? 'This invoice has been voided.'
+          : returningFromPayment.current
           ? 'Payment is still awaiting confirmation. Refresh payment after completing it in Stripe.'
           : 'Invoice refreshed.',
       );
@@ -135,6 +147,36 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
       if (active()) setBusy(false);
     }
   }, [invoice.id, onChanged, active]);
+
+  useEffect(() => {
+    async function readRecoveryState() {
+      const read = ++recoveryRead.current;
+      try {
+        const pending = (await getPendingPaymentFlows()).some(
+          flow => flow.kind === 'invoice' && flow.invoiceId === invoice.id,
+        );
+        if (!active() || read !== recoveryRead.current) return;
+        const wasPending = returningFromPayment.current;
+        returningFromPayment.current = pending;
+        if (!pending && !wasPending) return;
+        if (working.current) return;
+        const latest = await getInvoice(invoice.id);
+        if (!active() || read !== recoveryRead.current) return;
+        setDetails(latest);
+        if (isInvoicePaymentTerminal(latest)) {
+          setNeedsRefresh(false);
+          setMessage(latest.status === 'PAID'
+            ? 'Payment confirmed. Thank you.'
+            : 'This invoice has been voided.');
+        }
+        if (wasPending && !pending) await onChanged?.();
+      } catch (problem) {
+        if (active() && read === recoveryRead.current) setError(errorText(problem));
+      }
+    }
+    readRecoveryState();
+    return onPaymentFlowsChanged(readRecoveryState);
+  }, [invoice.id, active, onChanged]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -158,107 +200,73 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
     await refreshInvoice();
   }
 
-  async function payInvoice(hosted = false) {
-    if (!active() || working.current || role !== 'INSTITUTION' || needsRefresh)
-      return;
-    const sessionVersion = getSessionVersion();
+  async function payInvoice() {
+    if (!active() || working.current || !canPay || needsRefresh) return;
     working.current = true;
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      // Check the backend before opening payment; another user may have paid it.
-      const latest = await getInvoice(invoice.id);
-      if (!mounted.current || getSessionVersion() !== sessionVersion) return;
-      setDetails(latest);
-      if (latest.status !== 'OPEN' && latest.status !== 'UNCOLLECTIBLE') {
-        setMessage('This invoice is ' + latest.status.toLowerCase() + '.');
-        await onChanged?.();
-        return;
-      }
-      returningFromPayment.current = true;
-      if (hosted) {
-        await openStripeInvoice(latest.hostedInvoiceUrl);
+      await withPaymentResourceLock('invoice:' + invoice.id, async () => {
+        // Sync the original obligation; never create a separate payment intent.
+        let latest = await syncInvoice(invoice.id);
+        if (!active()) return;
+        setDetails(latest);
+        if (!canPayInvoice(latest, role)) {
+          setMessage(
+            isInvoicePaymentTerminal(latest)
+              ? 'This invoice is ' + latest.status.toLowerCase() + '.'
+              : 'Automatic collection is scheduled or processing. Refresh to check its status.',
+          );
+          await onChanged?.();
+          return;
+        }
+        if (latest.collectionMethod === 'charge_automatically') {
+          // The existing web endpoint enforces recovery eligibility against
+          // Stripe and enables cards on legacy failed debit invoices. Its web
+          // CustomerSession/confirmation secrets are never used by PaymentSheet.
+          await createInvoicePaymentSession(invoice.id);
+          if (!active()) return;
+          latest = await getInvoice(invoice.id);
+          if (!active()) return;
+          setDetails(latest);
+          if (!canPayInvoice(latest, role)) {
+            setMessage('This invoice is no longer awaiting a manual payment.');
+            await onChanged?.();
+            return;
+          }
+        }
+        if (!latest.hostedInvoiceUrl) {
+          setMessage(
+            'The secure invoice payment link is being prepared. Refresh payment and try again shortly.',
+          );
+          return;
+        }
+        const flow = await savePaymentFlow({
+          kind: 'invoice', invoiceId: invoice.id,
+        });
+        if (!active()) return;
+        returningFromPayment.current = true;
+        setNeedsRefresh(true);
+        await openPaymentFlow(flow, latest.hostedInvoiceUrl);
+        if (!active()) return;
         setMessage(
           'Complete payment in Stripe, then return here to check its status.',
         );
-        return;
-      }
-      const session = await createInvoicePaymentSession(invoice.id);
-      if (!active()) return;
-      setMessage(
-        'Amount due: ' + formatPence(session.amountPence, session.currency),
-      );
-      await initStripe({
-        publishableKey: session.publishableKey,
-        urlScheme: 'supplyed',
       });
-      if (!mounted.current || getSessionVersion() !== sessionVersion) return;
-      const setup = await initPaymentSheet({
-        merchantDisplayName: 'SupplyEd',
-        paymentIntentClientSecret: session.clientSecret,
-        customerSessionClientSecret: session.customerSessionClientSecret,
-        returnURL: 'supplyed://stripe-redirect',
-        allowsDelayedPaymentMethods: false,
-        appearance: {
-          colors: { primary: colors.brand },
-          shapes: { borderRadius: 12 },
-        },
-      });
-      if (setup.error) throw new Error(setup.error.message);
-      if (!mounted.current || getSessionVersion() !== sessionVersion) return;
-      const payment = await presentPaymentSheet();
-      if (!mounted.current || getSessionVersion() !== sessionVersion) return;
-      if (payment.error?.code === 'Canceled') {
-        returningFromPayment.current = false;
-        setMessage('Payment cancelled. You have not been marked as paid.');
-        return;
-      }
-      if (payment.error) throw new Error(payment.error.message);
-      setMessage('Payment is processing. Checking confirmation...');
-      let settled: Invoice | undefined;
-      // Stripe may finish after the payment sheet closes. Only check while this screen is active.
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        if (attempt > 0)
-          await new Promise<void>(resolve => setTimeout(resolve, 1500));
-        if (
-          !mounted.current ||
-          getSessionVersion() !== sessionVersion ||
-          AppState.currentState !== 'active'
-        )
-          return;
-        settled = await syncInvoice(invoice.id);
-        if (settled.status === 'PAID' || settled.status === 'VOID') break;
-      }
-      if (
-        !settled ||
-        !mounted.current ||
-        getSessionVersion() !== sessionVersion
-      )
-        return;
-      setDetails(settled);
-      setNeedsRefresh(settled.status !== 'PAID' && settled.status !== 'VOID');
-      returningFromPayment.current =
-        settled.status !== 'PAID' && settled.status !== 'VOID';
-      setMessage(
-        settled.status === 'PAID'
-          ? 'Payment confirmed. Thank you.'
-          : settled.status === 'VOID'
-          ? 'This invoice has been voided.'
-          : 'Payment is processing. Refresh payment to check confirmation.',
-      );
-      await onChanged?.();
     } catch (problem) {
-      if (!mounted.current || getSessionVersion() !== sessionVersion) return;
+      if (!active()) return;
       setNeedsRefresh(true);
       setError(errorText(problem));
-      // Includes paid-elsewhere 409 and uncertain confirmation; never repeat checkout automatically.
+      // A conflict or lost response must refresh the original obligation,
+      // never automatically reopen checkout or create another payment.
       try {
         const latest = await syncInvoice(invoice.id);
         if (!active()) return;
         setDetails(latest);
-        if (latest.status === 'PAID' || latest.status === 'VOID') {
+        if (isInvoicePaymentTerminal(latest)) {
           returningFromPayment.current = false;
+          setNeedsRefresh(false);
           setError('');
           setMessage('Invoice is ' + latest.status.toLowerCase() + '.');
         }
@@ -270,9 +278,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
       working.current = false;
       if (active()) setBusy(false);
       if (
-        mounted.current &&
-        getSessionVersion() === sessionVersion &&
-        AppState.currentState === 'active' &&
+        active() && AppState.currentState === 'active' &&
         refreshAfterPaymentOpens.current
       ) {
         refreshAfterPaymentOpens.current = false;
@@ -393,8 +399,19 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
             <Text style={styles.cardBody}>{details.booking.jobTitle}</Text>
           ) : null}
           <Text style={styles.cardTitle}>
-            {formatPence(role === 'INSTRUCTOR' && details ? details.teacherAmountPence : current.totalAmountPence, details?.currency || 'GBP')}
+            {role === 'INSTRUCTOR' && current.teacherAmountPence === undefined
+              ? 'Open invoice for earnings'
+              : formatPence(role === 'INSTRUCTOR' ? current.teacherAmountPence : current.totalAmountPence, details?.currency || 'GBP')}
           </Text>
+          {current.billingPeriodLabel ? (
+            <Text style={styles.cardBody}>{current.billingPeriodLabel}</Text>
+          ) : null}
+          {current.dueAt && current.status !== 'PAID' && current.status !== 'VOID' ? (
+            <Text style={styles.teacherMeta}>Due {current.dueAt.slice(0, 10)}</Text>
+          ) : null}
+          {role === 'INSTRUCTOR' && current.status === 'PAID' ? (
+            <Text style={styles.cardBody}>School payment collected. Bank payouts are tracked separately.</Text>
+          ) : null}
         </View>
         <StatusBadge status={current.status} label={details?.amountRefundedPence ? details.amountRefundedPence >= details.totalAmountPence ? 'Fully refunded' : 'Partially refunded' : undefined} />
       </View>
@@ -405,29 +422,31 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
               {cardApproval
                 ? "Your card's bank needs a security check before this payment can finish."
                 : current.lastPaymentFailureMessage ||
-                  'Automatic payment needs attention.'}
+                  'Pay this invoice securely with Stripe.'}
             </Text>
             <Button
               title={
-                cardApproval
+                !current.hostedInvoiceUrl
+                  ? 'Check payment link'
+                  : cardApproval
                   ? 'Approve card payment'
-                  : 'Complete card payment'
+                  : 'Pay invoice in Stripe'
               }
               onPress={() => payInvoice()}
               disabled={busy || needsRefresh}
             />
-            {current.hostedInvoiceUrl ? (
-              <Button
-                title="Pay in browser instead"
-                variant="link"
-                onPress={() => payInvoice(true)}
-                disabled={busy || needsRefresh}
-                compact
-              />
+            {!current.hostedInvoiceUrl ? (
+              <Text style={styles.cardBody}>Stripe is preparing the secure payment link. Check again shortly.</Text>
             ) : null}
           </>
         ) : null}
-        {expanded || needsRefresh ? (
+        {role === 'INSTITUTION' && current.collectionMethod === 'charge_automatically' &&
+          ['OPEN', 'PENDING'].includes(current.status) && !canPay ? (
+          <Text style={styles.cardBody}>
+            Automatic collection is scheduled or processing. Stripe will confirm the result.
+          </Text>
+        ) : null}
+        {expanded || needsRefresh || canPay ? (
           <Button
             title={busy ? 'Please wait...' : 'Refresh payment'}
             variant="social"
@@ -445,7 +464,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
         />
       </View>
       {expanded && details ? <InvoiceDetails invoice={details} /> : null}
-      {expanded ? (
+      {expanded && details?.invoicePdfUrl ? (
         <Button
           title="Open invoice PDF"
           variant="social"
@@ -454,7 +473,7 @@ export default function InvoiceCard({ invoice, role, onChanged }: Props) {
           compact
         />
       ) : null}
-      {expanded && role === 'ADMIN' && current.status === 'OPEN' ? (
+      {expanded && role !== 'INSTRUCTOR' && current.status === 'OPEN' ? (
         <Button
           title="Resend invoice email"
           variant="social"

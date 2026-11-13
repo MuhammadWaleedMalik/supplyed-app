@@ -2,8 +2,8 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { CreditCard } from 'lucide-react-native';
 import { usePayoutAccount } from '../../feature/dashboard/shared/hooks/usePayoutAccount';
+import { describePayoutRequirement } from '../../utils/payments/payoutUtils';
 import Button from '../Ui/Button';
-import StripePage from '../payments/StripePage';
 import PayoutBalanceCard from './PayoutBalanceCard';
 import RecentPayoutsCard from './RecentPayoutsCard';
 import SettingsCardHeader from './SettingsCardHeader';
@@ -18,31 +18,13 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
   const account = payouts.account;
   const disabled = payouts.busy || payouts.loading;
   const title = account?.ready
-    ? 'Manage payouts'
+    ? 'Review Stripe payout details'
     : account?.connected
     ? 'Continue payout setup'
     : 'Set up payouts';
 
   return (
     <View style={settingsStyles.section}>
-      {payouts.stripeUrl ? (
-        <StripePage
-          title="Bank account and payouts"
-          url={payouts.stripeUrl}
-          onClose={payouts.closeStripe}
-          onReturn={url => {
-            try {
-              const path = new URL(url).pathname;
-              if (path !== '/payouts/return' && path !== '/payouts/refresh')
-                return false;
-              payouts.closeStripe();
-              return true;
-            } catch {
-              return false;
-            }
-          }}
-        />
-      ) : null}
       <View style={settingsStyles.card}>
         <SettingsCardHeader
           icon={CreditCard}
@@ -67,19 +49,40 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
                 ? 'Payout setup needs attention'
                 : 'Payout account not connected'}
             </Text>
+            {account.connected ? (
+              <View style={settingsStyles.record}>
+                <Text style={settingsStyles.cardNote}>
+                  Account details:{' '}
+                  {account.detailsSubmitted ? 'Submitted' : 'Required'}
+                </Text>
+                <Text style={settingsStyles.cardNote}>
+                  Payments: {account.chargesEnabled ? 'Enabled' : 'Pending'}
+                </Text>
+                <Text style={settingsStyles.cardNote}>
+                  Bank payouts: {account.payoutsEnabled ? 'Enabled' : 'Pending'}
+                </Text>
+              </View>
+            ) : null}
             {account.requirementsDue.length ? (
               <View style={settingsStyles.record}>
                 <Text style={settingsStyles.recordLabel}>REQUIRED DETAILS</Text>
-                {account.requirementsDue.map(requirement => (
+                {[
+                  ...new Set(
+                    account.requirementsDue.map(describePayoutRequirement),
+                  ),
+                ].map(requirement => (
                   <Text key={requirement} style={settingsStyles.cardNote}>
-                    • {requirement.replace(/[._]/g, ' ')}
+                    {requirement}
                   </Text>
                 ))}
               </View>
             ) : null}
             {account.disabledReason ? (
-              <Text style={settingsStyles.error}>
-                Payouts paused: {account.disabledReason.replace(/[._]/g, ' ')}
+              <Text style={settingsStyles.error} accessibilityRole="alert">
+                {account.disabledReason.includes('pending_verification')
+                  ? 'Stripe is reviewing your information. This status updates when the review is complete.'
+                  : 'Payouts paused: ' +
+                    account.disabledReason.replace(/[._]/g, ' ')}
               </Text>
             ) : null}
             <Button
@@ -87,6 +90,25 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
               disabled={disabled}
               onPress={payouts.openPayouts}
             />
+            <Text style={settingsStyles.cardNote}>
+              Your bank and identity details go directly to Stripe in your
+              browser. Return here to check your status. Collected invoice
+              earnings and bank payouts have separate statuses.
+            </Text>
+            {account.ready ? (
+              <>
+                <Text style={settingsStyles.cardNote}>
+                  For bank changes unavailable in Stripe setup, use your
+                  SupplyED website account.
+                </Text>
+                <Button
+                  title="Manage bank details on website"
+                  variant="social"
+                  disabled={disabled}
+                  onPress={payouts.openWebsitePayouts}
+                />
+              </>
+            ) : null}
           </>
         ) : null}
         <Button
@@ -96,10 +118,17 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
           onPress={payouts.refresh}
         />
         {payouts.notice ? (
-          <Text style={settingsStyles.recordValue}>{payouts.notice}</Text>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={settingsStyles.recordValue}
+          >
+            {payouts.notice}
+          </Text>
         ) : null}
         {payouts.error ? (
-          <Text style={settingsStyles.error}>{payouts.error}</Text>
+          <Text accessibilityRole="alert" style={settingsStyles.error}>
+            {payouts.error}
+          </Text>
         ) : null}
       </View>
       {showBalance && account?.ready && payouts.balance ? (
@@ -109,7 +138,7 @@ export default function PayoutAccountCard({ showBalance = true }: Props) {
             disabled={disabled}
             needsRefresh={payouts.needsRefresh}
             onWithdraw={payouts.withdraw}
-            onManage={payouts.openPayouts}
+            onManage={payouts.openWebsitePayouts}
           />
           <RecentPayoutsCard payouts={payouts.balance.recentPayouts} />
         </>

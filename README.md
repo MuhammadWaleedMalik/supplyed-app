@@ -12,8 +12,9 @@ For example, sending a phone code follows this path:
 `PhoneVerificationCard` → `usePhoneVerification` → `phoneApi` → `protectedRequest` → `endpoints.phoneOtpSend`.
 
 The app calls the SupplyEd backend. The backend handles SMS, Stripe accounts,
-invoice calculation, and webhooks. Invoice checkout uses native Stripe PaymentSheet;
-payout onboarding and supported account-management pages open in the system browser.
+invoice calculation, and webhooks. Card setup, invoice payment, tips and payout
+onboarding open Stripe in the system browser and reconcile through the backend.
+See [payment setup and deployment prerequisites](docs/PAYMENTS_SETUP.md).
 
 ## Mobile experience and completion audit
 
@@ -63,7 +64,7 @@ keys, Twilio credentials, and webhook configuration belong in the backend.
 | ------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
 | Phone collection                                  | First onboarding step                                   | `feature/onboarding/apis/profileApi.ts`         |
 | SMS verification                                  | Created-profile screen, profile/settings, admin account | `feature/auth/apis/phoneApi.ts`                 |
-| Payout setup and management                       | Teacher Settings and Billing, in-app Stripe page        | `feature/dashboard/shared/apis/paymentsApi.ts`  |
+| Payout setup and required details                  | Teacher Settings and Billing, system browser            | `feature/dashboard/shared/apis/paymentsApi.ts`  |
 | Balance, instant withdrawal, recent payouts       | Teacher Billing                                         | `feature/dashboard/shared/apis/paymentsApi.ts`  |
 | Saved card and automatic booking payments         | School Billing and Bookings                             | Payment and booking API files                   |
 | Invoice lists, failed-payment recovery and PDF    | School Billing and booking payment cards                | `feature/dashboard/shared/apis/invoicesApi.ts`  |
@@ -84,10 +85,10 @@ Pence amounts use `utils/payments/paymentUtils.ts`; booking rates are already in
 pounds. The backend creates attendance-backed payment periods, calculates
 invoice amounts and validates booking eligibility.
 
-Hosted card setup, tips and payout management open in a full-screen Stripe page
-inside the app. Their web return URLs are caught by that page and reconciled
-with the backend. Invoice recovery uses Stripe's native payment sheet. A payment
-becomes paid only when the backend returns `PAID`.
+Hosted card setup, tips, invoice payment and payout onboarding open in the system
+browser. Account-scoped recovery references are saved before opening Stripe.
+Returning to the app, reopening it or checking status reconciles the original
+operation. A payment becomes paid only when the backend returns `PAID`.
 
 Withdrawal, invoice, and refund buttons prevent repeated requests. An uncertain
 mutation result requires checking current backend state before retrying. API
@@ -95,7 +96,7 @@ errors show friendly guidance and retain diagnostic status/codes/request IDs int
 share one refresh request; invalid sessions return to login. Access and refresh
 tokens are saved in device Keychain/Keystore through `react-native-keychain`.
 
-## Conversations and native Stripe
+## Conversations and hosted Stripe
 
 The existing folders are retained. New conversation REST calls live in
 `constants/conversationsApi.ts`, payment session/sync calls in
@@ -109,19 +110,21 @@ transport path. Sending, history, uploads and read marking use REST. The backend
 proxy must support WebSocket upgrades on that path. Backgrounding disconnects the
 socket and stops polling; foregrounding reconciles missed messages.
 
-Invoice checkout uses native Stripe PaymentSheet. The backend supplies the public
-key and payment secret; saved cards are not enabled because this backend returns
-a web CustomerSession without a customer ID. Native and hosted checkout reconcile
-through `POST /invoices/:id/sync`. Cancellation is not payment success. Teacher
-setup uses hosted Connect onboarding and refetches readiness after returning.
-Accounts without an Express dashboard are directed to manage bank details on the
-SupplyEd website; hosted onboarding is not a full bank-management replacement.
-Successful PaymentSheet confirmation checks invoice sync up to five times while
-the payment screen remains active, stopping on `PAID` or `VOID`.
+Invoice checkout opens a fresh, validated hosted invoice URL. Failed automatic
+payments first use the existing backend eligibility check; scheduled or processing
+collections cannot be paid manually. The website's Payment Element session is
+incompatible with the current native PaymentSheet integration, so embedded native
+invoice payment remains a backend/SDK extension. No separate PaymentIntent is
+created. Invoice recovery checks `POST /invoices/:id/sync` up to five times while
+the app is active, stopping on `PAID` or `VOID`. Browser return and cancellation
+do not establish payment status. Teacher setup uses a fresh hosted Connect link
+and refetches readiness after returning; full embedded Connect management remains
+a parity gap.
 
 Rebuild the native app after installing dependencies; Metro reload alone is not
-enough for Stripe and Keychain. Android and iOS register the `supplyed` URL scheme
-for `supplyed://stripe-redirect`. On macOS, run `bundle exec pod install` inside
+enough for Stripe and Keychain. Android and iOS register the `supplyed` URL scheme;
+payment callbacks use `supplyed://payments/return`. HTTPS callback hosting and
+domain associations still require deployment. On macOS, run `bundle exec pod install` inside
 `ios` before building. The Podfile retains CocoaPods linking using the installed
 Stripe SDK's supported SPM opt-out.
 

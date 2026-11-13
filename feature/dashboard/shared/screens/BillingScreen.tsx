@@ -184,7 +184,6 @@ export default function BillingScreen({
           placeholder="All statuses"
           value={draftStatus === 'ALL' ? '' : draftStatus}
           onChange={value => setDraftStatus(value || 'ALL')}
-          exclude={role === 'ADMIN' ? [] : ['PENDING']}
         />
         {role === 'ADMIN' ? (
           <>

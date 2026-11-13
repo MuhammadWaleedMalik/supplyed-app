@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { Booking } from '../../feature/dashboard/shared/apis/bookingsApi';
 import { syncBookingPayment } from '../../feature/dashboard/shared/apis/bookingsApi';
@@ -7,6 +7,7 @@ import {
   type InvoiceRole,
 } from '../../feature/dashboard/shared/apis/invoicesApi';
 import { ApiError } from '../../utils/api/request';
+import { getSessionVersion } from '../../utils/api/session';
 import { buildBookingInvoiceData } from '../../utils/payments/invoiceValidation';
 import {
   automaticPaymentPhase,
@@ -39,19 +40,35 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
   const [poNumber, setPoNumber] = useState('');
   const [manualNeedsRefresh, setManualNeedsRefresh] = useState(false);
   const running = useRef(false);
+  const mounted = useRef(true);
+  const mountedSession = useRef(getSessionVersion()).current;
+  const active = useCallback(
+    () => mounted.current && getSessionVersion() === mountedSession,
+    [mountedSession],
+  );
 
-  useEffect(() => setCurrent(booking), [booking]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (active()) setCurrent(booking);
+  }, [booking, active]);
 
   async function refreshPayment() {
-    if (running.current) return;
+    if (!active() || running.current) return;
     running.current = true;
     setBusy(true);
     setError('');
     try {
-      setCurrent(await syncBookingPayment(current.id));
+      const latest = await syncBookingPayment(current.id);
+      if (!active()) return;
+      setCurrent(latest);
       setManualNeedsRefresh(false);
       await onChanged();
     } catch (problem) {
+      if (!active()) return;
       setError(
         problem instanceof Error
           ? problem.message
@@ -59,7 +76,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
       );
     } finally {
       running.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 
@@ -87,6 +104,8 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
     );
 
   function confirmManualInvoice() {
+    if (!active() || running.current || manualNeedsRefresh || !manualAvailable)
+      return;
     try {
       buildBookingInvoiceData(current, units, poNumber);
       setError('');
@@ -99,7 +118,8 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
   }
 
   async function createManualInvoice() {
-    if (running.current || manualNeedsRefresh || !manualAvailable) return false;
+    if (!active() || running.current || manualNeedsRefresh || !manualAvailable)
+      return false;
     running.current = true;
     setBusy(true);
     setError('');
@@ -107,14 +127,17 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
       const created = await createInvoice(
         buildBookingInvoiceData(current, units, poNumber),
       );
+      if (!active()) return false;
       setCurrent(value => ({ ...value, invoice: created }));
       setShowManualForm(false);
       setConfirmingManual(false);
       setUnits('');
       setPoNumber('');
       await onChanged();
+      if (!active()) return false;
       return true;
     } catch (problem) {
+      if (!active()) return false;
       const uncertain =
         !(problem instanceof ApiError) ||
         problem.status === 0 ||
@@ -132,7 +155,7 @@ export default function BookingInvoiceCard({ booking, role, onChanged }: Props) 
       return false;
     } finally {
       running.current = false;
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
 

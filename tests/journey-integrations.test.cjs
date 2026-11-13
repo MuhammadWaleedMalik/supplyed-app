@@ -25,7 +25,6 @@ test('school phase is required and sent separately from organisation structure',
 test('documented school billing and teacher availability journeys have UI-backed APIs', () => {
   const payments = read('feature/dashboard/shared/apis/paymentsApi.ts');
   const billing = read('components/dashboard/SchoolBillingCard.tsx');
-  const stripePage = read('components/payments/StripePage.tsx');
   const availability = read('feature/dashboard/teacher/apis/availabilityApi.ts');
   const availabilityCard = read('components/dashboard/AvailabilityCard.tsx');
 
@@ -36,8 +35,10 @@ test('documented school billing and teacher availability journeys have UI-backed
   ]) assert.match(payments, new RegExp(`endpoints\\.${endpoint}`));
   assert.match(billing, /I completed Stripe setup/);
   assert.match(billing, /updateAutomaticPayments/);
-  assert.match(billing, /StripePage/);
-  assert.match(stripePage, /WebView/);
+  assert.match(billing, /openPaymentFlow/);
+  assert.match(billing, /checked=\{setupConsent\}/);
+  assert.match(billing, /!setupConsent/);
+  assert.match(billing, /checked=\{enableConsent\}/);
   assert.match(availability, /endpoints\.availabilityForJob/);
   assert.match(availability, /weeklySchedule: \{ weekdays \}/);
   assert.match(availabilityCard, /Date exceptions/i);
@@ -64,7 +65,10 @@ test('current automatic booking payments, card recovery and tips are integrated'
   assert.match(bookingPayment, /manualNeedsRefresh/);
   assert.match(invoice, /Approve card payment/);
   assert.match(tip, /Continue to Stripe/);
-  assert.match(tip, /StripePage/);
+  assert.match(tip, /openPaymentFlow/);
+  assert.match(tip, /parsePoundsToPence/);
+  assert.match(tip, /checkout\.feeAmountPence/);
+  assert.match(tip, /checkout\.totalAmountPence/);
 });
 
 test('attendance, compliance approval and reusable profile documents are actionable', () => {

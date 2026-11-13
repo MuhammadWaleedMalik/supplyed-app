@@ -38,11 +38,16 @@ function googleClientId(name) {
 }
 const googleWeb = googleClientId('GOOGLE_WEB_CLIENT_ID');
 const googleIos = googleClientId('GOOGLE_IOS_CLIENT_ID');
+const paymentWebUrl = new URL((values.PAYMENT_WEB_ORIGIN || process.env.PAYMENT_WEB_ORIGIN || 'https://supplyed.vercel.app').trim());
+if (paymentWebUrl.protocol !== 'https:' || paymentWebUrl.username || paymentWebUrl.password ||
+    paymentWebUrl.pathname !== '/' || paymentWebUrl.search || paymentWebUrl.hash)
+  throw new Error('PAYMENT_WEB_ORIGIN must be the controlled HTTPS website origin.');
 const content =
   `export const ANDROID_API_URL = ${JSON.stringify(android)};\n` +
   `export const IOS_API_URL = ${JSON.stringify(ios)};\n` +
   `export const GOOGLE_WEB_CLIENT_ID = ${JSON.stringify(googleWeb)};\n` +
-  `export const GOOGLE_IOS_CLIENT_ID = ${JSON.stringify(googleIos)};\n`;
+  `export const GOOGLE_IOS_CLIENT_ID = ${JSON.stringify(googleIos)};\n` +
+  `export const PAYMENT_WEB_ORIGIN = ${JSON.stringify(paymentWebUrl.origin)};\n`;
 
 fs.writeFileSync(path.join(root, 'constants/env.ts'), content);
 

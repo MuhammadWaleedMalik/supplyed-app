@@ -47,6 +47,9 @@ export default function InvoiceDetails({ invoice }: { invoice: Invoice }) {
         Fee: {formatPence(invoice.feeAmountPence, invoice.currency)}
       </Text>
       <Text style={styles.cardBody}>
+        Total: {formatPence(invoice.totalAmountPence, invoice.currency)}
+      </Text>
+      <Text style={styles.cardBody}>
         PO number: {invoice.poNumber || 'Not supplied'}
       </Text>
       <Text style={styles.cardBody}>Due: {dateText(invoice.dueAt)}</Text>
@@ -66,9 +69,14 @@ export default function InvoiceDetails({ invoice }: { invoice: Invoice }) {
           Payment problem: {invoice.lastPaymentFailureMessage}
         </Text>
       ) : null}
+      {invoice.collectionMethod === 'charge_automatically' ? (
+        <Text style={styles.cardBody}>
+          Payment attempts: {invoice.paymentAttemptCount ?? 0}
+        </Text>
+      ) : null}
       {invoice.nextPaymentAttemptAt ? (
         <Text style={styles.cardBody}>
-          Next attempt: {new Date(invoice.nextPaymentAttemptAt).toLocaleString('en-GB')}
+          Next attempt: {new Date(invoice.nextPaymentAttemptAt).toLocaleString('en-GB', { timeZone: 'Europe/London' })} (London time)
         </Text>
       ) : null}
       {invoice.paidAt ? (
