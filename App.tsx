@@ -121,28 +121,8 @@ export default function App() {
   return (
     <Provider store={store}>
       <SafeAreaProvider>
-            <StatusBar
-              hidden={false}
-              barStyle={
-                [
-                  'landing',
-                  'onboarding',
-                  'restoring',
-                  'documents',
-                  'identityVerification',
-                  'reviewStatus',
-                  'dashboard',
-                  'adminPayments',
-                  'workspaceProfile',
-                  'security',
-                  'settings',
-                  'twoFactor',
-                  'forgotPassword',
-                ].includes(screen)
-                  ? 'dark-content'
-                  : 'light-content'
-              }
-            />
+            {/* Every phone screen, auth included, now has a white header. */}
+            <StatusBar hidden={false} barStyle="dark-content" />
             {screen === 'landing' && (
               <LandingPage onLogin={showLogin} onRegister={showRegister} />
             )}

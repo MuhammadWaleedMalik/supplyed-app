@@ -18,6 +18,10 @@ if linkage != nil
 end
 
 target 'supplyed' do
+  # AppCheckCore imports these Objective-C dependencies from Swift.
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'RecaptchaInterop', :modular_headers => true
+
   config = use_native_modules!
 
   use_react_native!(

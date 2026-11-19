@@ -128,6 +128,8 @@ export default function Input({
           autoCapitalize={
             email || phone || number || decimal || url ? 'none' : 'sentences'
           }
+          // iOS keeps autocorrect on email keyboards (Android does not) and can rewrite addresses.
+          autoCorrect={!(email || url)}
           autoComplete={phone ? 'tel-national' : undefined}
         />
         {password ? (
