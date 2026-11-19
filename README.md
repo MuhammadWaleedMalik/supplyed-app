@@ -54,9 +54,98 @@ npm run start
 npm run android
 ```
 
-Run these in separate terminals. On macOS, use `npm run ios` for iOS. The scripts
-copy the API addresses into `constants/env.ts` before starting the app. Stripe
-keys, Twilio credentials, and webhook configuration belong in the backend.
+Run these in separate terminals. On macOS, use `npm run ios` for iOS (first-time
+setup is below). The scripts copy the API addresses into `constants/env.ts`
+before starting the app. Stripe keys, Twilio credentials, and webhook
+configuration belong in the backend.
+
+## iOS setup on a new Mac
+
+Last checked with Xcode 26.2, iOS 26.2 simulator, Node 24 and CocoaPods 1.15.2.
+
+### 1. Install the tools (once per Mac)
+
+1. Install **Xcode** from the App Store and open it once to accept the licence.
+   In Xcode → Settings → Components, install an **iOS simulator** runtime.
+2. Point the command line at Xcode:
+   ```sh
+   sudo xcode-select -s /Applications/Xcode.app
+   ```
+3. Install **Node 22.11 or newer**: `brew install node`, or use nvm.
+4. Install **Ruby and Bundler**, which install CocoaPods at the version pinned
+   in `Gemfile.lock`:
+   ```sh
+   brew install ruby   # then follow brew's note to add it to your PATH
+   gem install bundler
+   ```
+
+### 2. Get the code and install dependencies
+
+```sh
+git clone git@github.com:MuhammadWaleedMalik/supplyed-app.git
+cd supplyed-app
+git checkout ios
+npm install
+bundle install
+cd ios && bundle exec pod install && cd ..
+```
+
+Always open **`ios/supplyed.xcworkspace`** in Xcode, not the `.xcodeproj`.
+
+### 3. Create `.env`
+
+```sh
+cp .env.example .env
+```
+
+Set the iOS API address. To use the shared dev server:
+
+```env
+API_BASE_URL_IOS=https://api.dev.supplyed.co.uk/api
+```
+
+To use a backend running on the same Mac, set
+`API_BASE_URL_IOS=http://localhost:3003/api`. That address only works in the
+simulator; a physical iPhone needs the Mac's LAN IP or the dev URL.
+
+Optional: set `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_IOS_CLIENT_ID` to enable Google
+sign-in. `npm run sync-env` (which runs automatically before `start` and `ios`)
+writes `constants/env.ts` and adds the Google URL scheme to
+`ios/supplyed/Info.plist`. Keep the `GOOGLE_URL_SCHEME_START/END` comments in that
+file, because the script needs them.
+
+### 4. Run on the simulator
+
+```sh
+npm run start                                   # terminal 1: Metro
+npm run ios -- --simulator "iPhone 17 Pro"      # terminal 2: build and launch
+```
+
+The first build takes several minutes. Later builds are incremental.
+
+### 5. Run on a physical iPhone
+
+1. Open `ios/supplyed.xcworkspace` in Xcode.
+2. Select the `supplyed` target → Signing & Capabilities → choose your Apple
+   **Team**. The bundle id is `com.supplyed`, the same as the Android app id.
+3. On the iPhone, turn on Settings → Privacy & Security → Developer Mode.
+4. Plug in the phone, select it as the run destination, and press Run.
+   The Mac and the phone must be on the same Wi-Fi so the phone can reach Metro.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `pod install` fails after pulling new code | `cd ios && bundle exec pod install --repo-update` |
+| Xcode build fails with `node: command not found` (common with nvm) | From the project root run `echo "export NODE_BINARY=$(command -v node)" > ios/.xcode.env.local` |
+| Strange native build errors | `rm -rf ios/build ios/Pods && cd ios && bundle exec pod install` |
+| Old JavaScript or stale errors | `npm run start -- --reset-cache` |
+| Red screen "No bundle URL present" | Metro is not running; start it with `npm run start` |
+| Login says it cannot reach SupplyEd | Check `API_BASE_URL_IOS` in `.env`, then restart Metro |
+
+On a sign-up form, iOS 26 shows a **"Use Strong Password?"** sheet in place of the
+keyboard. This is normal: tap ✕ to type your own password, or use the suggested
+one, which meets the app's password rules.
 
 ## Where to find the integrations
 
